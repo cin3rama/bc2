@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  /* Utility Classes */
+  .flex-center {
+    @apply flex justify-center items-center;
+  }
+
+  .margin-top {
+    @apply mt-5;
+  }
+
+  .padding {
+    @apply p-2;
+  }
+
+  /* Tailwind's Light and Dark Mode Setup */
+  body {
+    @apply min-h-screen flex flex-col;
+  }
+
+  body.light-mode {
+    @apply bg-white text-black;
+  }
+
+  body.dark-mode {
+    @apply bg-black text-white;
+  }
+
+  /* Header Styling */
+  header {
+    @apply w-full flex items-center justify-between p-6 h-[10vh] bg-gold dark:bg-darkgold;
+  }
+
+  header nav {
+    @apply flex space-x-6 text-accent dark:text-accent-dark;
+  }
+
+  header .logo {
+    @apply w-12 h-12 bg-gray-300 dark:bg-gray-700 rounded-full;
+
+  }
+
+  /* Main Content */
+  main {
+    @apply flex-grow p-8 md:p-12 lg:p-16 xl:p-20 bg-secondary dark:bg-secondary-dark text-text dark:text-text-dark;
+  }
+
+  /* Footer Styling */
+  footer {
+    @apply w-full h-[6vh] flex items-center justify-center bg-gold dark:bg-darkgold text-text dark:text-text-dark;
+  }
+
+  footer div {
+    @apply flex space-x-4;
+  }
+}
