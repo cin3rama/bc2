@@ -1,4 +1,5 @@
 'use client';
+
 import React from "react"
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -8,12 +9,6 @@ import "./tailwind.scss";
 export default function Layout({ children }: { children: React.ReactNode }) {
     const [mounted, setMounted] = useState(false);
     const [darkMode, setDarkMode] = useState(false);
-    // const [darkMode, setDarkMode] = useState(() => {
-    //     if (typeof window !== 'undefined') {
-    //         return localStorage.getItem("darkMode") === "true";
-    //     }
-    //     return false;
-    // });
 
     // Only run on the client
     useEffect(() => {

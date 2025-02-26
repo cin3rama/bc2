@@ -4,38 +4,46 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useWebsocket } from '@/hooks/useWebsocket';
 import { motion } from 'framer-motion';
 
-const MAX_RECTANGLES = 50; // Limit number of rectangles to prevent excessive re-renders
-const scaleFactor = 0.05; // Adjustable factor for better trade value scaling
-const maxWidth = 300; // Maximum width constraint for rectangles
-const rectangleHeight = 20; // Define height for rectangles
-const padding = rectangleHeight; // Padding between channels
+const MAX_RECTANGLES = 50;
+const scaleFactor = 0.05;
+const maxWidth = 300;
+const rectangleHeight = 40;
+const padding = rectangleHeight;
 
-const TradeAnimation: React.FC = () => {
+// Define TypeScript types
+interface UserTableProps {
+    title: string;
+    subtitle?: string;
+    data: any[];
+    userKey: string;
+    tradeKey: string;
+    volumeKey: string;
+}
+
+// Reusable UserTable component
+const UserTable: React.FC<UserTableProps> = ({ title, subtitle, data, userKey, tradeKey, volumeKey }) => (
+    <div>
+        <h2 className="text-m font-bold mt-4">{title}</h2>
+        {subtitle && <h3 className="text-xs font-light">{subtitle}</h3>}
+        <ul>
+            {data?.map((item, index) => (
+                <li key={index} className="text-sm border-b border-gray-300 py-1">
+                    {/*{item[userKey as keyof typeof item]}: Trades: {item[tradeKey as keyof typeof item]} | Volume: ${item[volumeKey as keyof typeof item]}*/}
+                    {item[userKey as keyof typeof item]}: Trades: {Number(item[tradeKey as keyof typeof item]).toLocaleString()} | Volume: ${Number(item[volumeKey as keyof typeof item]).toLocaleString()}
+                </li>
+            ))}
+        </ul>
+    </div>
+);
+
+const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
     const { orderflow$, sendMessage, close } = useWebsocket();
     const [data, setData] = useState<any[]>([]);
-    const [frequentBuyers, setFrequentBuyers] = useState<any[]>([]);
-    const [duration, setDuration] = useState(4); // Default duration
+    const [duration, setDuration] = useState(4);
     const dataRef = useRef<any[]>([]);
 
     useEffect(() => {
-        (async () => {
-            try {
-                const response = await fetch('https://botpilot8000.ngrok.io/orderflow_activity/?sym=ETH-USD');
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                const result = await response.json();
-                console.log('Fetched Frequent Buyers:', result);
-                setFrequentBuyers(result);
-            } catch (error) {
-                console.error('Error fetching frequent buyers:', error);
-            }
-        })(); // IIFE
-    }, []);
-
-    useEffect(() => {
         const subscription = orderflow$.subscribe((newData) => {
-            console.log('New WebSocket Data:', newData);
             dataRef.current = [...dataRef.current, ...newData].slice(-MAX_RECTANGLES);
             setData([...dataRef.current]);
         });
@@ -100,23 +108,65 @@ const TradeAnimation: React.FC = () => {
                     );
                 })}
             </div>
-            <div>
-                <h1>Orderflow Activity</h1>
-            </div>
-            <div>
-                <h2 className="text-m font-bold mt-4">Top 10 Market Makers Buy-Side</h2>
-                <h3 className="text-xs font-light">Most Frequent Maker side (limit orders) buyers acquiring Taker Sells (market orders)</h3>
-                <ul>
-                    {frequentBuyers.map((buyer, index) => (
-                        <li key={index} className="text-sm border-b border-gray-300 py-1">
-                            {buyer.user_buyer}: Trades: {buyer.total_number_of_trades} | Volume:
-                            ${buyer.total_vol_trades}
-                        </li>
-                    ))}
-                </ul>
+            <h2 className="text-2xl font-bold">Orderflow Analysis</h2>
+            <h3 className="text-sm font-light">Visual Buy & Sell Transactions Stream</h3>
+
+            <div className="grid grid-cols-2 gap-4 mt-4">
+                <UserTable
+                    title="Top 10 Market Makers Buy-Side"
+                    subtitle="Most Frequent Maker side (limit orders) buyers acquiring Taker Sells (market orders)"
+                    data={orderflowData.mm_buyers_rows || []}
+                    userKey="user_buyer"
+                    tradeKey="total_number_of_trades"
+                    volumeKey="total_vol_trades"
+                />
+
+                <UserTable
+                    title="Top 10 Market Makers Sell-Side"
+                    subtitle="Most Frequent Maker side (limit orders) sellers executing against Taker Buys (market orders)"
+                    data={orderflowData.mm_sellers_rows || []}
+                    userKey="user_seller"
+                    tradeKey="total_number_of_trades"
+                    volumeKey="total_vol_trades"
+                />
+
+                <UserTable
+                    title="Top Accumulators In Period"
+                    data={orderflowData.top_accumulators_rows || []}
+                    userKey="top_buyer"
+                    tradeKey="net_holding"
+                    volumeKey="net_holding"
+                />
+
+                <UserTable
+                    title="Top Distributors In Period"
+                    data={orderflowData.top_distributors_rows || []}
+                    userKey="top_seller"
+                    tradeKey="net_holding"
+                    volumeKey="net_holding"
+                />
             </div>
         </>
     );
 };
 
-export default TradeAnimation;
+const TradeAnimationPage: React.FC = () => {
+    const [orderflowData, setOrderflowData] = useState<any>({});
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const response = await fetch('https://botpilot8000.ngrok.io/orderflow_activity/?sym=ETH-USD');
+                if (!response.ok) throw new Error('Network response was not ok');
+                const result = await response.json();
+                setOrderflowData(result);
+            } catch (error) {
+                console.error('Error fetching orderflow data:', error);
+            }
+        })();
+    }, []);
+
+    return <TradeAnimation orderflowData={orderflowData}/>;
+};
+
+export default TradeAnimationPage;
