@@ -10,8 +10,6 @@ const maxWidth = 300;
 const rectangleHeight = 40;
 const padding = rectangleHeight;
 
-// Define TypeScript types for UserTable.
-// tradeKey is optional (for tables with only two columns) and periodColumnName is optional.
 interface UserTableProps {
     title: string;
     subtitle?: string;
@@ -22,7 +20,6 @@ interface UserTableProps {
     periodColumnName?: string;
 }
 
-// Updated UserTable component conditionally renders the Trades and Period columns.
 const UserTable: React.FC<UserTableProps> = ({
                                                  title,
                                                  subtitle,
@@ -32,17 +29,17 @@ const UserTable: React.FC<UserTableProps> = ({
                                                  volumeKey,
                                                  periodColumnName,
                                              }) => (
-    <div>
-        <h2 className="text-m font-bold mt-4">{title}</h2>
+    <div className="p-2 bg-white dark:bg-gray-800 rounded shadow">
+        <h2 className="text-m font-bold mt-2">{title}</h2>
         {subtitle && <h3 className="text-xs font-light">{subtitle}</h3>}
-        <table className="w-full border-collapse mt-2">
+        <table className="w-full border-collapse mt-2 text-xs">
             <thead>
             <tr className="border-b border-gray-300">
-                <th className="text-left text-xs font-bold">Addresses</th>
-                {tradeKey && <th className="text-left text-xs font-bold">Trades</th>}
-                <th className="text-left text-xs font-bold">Volume</th>
+                <th className="text-left p-1">Addresses</th>
+                {tradeKey && <th className="text-left p-1">Trades</th>}
+                <th className="text-left p-1">Volume</th>
                 {periodColumnName && (
-                    <th className="text-left text-xs font-bold">{periodColumnName}</th>
+                    <th className="text-left p-1">{periodColumnName}</th>
                 )}
             </tr>
             </thead>
@@ -56,18 +53,22 @@ const UserTable: React.FC<UserTableProps> = ({
                             : { backgroundColor: 'transparent' }
                     }
                     transition={{ duration: 0.5, ease: 'linear' }}
-                    className="border-b border-gray-300 text-sm"
+                    className="border-b border-gray-300"
                 >
-                    <td>
+                    <td className="p-1">
                         {String(item[userKey as keyof typeof item]).slice(0, 2)}...
                         {String(item[userKey as keyof typeof item]).slice(-4)}
                     </td>
                     {tradeKey && (
-                        <td>{Number(item[tradeKey as keyof typeof item]).toLocaleString()}</td>
+                        <td className="p-1">
+                            {Number(item[tradeKey as keyof typeof item]).toLocaleString()}
+                        </td>
                     )}
-                    <td>${Number(item[volumeKey as keyof typeof item]).toLocaleString()}</td>
+                    <td className="p-1">
+                        ${Number(item[volumeKey as keyof typeof item]).toLocaleString()}
+                    </td>
                     {periodColumnName && (
-                        <td>
+                        <td className="p-1">
                             {periodColumnName.includes('Accumulation')
                                 ? `$${Number(item.periodAccumulation || 0).toLocaleString()}`
                                 : `$${Number(item.periodDistributions || 0).toLocaleString()}`}
@@ -85,15 +86,12 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
     const [data, setData] = useState<any[]>([]);
     const [duration, setDuration] = useState(4);
     const dataRef = useRef<any[]>([]);
-    // Maintain local state for table data so we can update rows on flash events.
     const [tableData, setTableData] = useState(orderflowData);
 
-    // Update tableData if orderflowData prop changes.
     useEffect(() => {
         setTableData(orderflowData);
     }, [orderflowData]);
 
-    // Subscribe to websocket to update rectangle data.
     useEffect(() => {
         const subscription = orderflow$.subscribe((newData) => {
             dataRef.current = [...dataRef.current, ...newData].slice(-MAX_RECTANGLES);
@@ -108,20 +106,16 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
         return Math.min(size * price * scaleFactor, maxWidth);
     };
 
-    // Handler called when a rectangle finishes its animation.
     const handleRectangleComplete = (rectData: any) => {
         const isBuy = rectData.side === 'BUY';
         const rectColor = isBuy ? 'green' : 'red';
         const volumeDelta = parseFloat(rectData.size);
-        const tradeIncrement = 1; // Always increment trades by 1.
-        // Compute periodDelta as size * price.
+        const tradeIncrement = 1;
         const periodDelta = parseFloat(rectData.size) * parseFloat(rectData.price);
 
-        // Update each relevant table if the address matches.
         setTableData((prev: any) => {
             const newTableData = { ...prev };
 
-            // Market Makers Buy-Side (buyer table)
             if (newTableData.mm_buyers_rows) {
                 newTableData.mm_buyers_rows = newTableData.mm_buyers_rows.map((row: any) => {
                     if (row.user_buyer === rectData.user_buyer) {
@@ -140,7 +134,6 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
                 });
             }
 
-            // Market Makers Sell-Side (seller table)
             if (newTableData.mm_sellers_rows) {
                 newTableData.mm_sellers_rows = newTableData.mm_sellers_rows.map((row: any) => {
                     if (row.user_seller === rectData.user_seller) {
@@ -159,7 +152,6 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
                 });
             }
 
-            // Top Accumulators (buyer table)
             if (newTableData.top_accumulators_rows) {
                 newTableData.top_accumulators_rows = newTableData.top_accumulators_rows.map((row: any) => {
                     if (row.top_buyer === rectData.user_buyer) {
@@ -175,7 +167,6 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
                 });
             }
 
-            // Top Distributors (seller table)
             if (newTableData.top_distributors_rows) {
                 newTableData.top_distributors_rows = newTableData.top_distributors_rows.map((row: any) => {
                     if (row.top_seller === rectData.user_seller) {
@@ -194,7 +185,6 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
             return newTableData;
         });
 
-        // Remove the flash flag after 0.5 seconds to reset the row animation.
         setTimeout(() => {
             setTableData((prev: any) => {
                 const newTableData = { ...prev };
@@ -231,16 +221,16 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
         <>
             <h2 className="text-2xl font-bold">Orderflow Analysis</h2>
             <h3 className="text-sm font-light">Visual Buy & Sell Transactions Stream</h3>
-            <div className="relative w-full h-12 flex justify-center items-center">
+            <div className="flex flex-col md:flex-row items-center justify-center md:justify-start space-y-2 md:space-y-0 md:space-x-4 my-4">
                 <input
                     type="range"
                     min="1"
                     max="12"
                     value={duration}
                     onChange={(e) => setDuration(parseFloat(e.target.value))}
-                    className="w-1/3"
+                    className="w-2/3 md:w-1/3"
                 />
-                <span className="ml-2">{duration}s</span>
+                <span className="text-sm">{duration}s</span>
             </div>
             <div className="relative w-full h-64 overflow-hidden">
                 {data.map((row) => {
@@ -289,7 +279,8 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
                     );
                 })}
             </div>
-            <div className="grid grid-cols-2 gap-4 mt-4">
+            {/* Responsive grid: single column on small screens, two columns on md and up */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <UserTable
                     title="Top 10 Market Makers Buy-Side"
                     subtitle="Most Frequent Maker side (limit orders) buyers acquiring Taker Sells (market orders)"
@@ -332,16 +323,13 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
 
 const TradeAnimationPage: React.FC = () => {
     const [orderflowData, setOrderflowData] = useState<any>({});
-    // New state for ticker and period.
     const [ticker, setTicker] = useState<string>('ETH-USD');
     const [period, setPeriod] = useState<string>('1 day');
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // Compute end_time as current UTC time (in seconds).
                 const endTime = Math.floor(Date.now() / 1000);
-                // Define period mapping.
                 const periodMapping: Record<string, number> = {
                     '1 hour': 3600,
                     '4 hours': 14400,
@@ -365,8 +353,8 @@ const TradeAnimationPage: React.FC = () => {
 
     return (
         <div className="p-4">
-            {/* Dropdown selectors placed in the upper right-hand side */}
-            <div className="flex justify-end space-x-4 mb-4">
+            {/* Responsive dropdown selectors */}
+            <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
                 <select
                     value={ticker}
                     onChange={(e) => setTicker(e.target.value)}
@@ -389,7 +377,7 @@ const TradeAnimationPage: React.FC = () => {
                     <option value="1 week">1 Week</option>
                 </select>
             </div>
-            <TradeAnimation orderflowData={orderflowData}/>
+            <TradeAnimation orderflowData={orderflowData} />
         </div>
     );
 };
