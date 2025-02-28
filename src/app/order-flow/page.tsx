@@ -8,7 +8,6 @@ const MAX_RECTANGLES = 50;
 const scaleFactor = 0.05;
 const maxWidth = 300;
 const rectangleHeight = 40;
-const padding = rectangleHeight;
 
 interface UserTableProps {
     title: string;
@@ -18,6 +17,7 @@ interface UserTableProps {
     tradeKey?: string;
     volumeKey: string;
     periodColumnName?: string;
+    showSubTotals?: boolean;
 }
 
 const UserTable: React.FC<UserTableProps> = ({
@@ -28,58 +28,93 @@ const UserTable: React.FC<UserTableProps> = ({
                                                  tradeKey,
                                                  volumeKey,
                                                  periodColumnName,
-                                             }) => (
-    <div className="p-2 bg-white dark:bg-gray-800 rounded shadow">
-        <h2 className="text-m font-bold mt-2">{title}</h2>
-        {subtitle && <h3 className="text-xs font-light">{subtitle}</h3>}
-        <table className="w-full border-collapse mt-2 text-xs">
-            <thead>
-            <tr className="border-b border-gray-300">
-                <th className="text-left p-1">Addresses</th>
-                {tradeKey && <th className="text-left p-1">Trades</th>}
-                <th className="text-left p-1">Volume</th>
-                {periodColumnName && (
-                    <th className="text-left p-1">{periodColumnName}</th>
-                )}
-            </tr>
-            </thead>
-            <tbody>
-            {data?.map((item, index) => (
-                <motion.tr
-                    key={index}
-                    animate={
-                        item.flash
-                            ? { backgroundColor: item.flashColor }
-                            : { backgroundColor: 'transparent' }
-                    }
-                    transition={{ duration: 0.5, ease: 'linear' }}
-                    className="border-b border-gray-300"
-                >
-                    <td className="p-1">
-                        {String(item[userKey as keyof typeof item]).slice(0, 2)}...
-                        {String(item[userKey as keyof typeof item]).slice(-4)}
-                    </td>
-                    {tradeKey && (
-                        <td className="p-1">
-                            {Number(item[tradeKey as keyof typeof item]).toLocaleString()}
-                        </td>
-                    )}
-                    <td className="p-1">
-                        ${Number(item[volumeKey as keyof typeof item]).toLocaleString()}
-                    </td>
+                                                 showSubTotals,
+                                             }) => {
+    // Compute sub-totals if required.
+    let subTotals = { trades: 0, volume: 0, period: 0 };
+    if (showSubTotals && data && data.length) {
+        data.forEach((row) => {
+            if (tradeKey && typeof row[tradeKey] === 'number') {
+                subTotals.trades += row[tradeKey];
+            }
+            if (volumeKey && typeof row[volumeKey] === 'number') {
+                subTotals.volume += row[volumeKey];
+            }
+            if (periodColumnName) {
+                if (periodColumnName.includes('Accumulation')) {
+                    subTotals.period += row.periodAccumulation || 0;
+                } else if (periodColumnName.includes('Distribution')) {
+                    subTotals.period += row.periodDistributions || 0;
+                }
+            }
+        });
+    }
+
+    return (
+        <div className="p-2 bg-white dark:bg-gray-800 rounded shadow">
+            <h2 className="text-m font-bold mt-2">{title}</h2>
+            {subtitle && <h3 className="text-xs font-light">{subtitle}</h3>}
+            <table className="w-full border-collapse mt-2 text-xs">
+                <thead>
+                <tr className="border-b border-gray-300">
+                    <th className="text-left p-1">Addresses</th>
+                    {tradeKey && <th className="text-left p-1">Trades</th>}
+                    <th className="text-left p-1">Volume</th>
                     {periodColumnName && (
-                        <td className="p-1">
-                            {periodColumnName.includes('Accumulation')
-                                ? `$${Number(item.periodAccumulation || 0).toLocaleString()}`
-                                : `$${Number(item.periodDistributions || 0).toLocaleString()}`}
-                        </td>
+                        <th className="text-left p-1">{periodColumnName}</th>
                     )}
-                </motion.tr>
-            ))}
-            </tbody>
-        </table>
-    </div>
-);
+                </tr>
+                </thead>
+                <tbody>
+                {data?.map((item, index) => (
+                    <motion.tr
+                        key={index}
+                        animate={
+                            item.flash
+                                ? { backgroundColor: item.flashColor }
+                                : { backgroundColor: 'transparent' }
+                        }
+                        transition={{ duration: 0.5, ease: 'linear' }}
+                        className="border-b border-gray-300"
+                    >
+                        <td className="p-1">
+                            {String(item[userKey as keyof typeof item]).slice(0, 2)}...
+                            {String(item[userKey as keyof typeof item]).slice(-4)}
+                        </td>
+                        {tradeKey && (
+                            <td className="p-1">
+                                {Number(item[tradeKey as keyof typeof item]).toLocaleString()}
+                            </td>
+                        )}
+                        <td className="p-1">
+                            ${Number(item[volumeKey as keyof typeof item]).toLocaleString()}
+                        </td>
+                        {periodColumnName && (
+                            <td className="p-1">
+                                {periodColumnName.includes('Accumulation')
+                                    ? `$${Number(item.periodAccumulation || 0).toLocaleString()}`
+                                    : `$${Number(item.periodDistributions || 0).toLocaleString()}`}
+                            </td>
+                        )}
+                    </motion.tr>
+                ))}
+                </tbody>
+                {showSubTotals && (
+                    <tfoot>
+                    <tr className="border-t border-gray-300 font-bold">
+                        <td className="p-1">Sub-Totals</td>
+                        {tradeKey && <td className="p-1">{subTotals.trades}</td>}
+                        <td className="p-1">${subTotals.volume.toLocaleString()}</td>
+                        {periodColumnName && (
+                            <td className="p-1">${subTotals.period.toLocaleString()}</td>
+                        )}
+                    </tr>
+                    </tfoot>
+                )}
+            </table>
+        </div>
+    );
+};
 
 const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
     const { orderflow$ } = useWebsocket();
@@ -107,24 +142,28 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
     };
 
     const handleRectangleComplete = (rectData: any) => {
+        // Determine if this trade is a BUY or SELL.
         const isBuy = rectData.side === 'BUY';
-        const rectColor = isBuy ? 'green' : 'red';
-        const volumeDelta = parseFloat(rectData.size);
+        // const rectColor = isBuy ? 'green' : 'red';
+        // Compute the value of the trade.
+        const tradeValue = parseFloat(rectData.size) * parseFloat(rectData.price);
         const tradeIncrement = 1;
-        const periodDelta = parseFloat(rectData.size) * parseFloat(rectData.price);
+        const periodDelta = tradeValue;
+        const rectColor = (rectData.side === 'BUY') ? 'green' : 'red';
 
         setTableData((prev: any) => {
             const newTableData = { ...prev };
 
+            // Update "Top 10 Market Makers Buying" table.
+            // For this table, update only when the trade side is 'SELL'
+            // and use the user_buyer address.
             if (newTableData.mm_buyers_rows) {
                 newTableData.mm_buyers_rows = newTableData.mm_buyers_rows.map((row: any) => {
-                    if (row.user_buyer === rectData.user_buyer) {
+                    if (rectData.side === 'SELL' && row.user_buyer === rectData.user_buyer) {
                         return {
                             ...row,
                             total_number_of_trades: row.total_number_of_trades + tradeIncrement,
-                            total_vol_trades: isBuy
-                                ? row.total_vol_trades + volumeDelta
-                                : row.total_vol_trades - volumeDelta,
+                            total_vol_trades: row.total_vol_trades + tradeValue,
                             periodAccumulation: (row.periodAccumulation || 0) + periodDelta,
                             flash: true,
                             flashColor: rectColor,
@@ -134,15 +173,16 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
                 });
             }
 
+            // Update "Top 10 Market Makers Selling" table.
+            // For this table, update only when the trade side is 'BUY'
+            // and use the user_seller address.
             if (newTableData.mm_sellers_rows) {
                 newTableData.mm_sellers_rows = newTableData.mm_sellers_rows.map((row: any) => {
-                    if (row.user_seller === rectData.user_seller) {
+                    if (rectData.side === 'BUY' && row.user_seller === rectData.user_seller) {
                         return {
                             ...row,
                             total_number_of_trades: row.total_number_of_trades + tradeIncrement,
-                            total_vol_trades: isBuy
-                                ? row.total_vol_trades + volumeDelta
-                                : row.total_vol_trades - volumeDelta,
+                            total_vol_trades: row.total_vol_trades - tradeValue,
                             periodDistributions: (row.periodDistributions || 0) - periodDelta,
                             flash: true,
                             flashColor: rectColor,
@@ -152,28 +192,52 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
                 });
             }
 
+// Update Top 10 Accumulators table.
             if (newTableData.top_accumulators_rows) {
                 newTableData.top_accumulators_rows = newTableData.top_accumulators_rows.map((row: any) => {
-                    if (row.top_buyer === rectData.user_buyer) {
+                    // When side is BUY: update if the accumulator address (top_buyer) matches trade.user_buyer.
+                    if (rectData.side === 'BUY' && row.top_buyer === rectData.user_buyer) {
                         return {
                             ...row,
-                            net_holding: isBuy ? row.net_holding + volumeDelta : row.net_holding - volumeDelta,
+                            net_holding: row.net_holding + tradeValue,
                             periodAccumulation: (row.periodAccumulation || 0) + periodDelta,
                             flash: true,
                             flashColor: rectColor,
                         };
                     }
+                    // When side is SELL: update if the accumulator address (top_buyer) matches trade.user_seller.
+                    if (rectData.side === 'SELL' && row.top_buyer === rectData.user_seller) {
+                        return {
+                            ...row,
+                            net_holding: row.net_holding - tradeValue,
+                            periodAccumulation: (row.periodAccumulation || 0) - periodDelta,
+                            flash: true,
+                            flashColor: rectColor,
+                        };
+                    }
                     return row;
                 });
             }
 
+// Update Top 10 Distributors table.
             if (newTableData.top_distributors_rows) {
                 newTableData.top_distributors_rows = newTableData.top_distributors_rows.map((row: any) => {
-                    if (row.top_seller === rectData.user_seller) {
+                    // When side is SELL: update if the distributor address (top_seller) matches trade.user_seller.
+                    if (rectData.side === 'SELL' && row.top_seller === rectData.user_seller) {
                         return {
                             ...row,
-                            net_holding: isBuy ? row.net_holding + volumeDelta : row.net_holding - volumeDelta,
+                            net_holding: row.net_holding - tradeValue,
                             periodDistributions: (row.periodDistributions || 0) - periodDelta,
+                            flash: true,
+                            flashColor: rectColor,
+                        };
+                    }
+                    // When side is BUY: update if the distributor address (top_seller) matches trade.user_buyer.
+                    if (rectData.side === 'BUY' && row.top_seller === rectData.user_buyer) {
+                        return {
+                            ...row,
+                            net_holding: row.net_holding + tradeValue,
+                            periodDistributions: (row.periodDistributions || 0) + periodDelta,
                             flash: true,
                             flashColor: rectColor,
                         };
@@ -282,39 +346,45 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
             {/* Responsive grid: single column on small screens, two columns on md and up */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <UserTable
-                    title="Top 10 Market Makers Buy-Side"
-                    subtitle="Most Frequent Maker side (limit orders) buyers acquiring Taker Sells (market orders)"
+                    title="Top 10 Market Makers Buying"
+                    subtitle="Market Makers (other-side) from SELL trades"
                     data={tableData.mm_buyers_rows || []}
                     userKey="user_buyer"
                     tradeKey="total_number_of_trades"
                     volumeKey="total_vol_trades"
                     periodColumnName="Period Accumulation"
+                    showSubTotals={true}
                 />
 
                 <UserTable
-                    title="Top 10 Market Makers Sell-Side"
-                    subtitle="Most Frequent Maker side (limit orders) sellers executing against Taker Buys (market orders)"
+                    title="Top 10 Market Makers Selling"
+                    subtitle="Market Makers (other-side) from BUY trades"
                     data={tableData.mm_sellers_rows || []}
                     userKey="user_seller"
                     tradeKey="total_number_of_trades"
                     volumeKey="total_vol_trades"
-                    periodColumnName="Period Distributions"
+                    periodColumnName="Period Distribution"
+                    showSubTotals={true}
                 />
 
                 <UserTable
                     title="Top Accumulators In Period"
+                    subtitle="Top Net Long Positions In Period"
                     data={tableData.top_accumulators_rows || []}
                     userKey="top_buyer"
                     volumeKey="net_holding"
                     periodColumnName="Period Accumulation"
+                    showSubTotals={true}
                 />
 
                 <UserTable
                     title="Top Distributors In Period"
+                    subtitle="Top Net Short Positions In Period"
                     data={tableData.top_distributors_rows || []}
                     userKey="top_seller"
                     volumeKey="net_holding"
-                    periodColumnName="Period Distributions"
+                    periodColumnName="Period Distribution"
+                    showSubTotals={true}
                 />
             </div>
         </>
