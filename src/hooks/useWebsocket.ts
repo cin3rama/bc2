@@ -6,7 +6,7 @@ import { retryWhen, delayWhen, tap, takeUntil, finalize } from 'rxjs/operators';
 // Define the type for our hook's return value.
 interface WebsocketStreams {
     orderflow$: Observable<any>;
-    // trend$: Observable<any>;
+    trend$: Observable<any>;
     // cvd$: Observable<any>;
     // cvdPeriod$: Observable<any>;
     // vwap$: Observable<any>;
@@ -17,14 +17,14 @@ interface WebsocketStreams {
 export function useWebsocket(): WebsocketStreams {
     // States to hold each observable stream.
     const [orderflow$, setOrderflow$] = useState<Observable<any>>(EMPTY);
-    // const [trend$, setTrend$] = useState<Observable<any>>(EMPTY);
+    const [trend$, setTrend$] = useState<Observable<any>>(EMPTY);
     // const [cvd$, setCvd$] = useState<Observable<any>>(EMPTY);
     // const [cvdPeriod$, setCvdPeriod$] = useState<Observable<any>>(EMPTY);
     // const [vwap$, setVwap$] = useState<Observable<any>>(EMPTY);
 
     // Refs to hold the WebSocketSubject instances (persist across renders)
     const orderflowSocketRef = useRef<WebSocketSubject<any>>(undefined);
-    // const trendSocketRef = useRef<WebSocketSubject<any>>(undefined);
+    const trendSocketRef = useRef<WebSocketSubject<any>>(undefined);
     // const cvdSocketRef = useRef<WebSocketSubject<any>>(undefined);
     // const cvdPeriodSocketRef = useRef<WebSocketSubject<any>>(undefined);
     // const vwapSocketRef = useRef<WebSocketSubject<any>>(undefined);
@@ -74,14 +74,14 @@ export function useWebsocket(): WebsocketStreams {
     useEffect(() => {
         // Create the WebSocket connections.
         orderflowSocketRef.current = getWS('/orderflow/?sym=ETH-USD');
-        // trendSocketRef.current = getWS('/trends/');
+        trendSocketRef.current = getWS('/trends/?sym=ETH-USD');
         // cvdSocketRef.current = getWS('/cvd/');
         // cvdPeriodSocketRef.current = getWS('/cvd_period/');
         // vwapSocketRef.current = getWS('/vwap/');
 
         // Wrap the observables with reconnect logic and store them in state.
         setOrderflow$(reconnect(orderflowSocketRef.current.asObservable()));
-        // setTrend$(reconnect(trendSocketRef.current.asObservable()));
+        setTrend$(reconnect(trendSocketRef.current.asObservable()));
         // setCvd$(reconnect(cvdSocketRef.current.asObservable()));
         // setCvdPeriod$(reconnect(cvdPeriodSocketRef.current.asObservable()));
         // setVwap$(reconnect(vwapSocketRef.current.asObservable()));
@@ -93,7 +93,7 @@ export function useWebsocket(): WebsocketStreams {
             destroy$.complete();
 
             orderflowSocketRef.current?.complete();
-            // trendSocketRef.current?.complete();
+            trendSocketRef.current?.complete();
             // cvdSocketRef.current?.complete();
             // cvdPeriodSocketRef.current?.complete();
             // vwapSocketRef.current?.complete();
@@ -106,9 +106,9 @@ export function useWebsocket(): WebsocketStreams {
         if (orderflowSocketRef.current && !orderflowSocketRef.current.closed) {
             orderflowSocketRef.current.next(msg);
         }
-        // if (trendSocketRef.current && !trendSocketRef.current.closed) {
-        //     trendSocketRef.current.next(msg);
-        // }
+        if (trendSocketRef.current && !trendSocketRef.current.closed) {
+            trendSocketRef.current.next(msg);
+        }
         // if (cvdSocketRef.current && !cvdSocketRef.current.closed) {
         //     cvdSocketRef.current.next(msg);
         // }
@@ -127,12 +127,12 @@ export function useWebsocket(): WebsocketStreams {
         destroy$.complete();
 
         orderflowSocketRef.current?.complete();
-        // trendSocketRef.current?.complete();
+        trendSocketRef.current?.complete();
         // cvdSocketRef.current?.complete();
         // cvdPeriodSocketRef.current?.complete();
         // vwapSocketRef.current?.complete();
     };
 
     // return { orderflow$, trend$, cvd$, cvdPeriod$, vwap$, sendMessage, close };
-    return { orderflow$, sendMessage, close };
+    return { orderflow$, trend$, sendMessage, close };
 }
