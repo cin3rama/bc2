@@ -5,9 +5,9 @@ import { useWebsocket } from '@/hooks/useWebsocket';
 import { motion } from 'framer-motion';
 
 const MAX_RECTANGLES = 50;
-const scaleFactor = 0.05;
+const scaleFactor = 0.1;
 const maxWidth = 300;
-const rectangleHeight = 40;
+const rectangleHeight = 30;
 
 interface UserTableProps {
     title: string;
@@ -116,10 +116,14 @@ const UserTable: React.FC<UserTableProps> = ({
     );
 };
 
-const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
+interface TradeAnimationProps {
+    orderflowData: any;
+    duration: number;
+}
+
+const TradeAnimation: React.FC<TradeAnimationProps> = ({ orderflowData, duration }) => {
     const { orderflow$ } = useWebsocket();
     const [data, setData] = useState<any[]>([]);
-    const [duration, setDuration] = useState(4);
     const dataRef = useRef<any[]>([]);
     const [tableData, setTableData] = useState(orderflowData);
 
@@ -142,21 +146,16 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
     };
 
     const handleRectangleComplete = (rectData: any) => {
-        // Determine if this trade is a BUY or SELL.
         const isBuy = rectData.side === 'BUY';
-        // const rectColor = isBuy ? 'green' : 'red';
-        // Compute the value of the trade.
         const tradeValue = parseFloat(rectData.size) * parseFloat(rectData.price);
         const tradeIncrement = 1;
         const periodDelta = tradeValue;
-        const rectColor = (rectData.side === 'BUY') ? 'green' : 'red';
+        const rectColor = isBuy ? 'green' : 'red';
 
         setTableData((prev: any) => {
             const newTableData = { ...prev };
 
             // Update "Top 10 Market Makers Buying" table.
-            // For this table, update only when the trade side is 'SELL'
-            // and use the user_buyer address.
             if (newTableData.mm_buyers_rows) {
                 newTableData.mm_buyers_rows = newTableData.mm_buyers_rows.map((row: any) => {
                     if (rectData.side === 'SELL' && row.user_buyer === rectData.user_buyer) {
@@ -174,8 +173,6 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
             }
 
             // Update "Top 10 Market Makers Selling" table.
-            // For this table, update only when the trade side is 'BUY'
-            // and use the user_seller address.
             if (newTableData.mm_sellers_rows) {
                 newTableData.mm_sellers_rows = newTableData.mm_sellers_rows.map((row: any) => {
                     if (rectData.side === 'BUY' && row.user_seller === rectData.user_seller) {
@@ -192,10 +189,9 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
                 });
             }
 
-// Update Top 10 Accumulators table.
+            // Update "Top Accumulators In Period" table.
             if (newTableData.top_accumulators_rows) {
                 newTableData.top_accumulators_rows = newTableData.top_accumulators_rows.map((row: any) => {
-                    // When side is BUY: update if the accumulator address (top_buyer) matches trade.user_buyer.
                     if (rectData.side === 'BUY' && row.top_buyer === rectData.user_buyer) {
                         return {
                             ...row,
@@ -205,7 +201,6 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
                             flashColor: rectColor,
                         };
                     }
-                    // When side is SELL: update if the accumulator address (top_buyer) matches trade.user_seller.
                     if (rectData.side === 'SELL' && row.top_buyer === rectData.user_seller) {
                         return {
                             ...row,
@@ -219,10 +214,9 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
                 });
             }
 
-// Update Top 10 Distributors table.
+            // Update "Top Distributors In Period" table.
             if (newTableData.top_distributors_rows) {
                 newTableData.top_distributors_rows = newTableData.top_distributors_rows.map((row: any) => {
-                    // When side is SELL: update if the distributor address (top_seller) matches trade.user_seller.
                     if (rectData.side === 'SELL' && row.top_seller === rectData.user_seller) {
                         return {
                             ...row,
@@ -232,7 +226,6 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
                             flashColor: rectColor,
                         };
                     }
-                    // When side is BUY: update if the distributor address (top_seller) matches trade.user_buyer.
                     if (rectData.side === 'BUY' && row.top_seller === rectData.user_buyer) {
                         return {
                             ...row,
@@ -283,23 +276,10 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
 
     return (
         <>
-            <h2 className="text-2xl font-bold">Orderflow Analysis</h2>
-            <h3 className="text-sm font-light">Visual Buy & Sell Transactions Stream</h3>
-            <div className="flex flex-col md:flex-row items-center justify-center md:justify-start space-y-2 md:space-y-0 md:space-x-4 my-4">
-                <input
-                    type="range"
-                    min="1"
-                    max="12"
-                    value={duration}
-                    onChange={(e) => setDuration(parseFloat(e.target.value))}
-                    className="w-2/3 md:w-1/3"
-                />
-                <span className="text-sm">{duration}s</span>
-            </div>
             <div className="relative w-full h-64 overflow-hidden">
                 {data.map((row) => {
                     const color = row.side === 'BUY' ? 'green' : 'red';
-                    const borderColor = color === 'green' ? 'blue' : 'black';
+                    const borderColor = color === 'green' ? 'D3D3D3' : 'black';
                     const borderWidth = [
                         '0xd724e5c07d972617cda426a6a11ffcc289ee9844',
                         '0x90326fa293578c6c9ef945aaab0b57f886aca6ec',
@@ -310,8 +290,7 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
                         parseFloat(parseFloat(row.size).toFixed(3)),
                         parseFloat(row.price)
                     );
-                    const isBuy = row.side === 'BUY';
-                    const topPosition = isBuy
+                    const topPosition = row.side === 'BUY'
                         ? `calc(25% - ${rectangleHeight / 2}px)`
                         : `calc(75% - ${rectangleHeight / 2}px)`;
 
@@ -343,7 +322,6 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
                     );
                 })}
             </div>
-            {/* Responsive grid: single column on small screens, two columns on md and up */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <UserTable
                     title="Top 10 Market Makers Buying"
@@ -355,7 +333,6 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
                     periodColumnName="Period Accumulation"
                     showSubTotals={true}
                 />
-
                 <UserTable
                     title="Top 10 Market Makers Selling"
                     subtitle="Market Makers (other-side) from BUY trades"
@@ -366,7 +343,6 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
                     periodColumnName="Period Distribution"
                     showSubTotals={true}
                 />
-
                 <UserTable
                     title="Top Accumulators In Period"
                     subtitle="Top Net Long Positions In Period"
@@ -376,7 +352,6 @@ const TradeAnimation = ({ orderflowData }: { orderflowData: any }) => {
                     periodColumnName="Period Accumulation"
                     showSubTotals={true}
                 />
-
                 <UserTable
                     title="Top Distributors In Period"
                     subtitle="Top Net Short Positions In Period"
@@ -395,6 +370,7 @@ const TradeAnimationPage: React.FC = () => {
     const [orderflowData, setOrderflowData] = useState<any>({});
     const [ticker, setTicker] = useState<string>('ETH-USD');
     const [period, setPeriod] = useState<string>('1 day');
+    const [duration, setDuration] = useState<number>(4);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -423,31 +399,61 @@ const TradeAnimationPage: React.FC = () => {
 
     return (
         <div className="p-4">
-            {/* Responsive dropdown selectors */}
-            <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
-                <select
-                    value={ticker}
-                    onChange={(e) => setTicker(e.target.value)}
-                    className="p-2 border rounded bg-white dark:bg-gray-800 text-black dark:text-white border-gray-300 dark:border-gray-700"
-                >
-                    <option value="BTC-USD">BTC-USD</option>
-                    <option value="ETH-USD">ETH-USD</option>
-                    <option value="SOL-USD">SOL-USD</option>
-                    <option value="VVV-USD">VVV-USD</option>
-                    <option value="OM-USD">OM-USD</option>
-                </select>
-                <select
-                    value={period}
-                    onChange={(e) => setPeriod(e.target.value)}
-                    className="p-2 border rounded bg-white dark:bg-gray-800 text-black dark:text-white border-gray-300 dark:border-gray-700"
-                >
-                    <option value="1 hour">1 Hour</option>
-                    <option value="4 hours">4 Hours</option>
-                    <option value="1 day">1 Day</option>
-                    <option value="1 week">1 Week</option>
-                </select>
+            {/* Controls container */}
+            <div className="max-w-[600px] flex flex-wrap gap-4">
+                {/* Titles Block: Always full width */}
+                <div className="order-1 w-full">
+                    <h2 className="text-2xl font-bold">Orderflow Analysis</h2>
+                    <h3 className="text-sm font-light">
+                        Visual Buy & Sell Transactions Stream
+                    </h3>
+                </div>
+
+                {/* Slider: Adjusted to be approximately the same length as the h3 header and range from 1-4 */}
+                <div className="order-2 w-full max-w-[225px]">
+                    <input
+                        type="range"
+                        min="1"
+                        max="4"
+                        value={duration}
+                        onChange={(e) => setDuration(parseFloat(e.target.value))}
+                        className="w-full"
+                    />
+                    <span className="text-sm block">{duration}s</span>
+                </div>
+
+                {/* Ticker Dropdown */}
+                <div className="order-3 w-full md:w-auto">
+                    <select
+                        value={ticker}
+                        onChange={(e) => setTicker(e.target.value)}
+                        className="w-full p-2 border rounded bg-white dark:bg-gray-800 text-black dark:text-white border-gray-300 dark:border-gray-700"
+                    >
+                        <option value="BTC-USD">BTC-USD</option>
+                        <option value="ETH-USD">ETH-USD</option>
+                        <option value="SOL-USD">SOL-USD</option>
+                        <option value="VVV-USD">VVV-USD</option>
+                        <option value="OM-USD">OM-USD</option>
+                    </select>
+                </div>
+
+                {/* Period Dropdown */}
+                <div className="order-4 w-full md:w-auto">
+                    <select
+                        value={period}
+                        onChange={(e) => setPeriod(e.target.value)}
+                        className="w-full p-2 border rounded bg-white dark:bg-gray-800 text-black dark:text-white border-gray-300 dark:border-gray-700"
+                    >
+                        <option value="1 hour">1 Hour</option>
+                        <option value="4 hours">4 Hours</option>
+                        <option value="1 day">1 Day</option>
+                        <option value="1 week">1 Week</option>
+                    </select>
+                </div>
             </div>
-            <TradeAnimation orderflowData={orderflowData} />
+
+            {/* Animation and tables */}
+            <TradeAnimation orderflowData={orderflowData} duration={duration} />
         </div>
     );
 };
