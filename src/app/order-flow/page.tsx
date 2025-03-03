@@ -5,9 +5,10 @@ import { useWebsocket } from '@/hooks/useWebsocket';
 import { motion } from 'framer-motion';
 
 const MAX_RECTANGLES = 50;
-const scaleFactor = 0.1;
+const scaleFactor = 0.05;
 const maxWidth = 300;
-const rectangleHeight = 30;
+// Updated rectangle height is now 25px.
+const rectangleHeight = 25;
 
 interface UserTableProps {
     title: string;
@@ -33,7 +34,7 @@ const UserTable: React.FC<UserTableProps> = ({
     // Compute sub-totals if required.
     let subTotals = { trades: 0, volume: 0, period: 0 };
     if (showSubTotals && data && data.length) {
-        data.forEach((row) => {
+        data.forEach((row: any) => {
             if (tradeKey && typeof row[tradeKey] === 'number') {
                 subTotals.trades += row[tradeKey];
             }
@@ -51,7 +52,7 @@ const UserTable: React.FC<UserTableProps> = ({
     }
 
     return (
-        <div className="p-2 bg-white dark:bg-gray-800 rounded shadow">
+        <div className="p-2 mt-0.5 bg-white dark:bg-gray-800 rounded shadow">
             <h2 className="text-m font-bold mt-2">{title}</h2>
             {subtitle && <h3 className="text-xs font-light">{subtitle}</h3>}
             <table className="w-full border-collapse mt-2 text-xs">
@@ -119,18 +120,28 @@ const UserTable: React.FC<UserTableProps> = ({
 interface TradeAnimationProps {
     orderflowData: any;
     duration: number;
+    resetStartTime: number;
+    period: string;
 }
 
-const TradeAnimation: React.FC<TradeAnimationProps> = ({ orderflowData, duration }) => {
+const TradeAnimation: React.FC<TradeAnimationProps> = ({
+                                                           orderflowData,
+                                                           duration,
+                                                           resetStartTime,
+                                                           period,
+                                                       }) => {
     const { orderflow$ } = useWebsocket();
     const [data, setData] = useState<any[]>([]);
     const dataRef = useRef<any[]>([]);
     const [tableData, setTableData] = useState(orderflowData);
+    const [elapsedTime, setElapsedTime] = useState<number>(0);
 
+    // Update tableData when orderflowData changes.
     useEffect(() => {
         setTableData(orderflowData);
     }, [orderflowData]);
 
+    // Subscribe to websocket.
     useEffect(() => {
         const subscription = orderflow$.subscribe((newData) => {
             dataRef.current = [...dataRef.current, ...newData].slice(-MAX_RECTANGLES);
@@ -140,6 +151,21 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({ orderflowData, duration
             subscription.unsubscribe();
         };
     }, [orderflow$]);
+
+    // Set up a clock that updates every second, using resetStartTime.
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setElapsedTime(Math.floor((Date.now() - resetStartTime) / 1000));
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [resetStartTime]);
+
+    const formatTime = (seconds: number) => {
+        const hrs = String(Math.floor(seconds / 3600)).padStart(2, '0');
+        const mins = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+        const secs = String(seconds % 60).padStart(2, '0');
+        return `${hrs}:${mins}:${secs}`;
+    };
 
     const calculateWidth = (size: number, price: number) => {
         return Math.min(size * price * scaleFactor, maxWidth);
@@ -274,12 +300,32 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({ orderflowData, duration
         }, 500);
     };
 
+    // Aggregated Totals Calculation.
+    const mmBuyers = tableData.mm_buyers_rows || [];
+    const mmSellers = tableData.mm_sellers_rows || [];
+    const topAccums = tableData.top_accumulators_rows || [];
+    const topDistrs = tableData.top_distributors_rows || [];
+
+    const mmNetTradeVolume =
+        mmBuyers.reduce((acc: number, row: any) => acc + (row.total_vol_trades || 0), 0) +
+        mmSellers.reduce((acc: number, row: any) => acc + (row.total_vol_trades || 0), 0);
+    const mmNetAccDistVolume =
+        mmBuyers.reduce((acc: number, row: any) => acc + (row.periodAccumulation || 0), 0) +
+        mmSellers.reduce((acc: number, row: any) => acc + (row.periodDistributions || 0), 0);
+    const netPositionsTradeVolume =
+        topAccums.reduce((acc: number, row: any) => acc + (row.net_holding || 0), 0) +
+        topDistrs.reduce((acc: number, row: any) => acc + (row.net_holding || 0), 0);
+    const netPositionsPeriodAccDist =
+        topAccums.reduce((acc: number, row: any) => acc + (row.periodAccumulation || 0), 0) +
+        topDistrs.reduce((acc: number, row: any) => acc + (row.periodDistributions || 0), 0);
+
     return (
         <>
-            <div className="relative w-full h-64 overflow-hidden">
+            {/* Animated Rectangles Container */}
+            <div className="relative w-full h-28 overflow-hidden">
                 {data.map((row) => {
                     const color = row.side === 'BUY' ? 'green' : 'red';
-                    const borderColor = color === 'green' ? 'D3D3D3' : 'black';
+                    const borderColor = row.side === 'BUY' ? 'D3D3D3' : 'black';
                     const borderWidth = [
                         '0xd724e5c07d972617cda426a6a11ffcc289ee9844',
                         '0x90326fa293578c6c9ef945aaab0b57f886aca6ec',
@@ -290,9 +336,10 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({ orderflowData, duration
                         parseFloat(parseFloat(row.size).toFixed(3)),
                         parseFloat(row.price)
                     );
-                    const topPosition = row.side === 'BUY'
-                        ? `calc(25% - ${rectangleHeight / 2}px)`
-                        : `calc(75% - ${rectangleHeight / 2}px)`;
+                    const topPosition =
+                        row.side === 'BUY'
+                            ? `calc(50% - ${rectangleHeight / 2 + 2.5}px)`
+                            : `calc(50% + 2.5px)`;
 
                     return (
                         <motion.div
@@ -322,7 +369,37 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({ orderflowData, duration
                     );
                 })}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+
+            {/* Aggregated Totals & Clock Section */}
+            <div className="p-2 mt-2 bg-white dark:bg-gray-800 rounded shadow flex flex-wrap md:flex-nowrap justify-between items-center">
+                {/* Totals on the left */}
+                <div className="flex flex-col space-y-1">
+                    <div className="text-sm">
+                        {`${period} Market Makers Net Trade Volume: `}
+                        <span className="font-bold">${mmNetTradeVolume.toLocaleString()}</span>
+                    </div>
+                    <div className="text-sm">
+                        {`Market Makers Net Acc/Dist Volume: `}
+                        <span className="font-bold">${mmNetAccDistVolume.toLocaleString()}</span>
+                    </div>
+                    <div className="text-sm">
+                        {`${period} Net Positions Trade Volume: `}
+                        <span className="font-bold">${netPositionsTradeVolume.toLocaleString()}</span>
+                    </div>
+                    <div className="text-sm">
+                        {`Net Positions Period Acc/Dist: `}
+                        <span className="font-bold">${netPositionsPeriodAccDist.toLocaleString()}</span>
+                    </div>
+                </div>
+                {/* Clock on the right */}
+                <div className="text-sm">
+                    <div className="font-light">Acc/Dis Period Elapsed Time:</div>
+                    <div className="font-bold">{formatTime(elapsedTime)}</div>
+                </div>
+            </div>
+
+            {/* UserTables Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                 <UserTable
                     title="Top 10 Market Makers Buying"
                     subtitle="Market Makers (other-side) from SELL trades"
@@ -366,11 +443,14 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({ orderflowData, duration
     );
 };
 
-const TradeAnimationPage: React.FC = () => {
+interface TradeAnimationPageProps {}
+
+const TradeAnimationPage: React.FC<TradeAnimationPageProps> = () => {
     const [orderflowData, setOrderflowData] = useState<any>({});
     const [ticker, setTicker] = useState<string>('ETH-USD');
     const [period, setPeriod] = useState<string>('1 day');
-    const [duration, setDuration] = useState<number>(4);
+    const [duration, setDuration] = useState<number>(1);
+    const [resetStartTime, setResetStartTime] = useState<number>(Date.now());
 
     useEffect(() => {
         const fetchData = async () => {
@@ -389,6 +469,8 @@ const TradeAnimationPage: React.FC = () => {
                 if (!response.ok) throw new Error('Network response was not ok');
                 const result = await response.json();
                 setOrderflowData(result);
+                // Instead of using a created_at value from the data, reset the clock using Date.now()
+                setResetStartTime(Date.now());
             } catch (error) {
                 console.error('Error fetching orderflow data:', error);
             }
@@ -409,7 +491,7 @@ const TradeAnimationPage: React.FC = () => {
                     </h3>
                 </div>
 
-                {/* Slider: Adjusted to be approximately the same length as the h3 header and range from 1-4 */}
+                {/* Slider: Adjusted to max-w-[225px] and range from 1-4 */}
                 <div className="order-2 w-full max-w-[225px]">
                     <input
                         type="range"
@@ -452,8 +534,13 @@ const TradeAnimationPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Animation and tables */}
-            <TradeAnimation orderflowData={orderflowData} duration={duration} />
+            {/* Animation and tables, with aggregated totals section */}
+            <TradeAnimation
+                orderflowData={orderflowData}
+                duration={duration}
+                resetStartTime={resetStartTime}
+                period={period}
+            />
         </div>
     );
 };
