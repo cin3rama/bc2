@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
 import { useWebsocket } from '@/hooks/useWebsocket';
+import TrendChartsSection from '@/components/TrendChartsSection';
 
 // Define the shape of a trend data object.
 type TrendData = {
@@ -40,10 +41,13 @@ const getLineData = (line: [number, number] | null) =>
     line ? [[-1, line[0]], [1, line[1]]] : [];
 
 const TrendAnalysisPage = () => {
-    // Using trend$ instead of orderflow$
+    // Using trend$ from useWebsocket.
     const { trend$ } = useWebsocket();
 
-    // Initialize chart data and slope data with null values.
+    // Raw trend data from the websocket (consolidated object).
+    const [rawTrendData, setRawTrendData] = useState<{ [key: string]: TrendData[] } | null>(null);
+
+    // Main chart and slope data states.
     const [chartData, setChartData] = useState<ChartData>({
         regression_line_5min: null,
         regression_line_15min: null,
@@ -72,7 +76,7 @@ const TrendAnalysisPage = () => {
         { key: 'slope_1D', display: '1 day', color: 'cyan' },
     ];
 
-    // Set up Highcharts options.
+    // Set up initial Highcharts options for the main chart.
     const [chartOptions, setChartOptions] = useState<Highcharts.Options>({
         chart: {
             backgroundColor: 'var(--background)',
@@ -88,15 +92,19 @@ const TrendAnalysisPage = () => {
         legend: {
             itemStyle: { color: '#D3D3D3' },
         },
-        xAxis: [{
-            min: -1,
-            max: 1,
-            tickColor: '#D3D3D3',
-            labels: { style: { color: '#D3D3D3' } },
-        }],
-        yAxis: [{
-            labels: { style: { color: '#D3D3D3' } },
-        }],
+        xAxis: [
+            {
+                min: -1,
+                max: 1,
+                tickColor: '#D3D3D3',
+                labels: { style: { color: '#D3D3D3' } },
+            },
+        ],
+        yAxis: [
+            {
+                labels: { style: { color: '#D3D3D3' } },
+            },
+        ],
         tooltip: {
             style: { color: '#D3D3D3' },
         },
@@ -108,93 +116,88 @@ const TrendAnalysisPage = () => {
             {
                 name: '5 min',
                 type: 'line',
-                data: getLineData(chartData.regression_line_5min),
+                data: getLineData(null),
                 color: 'magenta',
                 lineWidth: 2,
             },
             {
                 name: '15 min',
                 type: 'line',
-                data: getLineData(chartData.regression_line_15min),
+                data: getLineData(null),
                 color: 'orange',
                 lineWidth: 2,
             },
             {
                 name: '30 min',
                 type: 'line',
-                data: getLineData(chartData.regression_line_30min),
+                data: getLineData(null),
                 color: 'teal',
                 lineWidth: 2,
             },
             {
                 name: '1 hr',
                 type: 'line',
-                data: getLineData(chartData.regression_line_1h),
+                data: getLineData(null),
                 color: 'green',
                 lineWidth: 2,
             },
             {
                 name: '4 hr',
                 type: 'line',
-                data: getLineData(chartData.regression_line_4hr),
+                data: getLineData(null),
                 color: 'hotpink',
                 lineWidth: 2,
             },
             {
                 name: '1 day',
                 type: 'line',
-                data: getLineData(chartData.regression_line_1D),
+                data: getLineData(null),
                 color: 'cyan',
                 lineWidth: 2,
             },
         ],
     });
 
-    // Subscribe to the websocket observable and update chartData and slopeData.
+    // Subscribe once to the trend$ observable.
     useEffect(() => {
-        const subscription = trend$.subscribe((dataArrays: TrendData[][]) => {
-            const flattened = dataArrays.flat();
+        const subscription = trend$.subscribe((data: any) => {
+            // Expect data to be an array with one consolidated object.
+            const consolidated = Array.isArray(data) ? data[0] : data;
+            // Save the consolidated data for the child component.
+            setRawTrendData(consolidated);
+
+            // Mapping from frequency to the keys in chartData and slopeData.
+            const periodMap: { [key: string]: { chartKey: keyof ChartData; slopeKey: keyof SlopeData } } = {
+                '5min': { chartKey: 'regression_line_5min', slopeKey: 'slope_5min' },
+                '15min': { chartKey: 'regression_line_15min', slopeKey: 'slope_15min' },
+                '30min': { chartKey: 'regression_line_30min', slopeKey: 'slope_30min' },
+                '1h': { chartKey: 'regression_line_1h', slopeKey: 'slope_1h' },
+                '4h': { chartKey: 'regression_line_4hr', slopeKey: 'slope_4hr' },
+                '24h': { chartKey: 'regression_line_1D', slopeKey: 'slope_1D' },
+            };
+
             const updatedChartData: Partial<ChartData> = {};
             const updatedSlopeData: Partial<SlopeData> = {};
 
-            flattened.forEach((item) => {
-                const { freq, regression_line, slope } = item;
-                switch (freq) {
-                    case '5min':
-                        updatedChartData.regression_line_5min = regression_line;
-                        updatedSlopeData.slope_5min = slope;
-                        break;
-                    case '15min':
-                        updatedChartData.regression_line_15min = regression_line;
-                        updatedSlopeData.slope_15min = slope;
-                        break;
-                    case '30min':
-                        updatedChartData.regression_line_30min = regression_line;
-                        updatedSlopeData.slope_30min = slope;
-                        break;
-                    case '1h':
-                        updatedChartData.regression_line_1h = regression_line;
-                        updatedSlopeData.slope_1h = slope;
-                        break;
-                    case '4h':
-                        updatedChartData.regression_line_4hr = regression_line;
-                        updatedSlopeData.slope_4hr = slope;
-                        break;
-                    case '24h': // 1 day is now represented as '24h'
-                        updatedChartData.regression_line_1D = regression_line;
-                        updatedSlopeData.slope_1D = slope;
-                        break;
-                    default:
-                        break;
+            // For each period, get the newest data point (first element).
+            Object.keys(periodMap).forEach((period) => {
+                const periodArray: TrendData[] = consolidated[period];
+                if (periodArray && periodArray.length > 0) {
+                    // Use the first element as the newest data point.
+                    const newest = periodArray[0];
+                    updatedChartData[periodMap[period].chartKey] = newest.regression_line;
+                    updatedSlopeData[periodMap[period].slopeKey] = newest.slope;
                 }
             });
+
             setChartData((prev) => ({ ...prev, ...updatedChartData }));
             setSlopeData((prev) => ({ ...prev, ...updatedSlopeData }));
         });
         return () => subscription.unsubscribe();
     }, [trend$]);
 
-    // Update chart options whenever chartData changes.
+
+    // Update chart options when chartData changes.
     useEffect(() => {
         setChartOptions((prevOptions) => ({
             ...prevOptions,
@@ -264,10 +267,13 @@ const TrendAnalysisPage = () => {
                 </div>
             </div>
 
-            {/* Chart Area */}
+            {/* Main Chart Area */}
             <div className="w-full max-w-4xl">
                 <HighchartsReact highcharts={Highcharts} options={chartOptions} />
             </div>
+
+            {/* New Charts Section - pass the raw trend data */}
+            <TrendChartsSection trendData={rawTrendData} />
         </div>
     );
 };
