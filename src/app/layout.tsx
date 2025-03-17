@@ -27,6 +27,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         }
     }, [darkMode, mounted]);
 
+    // Prevent page scrolling when mobile menu is open
+    useEffect(() => {
+        if (menuOpen) {
+            document.documentElement.style.overflow = "hidden";
+            document.body.style.overflow = "hidden";
+        } else {
+            document.documentElement.style.overflow = "";
+            document.body.style.overflow = "";
+        }
+    }, [menuOpen]);
+
     if (!mounted) {
         return null;
     }
@@ -64,15 +75,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
         </header>
 
+        {/* Mobile Navigation Menu (Fixed, Full Width, Covers Entire Viewport) */}
         {menuOpen && (
-            <nav className="md:hidden bg-gray-100 dark:bg-gray-800 text-black dark:text-white absolute top-[8vh] left-0 w-full shadow-lg">
-                <ul className="flex flex-col items-center space-y-3 py-3">
+            <nav className="fixed inset-0 z-50 bg-gray-100 dark:bg-gray-800 text-black dark:text-white flex flex-col items-center justify-center w-full max-w-screen-sm mx-auto shadow-lg">
+                <ul className="flex flex-col items-center space-y-4 py-6 w-full">
                     <li><Link href="/" onClick={() => setMenuOpen(false)}>Home</Link></li>
                     <li><Link href="/about" onClick={() => setMenuOpen(false)}>About</Link></li>
                     <li><Link href="/order-flow" onClick={() => setMenuOpen(false)}>Order Flow</Link></li>
                     <li><Link href="/sentiment" onClick={() => setMenuOpen(false)}>Market Sentiment</Link></li>
                     <li><Link href="/trends" onClick={() => setMenuOpen(false)}>Trend Analysis</Link></li>
                 </ul>
+                <button
+                    onClick={() => setMenuOpen(false)}
+                    className="absolute top-4 right-4 p-2 rounded-full bg-gray-300 dark:bg-gray-700"
+                >
+                    <X size={24} />
+                </button>
             </nav>
         )}
 

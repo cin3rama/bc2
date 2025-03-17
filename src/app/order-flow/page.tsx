@@ -319,6 +319,41 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({
         topAccums.reduce((acc: number, row: any) => acc + (row.periodAccumulation || 0), 0) +
         topDistrs.reduce((acc: number, row: any) => acc + (row.periodDistributions || 0), 0);
 
+// ... inside TradeAnimation component, after computing mmNetAccDistVolume:
+// New state and refs for 1-minute change calculation
+    const [currentOneMinChg, setCurrentOneMinChg] = useState(0);
+    const [prevOneMinChg, setPrevOneMinChg] = useState(0);
+
+// Ref to store the start time and starting volume for the current 1-minute cycle
+    const oneMinCycleRef = useRef({ start: Date.now(), startVolume: mmNetAccDistVolume });
+
+// Ref to keep the latest mmNetAccDistVolume value
+    const mmNetAccDistVolumeRef = useRef(mmNetAccDistVolume);
+    useEffect(() => {
+        mmNetAccDistVolumeRef.current = mmNetAccDistVolume;
+    }, [mmNetAccDistVolume]);
+
+// Set up a 1-second interval to update the running 1-minute change calculation
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const now = Date.now();
+            const currentVolume = mmNetAccDistVolumeRef.current;
+            const { start, startVolume } = oneMinCycleRef.current;
+
+            if (now - start >= 60000) {
+                // 1 minute elapsed: store the current change as the previous value,
+                // reset the cycle start time and starting volume, and clear current change.
+                setPrevOneMinChg(currentVolume - startVolume);
+                oneMinCycleRef.current = { start: now, startVolume: currentVolume };
+                setCurrentOneMinChg(0);
+            } else {
+                // Update running total for the current 1-minute change
+                setCurrentOneMinChg(currentVolume - startVolume);
+            }
+        }, 1000);
+        return () => clearInterval(interval);
+    }, []);
+
     return (
         <>
             {/* Animated Rectangles Container */}
@@ -370,33 +405,51 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({
                 })}
             </div>
 
-            {/* Aggregated Totals & Clock Section */}
-            <div className="p-2 mt-2 bg-white dark:bg-gray-800 rounded shadow flex flex-wrap md:flex-nowrap justify-between items-center">
-                {/* Totals on the left */}
-                <div className="flex flex-col space-y-1">
-                    <div className="text-sm">
-                        {`${period} Market Makers Net Trade Volume: `}
-                        <span className="font-bold">${mmNetTradeVolume.toLocaleString()}</span>
+            {/* Aggregated Totals, Clock, and Change Headings Section */}
+            <div className="p-2 mt-2 bg-white dark:bg-gray-800 rounded shadow flex flex-wrap md:flex-nowrap justify-between items-start">
+                {/* Left side: Title, Subtitle, and Totals */}
+                <div className="flex flex-col">
+                    <h2 className="text-m font-bold">Net Buy/Sell Action</h2>
+                    <h3 className="text-xs font-light">
+                        Top Market Maker & Large Holder Net Totals (Accumulations - Distributions)
+                    </h3>
+                    <div className="mt-2 flex flex-col space-y-1">
+                        <div className="text-sm">
+                            {`${period} Market Makers Net Trade Volume: `}
+                            <span className="font-bold">${mmNetTradeVolume.toLocaleString()}</span>
+                        </div>
+                        <div className="text-sm">
+                            {`Market Makers Net Acc/Dist Volume: `}
+                            <span className="font-bold">${mmNetAccDistVolume.toLocaleString()}</span>
+                        </div>
+                        <div className="text-sm">
+                            {`${period} Net Positions Trade Volume: `}
+                            <span className="font-bold">${netPositionsTradeVolume.toLocaleString()}</span>
+                        </div>
+                        <div className="text-sm">
+                            {`Net Positions Period Acc/Dist: `}
+                            <span className="font-bold">${netPositionsPeriodAccDist.toLocaleString()}</span>
+                        </div>
                     </div>
-                    <div className="text-sm">
-                        {`Market Makers Net Acc/Dist Volume: `}
-                        <span className="font-bold">${mmNetAccDistVolume.toLocaleString()}</span>
-                    </div>
-                    <div className="text-sm">
-                        {`${period} Net Positions Trade Volume: `}
-                        <span className="font-bold">${netPositionsTradeVolume.toLocaleString()}</span>
-                    </div>
-                    <div className="text-sm">
-                        {`Net Positions Period Acc/Dist: `}
-                        <span className="font-bold">${netPositionsPeriodAccDist.toLocaleString()}</span>
+                </div>
+                {/* New 4 Horizontal Sub-Columns Headings with 1MIN values */}
+                <div className="flex flex-col mt-2 md:mt-0">
+                    <div className="flex space-x-4">
+                        <span className="text-xs font-bold">
+                          PREV 1MIN CHG: {prevOneMinChg.toLocaleString()}
+                        </span>
+                        <span className="text-xs font-bold">
+                          1MIN CHG: {currentOneMinChg.toLocaleString()}
+                        </span>
                     </div>
                 </div>
                 {/* Clock on the right */}
-                <div className="text-sm">
-                    <div className="font-light">Acc/Dis Period Elapsed Time:</div>
-                    <div className="font-bold">{formatTime(elapsedTime)}</div>
+                <div className="text-sm mt-2 md:mt-0">
+                    <div className="font-light">Period Timer:</div>
+                    <div className="font-bold float-right mr-1">{formatTime(elapsedTime)}</div>
                 </div>
             </div>
+
 
             {/* UserTables Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
