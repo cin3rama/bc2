@@ -14,18 +14,25 @@ const TrendChartsSection: React.FC<TrendChartsSectionProps> = ({ trendData }) =>
 
     useEffect(() => {
         if (trendData) {
-            // If trendData is an array with one object, extract that first object; otherwise use it directly.
+            // If trendData is an array with one object, extract that first object.
             const periodData = Array.isArray(trendData) ? trendData[0] : trendData;
-            if (periodData && periodData['5min'] && Array.isArray(periodData['5min'])) {
-                setGroupedData({ '5min': periodData['5min'] });
-            }
+            const newGrouped: { [key: string]: TrendDataPoint[] } = {};
+            // Loop over expected periods.
+            ['5min', '15min', '30min', '1h', '4h', '24h'].forEach(period => {
+                if (periodData[period] && Array.isArray(periodData[period])) {
+                    newGrouped[period] = periodData[period];
+                }
+            });
+            setGroupedData(newGrouped);
         }
     }, [trendData]);
 
+
     return (
         <div className="flex flex-col items-center mt-8">
-            {/* Render the 5min chart; later extend for additional periods */}
-            <TrendTimeSeriesChart key="5min" period="5min" data={groupedData['5min'] || []} />
+            {['5min', '15min', '30min', '1h', '4h', '24h'].map(period => (
+                <TrendTimeSeriesChart key={period} period={period} data={groupedData[period] || []} />
+            ))}
         </div>
     );
 };

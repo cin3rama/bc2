@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
+import { colorMapping } from '@/types/types-chart';
 
 export type TrendDataPoint = {
     time_started: number;
@@ -30,31 +31,31 @@ const TrendTimeSeriesChart: React.FC<TrendTimeSeriesChartProps> = ({ period, dat
 
     const options: Highcharts.Options = {
         chart: {
-            backgroundColor: 'var(--background)',
+            backgroundColor: 'var(--chart-bg)',
         },
         title: {
             text: `Trend Chart - ${period}`,
-            style: { color: '#D3D3D3' },
+            style: { color: 'var(--chart-text-color)' },
         },
         subtitle: {
             text: 'Time Series Data',
-            style: { color: '#D3D3D3' },
+            style: { color: 'var(--chart-text-color)' },
         },
         xAxis: {
             type: 'datetime',
-            tickColor: '#D3D3D3',
-            labels: { style: { color: '#D3D3D3' } },
+            tickColor: 'var(--chart-text-color)',
+            labels: { style: { color: 'var(--chart-text-color)' } },
         },
         yAxis: {
-            title: { text: 'Slope', style: { color: '#D3D3D3' } },
-            labels: { style: { color: '#D3D3D3' } },
+            title: { text: 'Slope', style: { color: 'var(--chart-text-color)' } },
+            labels: { style: { color: 'var(--chart-text-color)' } },
         },
         tooltip: {
             xDateFormat: '%Y-%m-%d %H:%M:%S',
-            style: { color: '#D3D3D3' },
+            style: { color: 'var(--chart-tooltip-color)' },
         },
         legend: {
-            itemStyle: { color: '#D3D3D3' },
+            itemStyle: { color: 'var(--chart-text-color)' },
         },
         series: [
             {
@@ -62,7 +63,7 @@ const TrendTimeSeriesChart: React.FC<TrendTimeSeriesChartProps> = ({ period, dat
                 type: 'line',
                 data: seriesData,
                 lineWidth: 2,
-                color: 'magenta',
+                color: colorMapping[period] || 'magenta',
             },
         ],
     };
