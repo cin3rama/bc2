@@ -79,34 +79,34 @@ const TrendAnalysisPage = () => {
     // Set up initial Highcharts options for the main chart.
     const [chartOptions, setChartOptions] = useState<Highcharts.Options>({
         chart: {
-            backgroundColor: 'var(--background)',
+            backgroundColor: 'var(--chart-bg)',
         },
         title: {
-            text: 'Periods Trend Chart',
-            style: { color: '#D3D3D3' },
+            text: 'Current Single Period Trend',
+            style: { color: 'var(--chart-text-color)' },
         },
         subtitle: {
-            text: 'Linear Regression Line of Best Fit',
-            style: { color: '#D3D3D3' },
+            text: 'Linear Regression Line of Best Fit - Slope based on the last 108 periods',
+            style: { color: 'var(--chart-text-color)' },
         },
         legend: {
-            itemStyle: { color: '#D3D3D3' },
+            itemStyle: { color: 'var(--chart-text-color)' },
         },
         xAxis: [
             {
                 min: -1,
                 max: 1,
-                tickColor: '#D3D3D3',
-                labels: { style: { color: '#D3D3D3' } },
+                tickColor: 'var(--chart-text-color)',
+                labels: { style: { color: 'var(--chart-text-color)' } },
             },
         ],
         yAxis: [
             {
-                labels: { style: { color: '#D3D3D3' } },
+                labels: { style: { color: 'var(--chart-text-color)' } },
             },
         ],
         tooltip: {
-            style: { color: '#D3D3D3' },
+            style: { color: 'var(--chart-tooltip-color)' },
         },
         plotOptions: {
             series: {},
@@ -251,8 +251,8 @@ const TrendAnalysisPage = () => {
     return (
         <div className="p-4 w-full flex flex-col items-center">
             {/* Slope Indicator Area */}
-            <div className="w-full max-w-4xl bg-[var(--background)] text-[#D3D3D3] p-4">
-                <h2 className="text-center text-xl font-bold">Trend/Slope Indicator</h2>
+            <div className="w-full max-w-4xl bg-[var(--background)] text-[-var(--chart-text-color)] p-4">
+                <h2 className="text-center text-xl font-bold">Trend Of The Trends</h2>
                 <div className="flex justify-around mt-2">
                     {slopeMapping.map((mapping) => (
                         <div key={mapping.key} className="text-center">

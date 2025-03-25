@@ -517,7 +517,7 @@ const TradeAnimationPage: React.FC<TradeAnimationPageProps> = () => {
                 };
                 const periodSeconds = periodMapping[period];
                 const startTime = endTime - periodSeconds;
-                const url = `https://botpilot8000.ngrok.io/orderflow_activity/?sym=${ticker}&start_time=${startTime}&end_time=${endTime}`;
+                const url = `https://botpilot--8000.ngrok.io/orderflow_activity/?sym=${ticker}&start_time=${startTime}&end_time=${endTime}`;
                 const response = await fetch(url);
                 if (!response.ok) throw new Error('Network response was not ok');
                 const result = await response.json();
@@ -567,8 +567,8 @@ const TradeAnimationPage: React.FC<TradeAnimationPageProps> = () => {
                         <option value="BTC-USD">BTC-USD</option>
                         <option value="ETH-USD">ETH-USD</option>
                         <option value="SOL-USD">SOL-USD</option>
-                        <option value="VVV-USD">VVV-USD</option>
-                        <option value="OM-USD">OM-USD</option>
+                        {/*<option value="VVV-USD">VVV-USD</option>*/}
+                        {/*<option value="OM-USD">OM-USD</option>*/}
                     </select>
                 </div>
 

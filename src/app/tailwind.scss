@@ -1,3 +1,13 @@
+:root {
+  --chart-bg: #d3d3d3;
+  --chart-text-color: #1f2937;
+}
+html.dark {
+  --chart-bg: #1f2937;
+  --chart-text-color: #d3d3d3;
+  --chart-tooltip-color: #1f2937;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
