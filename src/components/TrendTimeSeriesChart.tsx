@@ -34,11 +34,11 @@ const TrendTimeSeriesChart: React.FC<TrendTimeSeriesChartProps> = ({ period, dat
             backgroundColor: 'var(--chart-bg)',
         },
         title: {
-            text: `Trend Chart - ${period}`,
+            text: `Rolling Regression Chart - ${period}`,
             style: { color: 'var(--chart-text-color)' },
         },
         subtitle: {
-            text: 'Time Series Data',
+            text: '108 Points of Slope Delta',
             style: { color: 'var(--chart-text-color)' },
         },
         xAxis: {
@@ -69,6 +69,7 @@ const TrendTimeSeriesChart: React.FC<TrendTimeSeriesChartProps> = ({ period, dat
     };
 
     return (
+        <div className="highcharts-container w-full">
         <div className="w-full max-w-4xl mb-4">
             {mounted && (
                 <HighchartsReact
@@ -78,6 +79,7 @@ const TrendTimeSeriesChart: React.FC<TrendTimeSeriesChartProps> = ({ period, dat
                     allowChartUpdate={true}
                 />
             )}
+        </div>
         </div>
     );
 };

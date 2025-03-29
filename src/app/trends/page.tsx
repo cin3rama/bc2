@@ -249,10 +249,10 @@ const TrendAnalysisPage = () => {
     }, [chartData]);
 
     return (
-        <div className="p-4 w-full flex flex-col items-center">
+        <div className="p-4 mt-2 w-full flex flex-col items-center">
             {/* Slope Indicator Area */}
             <div className="w-full max-w-4xl bg-[var(--background)] text-[-var(--chart-text-color)] p-4">
-                <h2 className="text-center text-xl font-bold">Trend Of The Trends</h2>
+                <h2 className="text-center text-xl font-bold">Trend Of Slope and the Rolling Regression Model</h2>
                 <div className="flex justify-around mt-2">
                     {slopeMapping.map((mapping) => (
                         <div key={mapping.key} className="text-center">
@@ -268,12 +268,15 @@ const TrendAnalysisPage = () => {
             </div>
 
             {/* Main Chart Area */}
-            <div className="w-full max-w-4xl">
+            <div className="w-full max-w-4xl mb-2">
                 <HighchartsReact highcharts={Highcharts} options={chartOptions} />
-            </div>
+
 
             {/* New Charts Section - pass the raw trend data */}
-            <TrendChartsSection trendData={rawTrendData} />
+
+                <TrendChartsSection trendData={rawTrendData} />
+
+            </div>
         </div>
     );
 };

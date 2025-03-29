@@ -29,7 +29,7 @@ const TrendChartsSection: React.FC<TrendChartsSectionProps> = ({ trendData }) =>
 
 
     return (
-        <div className="flex flex-col items-center mt-8">
+        <div className="flex flex-col w-full items-center mt-8">
             {['5min', '15min', '30min', '1h', '4h', '24h'].map(period => (
                 <TrendTimeSeriesChart key={period} period={period} data={groupedData[period] || []} />
             ))}

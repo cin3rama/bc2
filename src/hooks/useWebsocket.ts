@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
-import {Observable, EMPTY, timer, Subject, Subscription, retry} from 'rxjs';
-import { retryWhen, delayWhen, tap, takeUntil, finalize } from 'rxjs/operators';
+import { Observable, EMPTY, timer, Subject } from 'rxjs';
+import { retryWhen, delayWhen, tap, takeUntil, retry } from 'rxjs/operators';
+import { useTickerPeriod } from '@/contexts/TickerPeriodContext';
 
 // Define the type for our hook's return value.
 interface WebsocketStreams {
@@ -15,6 +16,8 @@ interface WebsocketStreams {
 }
 
 export function useWebsocket(): WebsocketStreams {
+    const { ticker } = useTickerPeriod(); // ticker is defined here
+    // const retrieve = { type: 'get_data', sym: ticker, user: '8888' };
     // States to hold each observable stream.
     const [orderflow$, setOrderflow$] = useState<Observable<any>>(EMPTY);
     const [trend$, setTrend$] = useState<Observable<any>>(EMPTY);
@@ -72,6 +75,9 @@ export function useWebsocket(): WebsocketStreams {
     };
 
     useEffect(() => {
+        // If ticker changes, close any existing sockets.
+        if (orderflowSocketRef.current) orderflowSocketRef.current.complete();
+        if (trendSocketRef.current) trendSocketRef.current.complete();
         // Create the WebSocket connections.
         orderflowSocketRef.current = getWS('/orderflow/?sym=ETH-USD');
         trendSocketRef.current = getWS('/trends/?sym=ETH-USD');
@@ -80,11 +86,14 @@ export function useWebsocket(): WebsocketStreams {
         // vwapSocketRef.current = getWS('/vwap/');
 
         // Wrap the observables with reconnect logic and store them in state.
-        setOrderflow$(reconnect(orderflowSocketRef.current.asObservable()));
-        setTrend$(reconnect(trendSocketRef.current.asObservable()));
+        orderflowSocketRef.current = getWS(`/orderflow/?sym=${ticker}`);
+        trendSocketRef.current = getWS(`/trends/?sym=${ticker}`);
         // setTrendData$(reconnect(trendDataSocketRef.current.asObservable()));
         // setCvdPeriod$(reconnect(cvdPeriodSocketRef.current.asObservable()));
         // setVwap$(reconnect(vwapSocketRef.current.asObservable()));
+
+        setOrderflow$(reconnect(orderflowSocketRef.current.asObservable()));
+        setTrend$(reconnect(trendSocketRef.current.asObservable()));
 
         // Cleanup: complete all sockets on unmount.
         return () => {
@@ -99,7 +108,7 @@ export function useWebsocket(): WebsocketStreams {
             // vwapSocketRef.current?.complete();
         };
         // Note: destroy$ is stable due to useRef.
-    }, [destroy$]);
+    }, [ticker, destroy$]);
 
     // Helper to send a message to all open sockets.
     const sendMessage = (msg: any) => {
