@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useWebsocket } from '@/hooks/useWebsocket';
 import { motion } from 'framer-motion';
+import { useTickerPeriod } from '@/contexts/TickerPeriodContext';
 
 const MAX_RECTANGLES = 50;
 const scaleFactor = 0.05;
@@ -73,7 +74,7 @@ const UserTable: React.FC<UserTableProps> = ({
                         animate={
                             item.flash
                                 ? { backgroundColor: item.flashColor }
-                                : { backgroundColor: 'transparent' }
+                                : { backgroundColor: 'rgba(0, 0, 0, 0)' }
                         }
                         transition={{ duration: 0.5, ease: 'linear' }}
                         className="border-b border-gray-300"
@@ -500,8 +501,7 @@ interface TradeAnimationPageProps {}
 
 const TradeAnimationPage: React.FC<TradeAnimationPageProps> = () => {
     const [orderflowData, setOrderflowData] = useState<any>({});
-    const [ticker, setTicker] = useState<string>('ETH-USD');
-    const [period, setPeriod] = useState<string>('1 day');
+    const { ticker, period } = useTickerPeriod();
     const [duration, setDuration] = useState<number>(1);
     const [resetStartTime, setResetStartTime] = useState<number>(Date.now());
 
@@ -555,35 +555,6 @@ const TradeAnimationPage: React.FC<TradeAnimationPageProps> = () => {
                         className="w-full"
                     />
                     <span className="text-sm block">{duration}s</span>
-                </div>
-
-                {/* Ticker Dropdown */}
-                <div className="order-3 w-full md:w-auto">
-                    <select
-                        value={ticker}
-                        onChange={(e) => setTicker(e.target.value)}
-                        className="w-full p-2 border rounded bg-white dark:bg-gray-800 text-black dark:text-white border-gray-300 dark:border-gray-700"
-                    >
-                        <option value="BTC-USD">BTC-USD</option>
-                        <option value="ETH-USD">ETH-USD</option>
-                        <option value="SOL-USD">SOL-USD</option>
-                        {/*<option value="VVV-USD">VVV-USD</option>*/}
-                        {/*<option value="OM-USD">OM-USD</option>*/}
-                    </select>
-                </div>
-
-                {/* Period Dropdown */}
-                <div className="order-4 w-full md:w-auto">
-                    <select
-                        value={period}
-                        onChange={(e) => setPeriod(e.target.value)}
-                        className="w-full p-2 border rounded bg-white dark:bg-gray-800 text-black dark:text-white border-gray-300 dark:border-gray-700"
-                    >
-                        <option value="1 hour">1 Hour</option>
-                        <option value="4 hours">4 Hours</option>
-                        <option value="1 day">1 Day</option>
-                        <option value="1 week">1 Week</option>
-                    </select>
                 </div>
             </div>
 
