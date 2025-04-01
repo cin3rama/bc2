@@ -48,7 +48,7 @@ export default function Header() {
             <header className="w-full flex items-center justify-between p-3 sm:p-5 bg-gold dark:bg-darkgold h-[8vh] z-50">
                 <div className="flex items-center space-x-4">
                     <img
-                        src="/bc_logo_new_1080x1080.png"
+                        src="https://dynji4p6lpoc6.cloudfront.net/2025/03/bc_logo_new_1080x1080.png"
                         alt="Bitcoinisle Logo"
                         className="w-14 h-14 rounded-full object-cover max-[500px]:hidden"
                     />
@@ -57,7 +57,7 @@ export default function Header() {
                             Bitcoinisle
                         </h1>
                         <h2 className="text-xs font-light text-primary-dark dark:text-primary-dark">
-                            Bitcoin's Isle Of Insights
+                            Bitcoin's Isle of Insights
                         </h2>
                     </div>
                 </div>
