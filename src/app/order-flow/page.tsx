@@ -4,6 +4,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useWebsocket } from '@/hooks/useWebsocket';
 import { motion } from 'framer-motion';
 import { useTickerPeriod } from '@/contexts/TickerPeriodContext';
+import ClickTooltip from "@/components/ClickTooltip";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 const MAX_RECTANGLES = 50;
 const scaleFactor = 0.05;
@@ -355,6 +357,7 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({
         return () => clearInterval(interval);
     }, []);
 
+    // @ts-ignore
     return (
         <>
             {/* Animated Rectangles Container */}
@@ -410,7 +413,15 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({
             <div className="p-2 mt-2 bg-white dark:bg-gray-800 rounded shadow flex flex-wrap md:flex-nowrap justify-between items-start">
                 {/* Left side: Title, Subtitle, and Totals */}
                 <div className="flex flex-col">
-                    <h2 className="text-m font-bold">Net Buy/Sell Action</h2>
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-m font-bold">Net Buy/Sell Action</h2>
+                        <ClickTooltip
+                            content="This section shows a summary of Market Maker & Top Accumulator (Whales) net activity in real-time."
+                            link="https://bitcoinisle.com/portfolio/orderflow"
+                            linkText="Learn more..."
+                        />
+                    </div>
+
                     <h3 className="text-xs font-light">
                         Top Market Maker & Large Holder Net Totals (Accumulations - Distributions)
                     </h3>
@@ -432,6 +443,7 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({
                             <span className="font-bold">${netPositionsPeriodAccDist.toLocaleString()}</span>
                         </div>
                     </div>
+
                 </div>
                 {/* New 4 Horizontal Sub-Columns Headings with 1MIN values */}
                 <div className="flex flex-col mt-2 md:mt-0">
@@ -504,9 +516,11 @@ const TradeAnimationPage: React.FC<TradeAnimationPageProps> = () => {
     const { ticker, period } = useTickerPeriod();
     const [duration, setDuration] = useState<number>(1);
     const [resetStartTime, setResetStartTime] = useState<number>(Date.now());
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
+            setLoading(true);
             try {
                 const endTime = Math.floor(Date.now() / 1000);
                 const periodMapping: Record<string, number> = {
@@ -526,11 +540,17 @@ const TradeAnimationPage: React.FC<TradeAnimationPageProps> = () => {
                 setResetStartTime(Date.now());
             } catch (error) {
                 console.error('Error fetching orderflow data:', error);
+            } finally {
+                setLoading(false);
             }
         };
 
         fetchData();
     }, [ticker, period]);
+
+    if (loading) {
+        return <LoadingIndicator />;
+    }
 
     return (
         <div className="p-4">
@@ -539,9 +559,16 @@ const TradeAnimationPage: React.FC<TradeAnimationPageProps> = () => {
                 {/* Titles Block: Always full width */}
                 <div className="order-1 w-full">
                     <h2 className="text-2xl font-bold">Orderflow Analysis</h2>
+                    <div className="flex items-center gap-2">
                     <h3 className="text-sm font-light">
                         Visual Buy & Sell Transactions Stream
                     </h3>
+                    <ClickTooltip
+                        content="The section below shows the live transaction stream by size. For example, big green rectanges are big buys & small red are small sells. Adjust track speed with slider."
+                        link="https://bitcoinisle.com/portfolio/orderflow"
+                        linkText="Learn more..."
+                    />
+                    </div>
                 </div>
 
                 {/* Slider: Adjusted to max-w-[225px] and range from 1-4 */}
