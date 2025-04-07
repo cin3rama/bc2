@@ -1,10 +1,10 @@
 import type { NextConfig } from "next";
+// Only run > npm run build -> then place the contents of the out folder into the app folder
 
 const nextConfig: NextConfig = {
-  /* config options here */
-    output: 'export',
     basePath: '/app',
-    distDir: 'dist'
+    trailingSlash: true,
+    output: 'export'
 };
 
 export default nextConfig;
