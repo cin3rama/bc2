@@ -4,14 +4,19 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Moon, Sun, Menu, X } from "lucide-react";
 import { useTickerPeriod } from "@/contexts/TickerPeriodContext";
+import { usePathname } from "next/navigation";
 
 export default function Header() {
     const { ticker, period, setTicker, setPeriod } = useTickerPeriod();
+    const pathname = usePathname();
+    // Decide which dropdowns to show based on the route:
+    const showTicker = true;
+    const showPeriod = pathname.startsWith("/order-flow"); // Only show period on order-flow page
+
     const [mounted, setMounted] = useState(false);
     const [darkMode, setDarkMode] = useState(true);
     const [menuOpen, setMenuOpen] = useState(false);
 
-    // Initialize dark mode from localStorage or prefers-color-scheme
     useEffect(() => {
         const storedDarkMode = localStorage.getItem("darkMode");
         if (storedDarkMode !== null) {
@@ -22,7 +27,6 @@ export default function Header() {
         setMounted(true);
     }, []);
 
-    // Update dark mode on <html> and store setting
     useEffect(() => {
         if (mounted) {
             document.documentElement.classList.toggle("dark", darkMode);
@@ -30,7 +34,6 @@ export default function Header() {
         }
     }, [darkMode, mounted]);
 
-    // Prevent scrolling when mobile menu is open
     useEffect(() => {
         if (menuOpen) {
             document.documentElement.style.overflow = "hidden";
@@ -47,11 +50,13 @@ export default function Header() {
         <>
             <header className="w-full flex items-center justify-between p-3 sm:p-5 bg-gold dark:bg-darkgold h-[8vh] z-50">
                 <div className="flex items-center space-x-4">
-                    <img
-                        src="https://dynji4p6lpoc6.cloudfront.net/2025/03/bc_logo_new_1080x1080.png"
-                        alt="Bitcoinisle Logo"
-                        className="w-14 h-14 rounded-full object-cover max-[500px]:hidden"
-                    />
+                    <a href="https://bitcoinisle.com">
+                        <img
+                            src="https://dynji4p6lpoc6.cloudfront.net/2025/03/bc_logo_new_1080x1080.png"
+                            alt="Bitcoinisle Logo"
+                            className="w-14 h-14 rounded-full object-cover max-[500px]:hidden"
+                        />
+                    </a>
                     <div>
                         <h1 className="text-lg font-semibold text-primary-dark dark:text-primary-dark">
                             Bitcoinisle
@@ -65,37 +70,44 @@ export default function Header() {
                 {/* Global Navigation Links for larger screens */}
                 <nav className="hidden md:flex space-x-5 text-black dark:text-primary-dark">
                     <Link href="https://bitcoinisle.com/">Home</Link>
-                    <Link href="https://bitcoinisle.com/about-me">About Me</Link>
                     <Link href="/order-flow">Order Flow</Link>
-                    <Link href="https://www.bitcoinisle.com/portfolio/market-sentiment/">Market Sentiment</Link>
                     <Link href="/trends">Trend Analysis</Link>
+                    <Link href="https://www.bitcoinisle.com/portfolio/market-sentiment/">
+                        Market Sentiment
+                    </Link>
+                    <Link href="https://bitcoinisle.com/about-me">About Me</Link>
                 </nav>
 
                 {/* Right-side controls */}
                 <div className="flex items-center space-x-3">
                     {/* Dropdown selectors */}
-                    <div className="flex items-center space-x-1">
-                        <select
-                            value={ticker}
-                            onChange={(e) => setTicker(e.target.value)}
-                            className="text-[8px] p-1 w-16 sm:text-[10px] sm:p-1 sm:w-20 md:text-xs md:p-2 md:w-auto rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-black dark:text-white"
-                        >
-                            <option value="BTC-USD">BTC-USD</option>
-                            <option value="ETH-USD">ETH-USD</option>
-                            <option value="SOL-USD">SOL-USD</option>
-                            {/* Additional options as needed */}
-                        </select>
-                        <select
-                            value={period}
-                            onChange={(e) => setPeriod(e.target.value)}
-                            className="text-[8px] p-1 w-16 sm:text-[10px] sm:p-1 sm:w-20 md:text-xs md:p-2 md:w-auto rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-black dark:text-white"
-                        >
-                            <option value="1 hour">1 Hour</option>
-                            <option value="4 hours">4 Hours</option>
-                            <option value="1 day">1 Day</option>
-                            <option value="1 week">1 Week</option>
-                        </select>
-                    </div>
+                    {(showTicker || showPeriod) && (
+                        <div className="flex items-center space-x-1">
+                            {showTicker && (
+                                <select
+                                    value={ticker}
+                                    onChange={(e) => setTicker(e.target.value)}
+                                    className="text-[8px] p-1 w-16 sm:text-[10px] sm:p-1 sm:w-20 md:text-xs md:p-2 md:w-auto rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-black dark:text-white"
+                                >
+                                    <option value="BTC-USD">BTC-USD</option>
+                                    <option value="ETH-USD">ETH-USD</option>
+                                    <option value="SOL-USD">SOL-USD</option>
+                                </select>
+                            )}
+                            {showPeriod && (
+                                <select
+                                    value={period}
+                                    onChange={(e) => setPeriod(e.target.value)}
+                                    className="text-[8px] p-1 w-16 sm:text-[10px] sm:p-1 sm:w-20 md:text-xs md:p-2 md:w-auto rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-black dark:text-white"
+                                >
+                                    <option value="1 hour">1 Hour</option>
+                                    <option value="4 hours">4 Hours</option>
+                                    <option value="1 day">1 Day</option>
+                                    <option value="1 week">1 Week</option>
+                                </select>
+                            )}
+                        </div>
+                    )}
                     {/* Dark mode toggle */}
                     <button
                         onClick={() => setDarkMode((prev) => !prev)}
@@ -133,7 +145,10 @@ export default function Header() {
                             </Link>
                         </li>
                         <li>
-                            <Link href="https://www.bitcoinisle.com/portfolio/market-sentiment/" onClick={() => setMenuOpen(false)}>
+                            <Link
+                                href="https://www.bitcoinisle.com/portfolio/market-sentiment/"
+                                onClick={() => setMenuOpen(false)}
+                            >
                                 Market Sentiment
                             </Link>
                         </li>

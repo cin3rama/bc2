@@ -1,10 +1,13 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
 import { useWebsocket } from '@/hooks/useWebsocket';
 import TrendChartsSection from '@/components/TrendChartsSection';
+import ClickTooltip from "@/components/ClickTooltip";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 // Define the shape of a trend data object.
 type TrendData = {
@@ -41,6 +44,8 @@ const getLineData = (line: [number, number] | null) =>
     line ? [[-1, line[0]], [1, line[1]]] : [];
 
 const TrendAnalysisPage = () => {
+    const [loading, setLoading] = useState(true);
+    const { setConfig } = useHeaderConfig();
     // Using trend$ from useWebsocket.
     const { trend$ } = useWebsocket();
 
@@ -158,8 +163,13 @@ const TrendAnalysisPage = () => {
         ],
     });
 
+    useEffect(() => {
+        setConfig({ showTicker: true, showPeriod: false });
+    }, []);
+
     // Subscribe once to the trend$ observable.
     useEffect(() => {
+        setLoading(true);
         const subscription = trend$.subscribe((data: any) => {
             // Expect data to be an array with one consolidated object.
             const consolidated = Array.isArray(data) ? data[0] : data;
@@ -175,6 +185,7 @@ const TrendAnalysisPage = () => {
                 '4h': { chartKey: 'regression_line_4hr', slopeKey: 'slope_4hr' },
                 '24h': { chartKey: 'regression_line_1D', slopeKey: 'slope_1D' },
             };
+
 
             const updatedChartData: Partial<ChartData> = {};
             const updatedSlopeData: Partial<SlopeData> = {};
@@ -193,9 +204,9 @@ const TrendAnalysisPage = () => {
             setChartData((prev) => ({ ...prev, ...updatedChartData }));
             setSlopeData((prev) => ({ ...prev, ...updatedSlopeData }));
         });
+        setLoading(false);
         return () => subscription.unsubscribe();
     }, [trend$]);
-
 
     // Update chart options when chartData changes.
     useEffect(() => {
@@ -247,12 +258,24 @@ const TrendAnalysisPage = () => {
             ],
         }));
     }, [chartData]);
+    if (loading) {
+        return <LoadingIndicator message="Loading..., close your eyes and breath deeply" />;
+    }
 
     return (
+
         <div className="p-4 mt-2 w-full flex flex-col items-center">
             {/* Slope Indicator Area */}
             <div className="w-full max-w-4xl bg-[var(--background)] text-[-var(--chart-text-color)] p-4">
-                <h2 className="text-center text-xl font-bold">Trend Of Slope and the Rolling Regression Model</h2>
+                <div className="flex items-center gap-2">
+                    <h2 className="text-center text-xl font-bold">Trend Of Slope and the Rolling Regression Model</h2>
+                    <ClickTooltip
+                        content="If you trade with the trend you'll always have the wind at your back. This feature takes a novel approach to trend discovery."
+                        link="https://bitcoinisle.com/portfolio/trend-analysis"
+                        linkText="Learn more..."
+                    />
+                </div>
+                <span className="text-center text-sm font-normal max-[500px]:hidden">The trend is truly your friend, put it to work for you.</span>
                 <div className="flex justify-around mt-2">
                     {slopeMapping.map((mapping) => (
                         <div key={mapping.key} className="text-center">

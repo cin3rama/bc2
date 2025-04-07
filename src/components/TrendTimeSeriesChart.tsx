@@ -34,11 +34,11 @@ const TrendTimeSeriesChart: React.FC<TrendTimeSeriesChartProps> = ({ period, dat
             backgroundColor: 'var(--chart-bg)',
         },
         title: {
-            text: `Rolling Regression Chart - ${period}`,
+            text: `Trend Flow Chart - ${period}`,
             style: { color: 'var(--chart-text-color)' },
         },
         subtitle: {
-            text: '108 Points of Slope Delta',
+            text: 'Modified Rolling Regression Model',
             style: { color: 'var(--chart-text-color)' },
         },
         xAxis: {
