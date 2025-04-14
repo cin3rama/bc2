@@ -72,10 +72,11 @@ export default function Header() {
                     <Link href="https://bitcoinisle.com/">Home</Link>
                     <Link href="/order-flow">Order Flow</Link>
                     <Link href="/trends">Trend Analysis</Link>
-                    <Link href="https://www.bitcoinisle.com/portfolio/market-sentiment/">
-                        Market Sentiment
+                    <Link href="https://www.bitcoinisle.com/hype-lama/">
+                        Hype Lama
                     </Link>
                     <Link href="https://bitcoinisle.com/about-me">About Me</Link>
+                    <Link href="https://bitcoinisle.com/fundamentals">Fundamentals</Link>
                 </nav>
 
                 {/* Right-side controls */}

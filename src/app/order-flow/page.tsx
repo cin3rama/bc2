@@ -549,7 +549,8 @@ const TradeAnimationPage: React.FC<TradeAnimationPageProps> = () => {
     }, [ticker, period]);
 
     if (loading) {
-        return <LoadingIndicator />;
+        return <LoadingIndicator
+        message="Loading...this may take a while, big data"/>;
     }
 
     return (
