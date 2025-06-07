@@ -36,7 +36,8 @@
     ".next/types/**/*.ts",
     "dist/types/**/*.ts",
     "next-env.d.ts",
-    "public//types/**/*.ts"
+    "public//types/**/*.ts",
+    "src/types/global.d.ts"
   ],
   "exclude": [
     "node_modules"
