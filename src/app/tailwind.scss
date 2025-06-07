@@ -2,6 +2,7 @@
   --chart-bg: #d3d3d3;
   --chart-text-color: #1f2937;
 }
+
 html.dark {
   --chart-bg: #1f2937;
   --chart-text-color: #d3d3d3;
@@ -41,26 +42,38 @@ html.dark {
 
   /* Header Styling */
   header {
-    @apply w-full flex items-center justify-between p-6 h-[10vh] bg-gold dark:bg-darkgold;
+    @apply w-full flex items-center justify-between p-6 h-[10vh] bg-primary dark:bg-primary-dark;
   }
 
   header nav {
-    @apply flex space-x-6 text-accent dark:text-accent-dark;
+    @apply flex space-x-6 text-text dark:text-text-inverted;
   }
 
   header .logo {
     @apply w-12 h-12 bg-gray-300 dark:bg-gray-700 rounded-full;
+  }
 
+  .nav-link {
+    @apply relative text-text dark:text-text-inverted transition-colors duration-200 hover:text-text-inverted dark:hover:text-text;
+
+    //&::after {
+    //  content: '';
+    //  @apply absolute left-0 bottom-0 w-0 h-[2px] bg-neutral-50 dark:bg-neutral-900 transition-all duration-300;
+    //}
+    //
+    //&:hover::after {
+    //  @apply w-full;
+    //}
   }
 
   /* Main Content */
   main {
-    @apply flex-grow p-8 md:p-12 lg:p-16 xl:p-20 bg-secondary dark:bg-secondary-dark text-text dark:text-text-dark;
+    @apply flex-grow p-8 md:p-12 lg:p-16 xl:p-20 bg-secondary dark:bg-secondary-dark text-text dark:text-text-inverted;
   }
 
   /* Footer Styling */
   footer {
-    @apply w-full h-[6vh] flex items-center justify-center bg-gold dark:bg-darkgold text-text dark:text-text-dark;
+    @apply w-full h-[6vh] flex items-center justify-center bg-primary dark:bg-primary-dark text-text dark:text-text-inverted;
   }
 
   footer div {

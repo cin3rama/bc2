@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Moon, Sun, Menu, X } from "lucide-react";
+import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
 import { useTickerPeriod } from "@/contexts/TickerPeriodContext";
 import { usePathname } from "next/navigation";
 
@@ -10,9 +11,9 @@ export default function Header() {
     const { ticker, period, setTicker, setPeriod } = useTickerPeriod();
     const pathname = usePathname();
     // Decide which dropdowns to show based on the route:
-    const showTicker = true;
-    const showPeriod = pathname.startsWith("/order-flow"); // Only show period on order-flow page
-
+    // const showTicker = true;
+    // const showPeriod = pathname.startsWith("/order-flow"); // Only show period on order-flow page
+    const { showTicker, showPeriod } = useHeaderConfig();
     const [mounted, setMounted] = useState(false);
     const [darkMode, setDarkMode] = useState(true);
     const [menuOpen, setMenuOpen] = useState(false);
@@ -58,25 +59,23 @@ export default function Header() {
                         />
                     </a>
                     <div>
-                        <h1 className="text-lg font-semibold text-primary-dark dark:text-primary-dark">
+                        <h1 className="text-lg font-semibold text-text dark:text-text-inverted">
                             Bitcoinisle
                         </h1>
-                        <h2 className="text-xs font-light text-primary-dark dark:text-primary-dark">
+                        <h2 className="text-xs font-light text-text dark:text-text-inverted">
                             Bitcoin's Isle of Insights
                         </h2>
                     </div>
                 </div>
 
                 {/* Global Navigation Links for larger screens */}
-                <nav className="hidden md:flex space-x-5 text-black dark:text-primary-dark">
-                    <Link href="https://bitcoinisle.com/">Home</Link>
-                    <Link href="/order-flow">Order Flow</Link>
-                    <Link href="/trends">Trend Analysis</Link>
-                    <Link href="https://www.bitcoinisle.com/hype-lama/">
-                        Hype Lama
-                    </Link>
-                    <Link href="https://bitcoinisle.com/about-me">About Me</Link>
-                    <Link href="https://bitcoinisle.com/fundamentals">Fundamentals</Link>
+                <nav className="hidden md:flex space-x-5 text-black dark:text-text-inverted">
+                    <Link href="https://bitcoinisle.com/" className="nav-link">Home</Link>
+                    <Link href="/order-flow" className="nav-link">Order Flow</Link>
+                    <Link href="/trends" className="nav-link">Trend Analysis</Link>
+                    <Link href="https://www.bitcoinisle.com/hype-lama/" className="nav-link">Hype Lama</Link>
+                    <Link href="https://bitcoinisle.com/fundamentals" className="nav-link">Fundamentals</Link>
+                    <Link href="https://bitcoinisle.com/about-me" className="nav-link">About Me</Link>
                 </nav>
 
                 {/* Right-side controls */}

@@ -10,14 +10,14 @@ interface TickerPeriodContextProps {
 }
 
 const TickerPeriodContext = createContext<TickerPeriodContextProps>({
-    ticker: 'ETH-USD',
+    ticker: 'BTC-USD',
     period: '1 day',
     setTicker: () => {},
     setPeriod: () => {},
 });
 
 export const TickerPeriodProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [ticker, setTicker] = useState<string>('ETH-USD');
+    const [ticker, setTicker] = useState<string>('BTC-USD');
     const [period, setPeriod] = useState<string>('1 day');
 
     return (

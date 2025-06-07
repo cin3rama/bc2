@@ -1,16 +1,17 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
-import { useWebsocket } from '@/hooks/useWebsocket';
-import { motion } from 'framer-motion';
+import React, {useEffect, useState, useRef, useMemo} from 'react';
 import { useTickerPeriod } from '@/contexts/TickerPeriodContext';
+import { useWebsocket } from '@/hooks/useWebsocket';
+import { getSharedOrderflowStreams } from '@/hooks/getSharedOrderflowStreams';
+import { motion } from 'framer-motion';
 import ClickTooltip from "@/components/ClickTooltip";
 import LoadingIndicator from "@/components/LoadingIndicator";
 
 const MAX_RECTANGLES = 50;
 const scaleFactor = 0.05;
 const maxWidth = 300;
-// Updated rectangle height is now 25px.
+// Updated rectangle height is now 25 px.
 const rectangleHeight = 25;
 
 interface UserTableProps {
@@ -34,7 +35,7 @@ const UserTable: React.FC<UserTableProps> = ({
                                                  periodColumnName,
                                                  showSubTotals,
                                              }) => {
-    // Compute sub-totals if required.
+    // Compute subtotals if required.
     let subTotals = { trades: 0, volume: 0, period: 0 };
     if (showSubTotals && data && data.length) {
         data.forEach((row: any) => {
@@ -55,7 +56,7 @@ const UserTable: React.FC<UserTableProps> = ({
     }
 
     return (
-        <div className="p-2 mt-0.5 bg-white dark:bg-gray-800 rounded shadow">
+        <div className="p-2 mt-0.5 bg-white dark:bg-gray-800 rounded shadow text-text dark:text-text-inverted">
             <h2 className="text-m font-bold mt-2">{title}</h2>
             {subtitle && <h3 className="text-xs font-light">{subtitle}</h3>}
             <table className="w-full border-collapse mt-2 text-xs">
@@ -133,7 +134,10 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({
                                                            resetStartTime,
                                                            period,
                                                        }) => {
+    // orderflow$ observable from websocket is shareReplayed below using tradeflow$
+    // const { ticker } = useTickerPeriod();
     const { orderflow$ } = useWebsocket();
+    const { tradeflow$ } = useMemo(() => getSharedOrderflowStreams(orderflow$), [orderflow$]);
     const [data, setData] = useState<any[]>([]);
     const dataRef = useRef<any[]>([]);
     const [tableData, setTableData] = useState(orderflowData);
@@ -143,17 +147,25 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({
     useEffect(() => {
         setTableData(orderflowData);
     }, [orderflowData]);
-
     // Subscribe to websocket.
     useEffect(() => {
-        const subscription = orderflow$.subscribe((newData) => {
-            dataRef.current = [...dataRef.current, ...newData].slice(-MAX_RECTANGLES);
+        const subscription = tradeflow$.subscribe((newData) => {
+            // console.log('newData is coming in order-flow.tsx',  newData);
+            // dataRef.current = [...dataRef.current, ...newData].slice(-MAX_RECTANGLES);
+            // setData([...dataRef.current]);
+            const merged = [...dataRef.current, ...newData];
+            const dedupedMap = new Map<number, any>();
+            for (const item of merged) {
+                dedupedMap.set(item.pid, item); // overwrites older duplicates
+            }
+            dataRef.current = Array.from(dedupedMap.values()).slice(-MAX_RECTANGLES);
             setData([...dataRef.current]);
+
         });
         return () => {
             subscription.unsubscribe();
         };
-    }, [orderflow$]);
+    }, [tradeflow$]);
 
     // Set up a clock that updates every second, using resetStartTime.
     useEffect(() => {
@@ -361,7 +373,7 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({
     return (
         <>
             {/* Animated Rectangles Container */}
-            <div className="relative w-full h-28 overflow-hidden">
+            <div className="relative w-full h-28 overflow-hidden ">
                 {data.map((row) => {
                     const color = row.side === 'BUY' ? 'green' : 'red';
                     const borderColor = row.side === 'BUY' ? 'D3D3D3' : 'black';
@@ -382,7 +394,7 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({
 
                     return (
                         <motion.div
-                            key={row.created_at}
+                            key={row.pid}
                             initial={{ x: '-100vw' }}
                             animate={{ x: '100vw' }}
                             transition={{ duration: duration, ease: 'linear' }}
@@ -410,10 +422,10 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({
             </div>
 
             {/* Aggregated Totals, Clock, and Change Headings Section */}
-            <div className="p-2 mt-2 bg-white dark:bg-gray-800 rounded shadow flex flex-wrap md:flex-nowrap justify-between items-start">
+            <div className="p-2 mt-2 bg-white dark:bg-gray-800 rounded shadow flex flex-wrap md:flex-nowrap justify-between items-start text-text dark:text-text-inverted">
                 {/* Left side: Title, Subtitle, and Totals */}
                 <div className="flex flex-col">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 text-text dark:text-text-inverted">
                         <h2 className="text-m font-bold">Net Buy/Sell Action</h2>
                         <ClickTooltip
                             content="This section shows a summary of Market Maker & Top Accumulator (Whales) net activity in real-time."
@@ -446,7 +458,7 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({
 
                 </div>
                 {/* New 4 Horizontal Sub-Columns Headings with 1MIN values */}
-                <div className="flex flex-col mt-2 md:mt-0">
+                <div className="flex flex-col mt-2 md:mt-0 text-text dark:text-text-inverted">
                     <div className="flex space-x-4">
                         <span className="text-xs font-bold">
                           PREV 1MIN CHG: {prevOneMinChg.toLocaleString()}
@@ -457,7 +469,7 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({
                     </div>
                 </div>
                 {/* Clock on the right */}
-                <div className="text-sm mt-2 md:mt-0">
+                <div className="text-sm mt-2 md:mt-0 text-text dark:text-text-inverted">
                     <div className="font-light">Period Timer:</div>
                     <div className="font-bold float-right mr-1">{formatTime(elapsedTime)}</div>
                 </div>
@@ -465,7 +477,7 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({
 
 
             {/* UserTables Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 text-text dark:text-text-inverted">
                 <UserTable
                     title="Top 10 Market Makers Buying"
                     subtitle="Market Makers (other-side) from SELL trades"
@@ -554,7 +566,7 @@ const TradeAnimationPage: React.FC<TradeAnimationPageProps> = () => {
     }
 
     return (
-        <div className="p-4">
+        <div className="p-4 text-text dark:text-text-inverted">
             {/* Controls container */}
             <div className="max-w-[600px] flex flex-wrap gap-4">
                 {/* Titles Block: Always full width */}
@@ -586,7 +598,7 @@ const TradeAnimationPage: React.FC<TradeAnimationPageProps> = () => {
                 </div>
             </div>
 
-            {/* Animation and tables, with aggregated totals section */}
+            {/* Animation and tables, with an aggregated totals section */}
             <TradeAnimation
                 orderflowData={orderflowData}
                 duration={duration}
