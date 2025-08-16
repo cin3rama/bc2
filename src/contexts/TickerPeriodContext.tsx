@@ -10,15 +10,15 @@ interface TickerPeriodContextProps {
 }
 
 const TickerPeriodContext = createContext<TickerPeriodContextProps>({
-    ticker: 'BTC-USD',
-    period: '1 day',
+    ticker: 'SOL-USD',
+    period: '15min',
     setTicker: () => {},
     setPeriod: () => {},
 });
 
 export const TickerPeriodProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [ticker, setTicker] = useState<string>('BTC-USD');
-    const [period, setPeriod] = useState<string>('1 day');
+    const [ticker, setTicker] = useState<string>('SOL-USD');
+    const [period, setPeriod] = useState<string>('15min');
 
     return (
         <TickerPeriodContext.Provider value={{ ticker, period, setTicker, setPeriod }}>

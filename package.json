@@ -1,6 +1,6 @@
 {
   "name": "bc2",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -12,10 +12,10 @@
     "autoprefixer": "^10.4.20",
     "framer-motion": "^12.4.4",
     "gsap": "^3.13.0",
-    "highcharts": "^12.1.2",
+    "highcharts": "^12.3.0",
     "highcharts-react-official": "^3.2.1",
     "lucide-react": "^0.475.0",
-    "next": "15.1.7",
+    "next": "15.3.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "rxjs": "^7.8.1",
