@@ -1,6 +1,6 @@
 {
   "name": "bc2",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,17 +9,21 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.6",
+    "@react-three/fiber": "^9.3.0",
     "autoprefixer": "^10.4.20",
     "framer-motion": "^12.4.4",
     "gsap": "^3.13.0",
     "highcharts": "^12.3.0",
     "highcharts-react-official": "^3.2.1",
+    "lightweight-charts": "^5.0.8",
     "lucide-react": "^0.475.0",
-    "next": "15.3.3",
+    "next": "15.4.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "rxjs": "^7.8.1",
-    "sass": "^1.85.0"
+    "sass": "^1.85.0",
+    "three-stdlib": "^2.36.0"
   },
   "devDependencies": {
     "@types/node": "^20",

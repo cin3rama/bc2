@@ -8,7 +8,7 @@ import { useTickerPeriod } from '@/contexts/TickerPeriodContext';
 interface WebsocketStreams {
     orderflow$: Observable<any>;
     trend$: Observable<any>;
-    // marketflow$: Observable<any>;
+    largeTrade$: Observable<any>;
     // cvdPeriod$: Observable<any>;
     // vwap$: Observable<any>;
     sendMessage: (msg: any) => void;
@@ -21,14 +21,14 @@ export function useWebsocket(): WebsocketStreams {
     // States to hold each observable stream.
     const [orderflow$, setOrderflow$] = useState<Observable<any>>(EMPTY);
     const [trend$, setTrend$] = useState<Observable<any>>(EMPTY);
-    // const [marketflow$, setMarketflow$] = useState<Observable<any>>(EMPTY);
+    const [largeTrade$, setLargeTrade$] = useState<Observable<any>>(EMPTY);
     // const [cvdPeriod$, setCvdPeriod$] = useState<Observable<any>>(EMPTY);
     // const [vwap$, setVwap$] = useState<Observable<any>>(EMPTY);
 
     // Refs to hold the WebSocketSubject instances (persist across renders)
     const orderflowSocketRef = useRef<WebSocketSubject<any>>(undefined);
     const trendSocketRef = useRef<WebSocketSubject<any>>(undefined);
-    // const marketflowSocketRef = useRef<WebSocketSubject<any>>(undefined);
+    const largeTradeSocketRef = useRef<WebSocketSubject<any>>(undefined);
     // const cvdPeriodSocketRef = useRef<WebSocketSubject<any>>(undefined);
     // const vwapSocketRef = useRef<WebSocketSubject<any>>(undefined);
 
@@ -81,7 +81,7 @@ export function useWebsocket(): WebsocketStreams {
         // Create the WebSocket connections.
         orderflowSocketRef.current = getWS(`/orderflow/?sym=${ticker}`);
         trendSocketRef.current = getWS(`/trends/?sym=${ticker}`);
-        // marketflowSocketRef.current = getWS('/marketflow/?sym=BTC-USD');
+        largeTradeSocketRef.current = getWS('/large-trade/?sym=BTC-USD');
         // cvdPeriodSocketRef.current = getWS('/cvd_period/');
         // vwapSocketRef.current = getWS('/vwap/');
 
@@ -91,7 +91,7 @@ export function useWebsocket(): WebsocketStreams {
 
         setOrderflow$(reconnect(orderflowSocketRef.current.asObservable()));
         setTrend$(reconnect(trendSocketRef.current.asObservable()));
-        // setMarketflow$(reconnect(marketflowSocketRef.current.asObservable()));
+        setLargeTrade$(reconnect(largeTradeSocketRef.current.asObservable()));
 
         // Cleanup: complete all sockets on unmounting.
         return () => {
@@ -101,7 +101,7 @@ export function useWebsocket(): WebsocketStreams {
 
             orderflowSocketRef.current?.complete();
             trendSocketRef.current?.complete();
-            // marketflowSocketRef.current?.complete();
+            largeTradeSocketRef.current?.complete();
             // cvdPeriodSocketRef.current?.complete();
             // vwapSocketRef.current?.complete();
         };
@@ -117,9 +117,9 @@ export function useWebsocket(): WebsocketStreams {
             trendSocketRef.current.next(msg);
             console.log('[WebSocket] Sending msg to trend:', msg);
         }
-        // if (marketflowSocketRef.current && !marketflowSocketRef.current.closed) {
-        //     marketflowSocketRef.current.next(msg);
-        // }
+        if (largeTradeSocketRef.current && !largeTradeSocketRef.current.closed) {
+            largeTradeSocketRef.current.next(msg);
+        }
         // if (cvdPeriodSocketRef.current && !cvdPeriodSocketRef.current.closed) {
         //     cvdPeriodSocketRef.current.next(msg);
         // }
@@ -136,11 +136,11 @@ export function useWebsocket(): WebsocketStreams {
 
         orderflowSocketRef.current?.complete();
         trendSocketRef.current?.complete();
-        // marketflowSocketRef.current?.complete();
+        largeTradeSocketRef.current?.complete();
         // cvdPeriodSocketRef.current?.complete();
         // vwapSocketRef.current?.complete();
     };
 
     // return { orderflow$, trend$, cvd$, cvdPeriod$, vwap$, sendMessage, close };
-    return { orderflow$, trend$, sendMessage, close };
+    return { orderflow$, trend$, largeTrade$, sendMessage, close };
 }
