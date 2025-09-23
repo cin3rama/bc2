@@ -23,15 +23,11 @@ import dynamic from 'next/dynamic';
 // export default Sentiment;
 // sentiment.tsx
 
-const AnimatedRadialLogo = dynamic(() => import('@/components/AnimatedRadialLogo'), {
-    ssr: false, // <-- disables server-side rendering for this component
-});
-
 export default function Sentiment() {
     return (
         <div>
             <h2>News & Social Sentiment</h2>
-            <AnimatedRadialLogo />
+
         </div>
     );
 }
