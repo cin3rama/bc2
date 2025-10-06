@@ -92,6 +92,8 @@ export default function Header() {
                                     <option value="BTC-USD">BTC-USD</option>
                                     <option value="ETH-USD">ETH-USD</option>
                                     <option value="SOL-USD">SOL-USD</option>
+                                    <option value="VVV-USD">VVV-USD</option>
+                                    <option value="OM-USD">OM-USD</option>
                                 </select>
                             )}
                             {showPeriod && (
@@ -100,10 +102,11 @@ export default function Header() {
                                     onChange={(e) => setPeriod(e.target.value)}
                                     className="text-[8px] p-1 w-16 sm:text-[10px] sm:p-1 sm:w-20 md:text-xs md:p-2 md:w-auto rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-black dark:text-white"
                                 >
-                                    <option value="1 hour">1 Hour</option>
-                                    <option value="4 hours">4 Hours</option>
-                                    <option value="1 day">1 Day</option>
-                                    <option value="1 week">1 Week</option>
+                                    <option value="15min">15 Mins</option>
+                                    <option value="1h">1 Hour</option>
+                                    <option value="4h">4 Hours</option>
+                                    <option value="1d">1 Day</option>
+                                    <option value="1w">1 Week</option>
                                 </select>
                             )}
                         </div>

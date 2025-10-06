@@ -443,15 +443,15 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({
                             <span className="font-bold">${mmNetTradeVolume.toLocaleString()}</span>
                         </div>
                         <div className="text-sm">
-                            {`Market Makers Net Acc/Dist Volume: `}
+                            {`Market Makers Net BUY/SELL Volume: `}
                             <span className="font-bold">${mmNetAccDistVolume.toLocaleString()}</span>
                         </div>
                         <div className="text-sm">
-                            {`${period} Net Positions Trade Volume: `}
+                            {`${period} Acc/Dis Net Trade Volume: `}
                             <span className="font-bold">${netPositionsTradeVolume.toLocaleString()}</span>
                         </div>
                         <div className="text-sm">
-                            {`Net Positions Period Acc/Dist: `}
+                            {`Acc/Dist Net BUY/SELL Volume for Period: `}
                             <span className="font-bold">${netPositionsPeriodAccDist.toLocaleString()}</span>
                         </div>
                     </div>
@@ -534,12 +534,13 @@ const TradeAnimationPage: React.FC<TradeAnimationPageProps> = () => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const endTime = Math.floor(Date.now() / 1000);
+                const endTime = Math.floor(Date.now());
                 const periodMapping: Record<string, number> = {
-                    '1 hour': 3600,
-                    '4 hours': 14400,
-                    '1 day': 86400,
-                    '1 week': 604800,
+                    '15min': 900000,
+                    '1h': 3600000,
+                    '4h': 14400000,
+                    '1d': 86400000,
+                    '1w': 604800000,
                 };
                 const periodSeconds = periodMapping[period];
                 const startTime = endTime - periodSeconds;
