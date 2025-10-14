@@ -37,7 +37,7 @@ export function useWebsocket(): WebsocketStreams {
     const destroy$ = useRef(new Subject<void>()).current;
 
     // This is the message that is sent on open (adjust as needed)
-    const retrieve = { type: 'get_data', sym: 'BTC-USD', user: '8888' };
+    const retrieve = { type: 'get_data', sym: 'SOL-USD', user: '8888' };
 
     // Reconnect operator: if an error occurs, wait 2 seconds and retry.
     const reconnect = <T>(obs: Observable<T>): Observable<T> =>
@@ -78,10 +78,11 @@ export function useWebsocket(): WebsocketStreams {
         // If ticker changes, close any existing sockets.
         if (orderflowSocketRef.current) orderflowSocketRef.current.complete();
         if (trendSocketRef.current) trendSocketRef.current.complete();
+        if (marketflowSocketRef.current) marketflowSocketRef.current.complete();
         // Create the WebSocket connections.
         orderflowSocketRef.current = getWS(`/orderflow/?sym=${ticker}`);
         trendSocketRef.current = getWS(`/trends/?sym=${ticker}`);
-        marketflowSocketRef.current = getWS('/large-trade/?sym=BTC-USD');
+        marketflowSocketRef.current = getWS(`/ws/marketflow/${encodeURIComponent(ticker)}/`);
         // cvdPeriodSocketRef.current = getWS('/cvd_period/');
         // vwapSocketRef.current = getWS('/vwap/');
 
@@ -115,10 +116,10 @@ export function useWebsocket(): WebsocketStreams {
         }
         if (trendSocketRef.current && !trendSocketRef.current.closed) {
             trendSocketRef.current.next(msg);
-            console.log('[WebSocket] Sending msg to trend:', msg);
         }
         if (marketflowSocketRef.current && !marketflowSocketRef.current.closed) {
             marketflowSocketRef.current.next(msg);
+            console.log('[WebSocket] Sending msg to marketflow:', msg);
         }
         // if (cvdPeriodSocketRef.current && !cvdPeriodSocketRef.current.closed) {
         //     cvdPeriodSocketRef.current.next(msg);
