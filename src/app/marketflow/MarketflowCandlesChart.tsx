@@ -69,6 +69,7 @@ const MarketflowCandlesChart = forwardRef<ChartHandle, CandlesChartProps>(
             getChart: () => chartRef?.chart ?? null,
         }));
 
+
         return (
             <HighchartsReact
                 highcharts={Highcharts}
