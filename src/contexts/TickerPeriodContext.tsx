@@ -18,7 +18,7 @@ const TickerPeriodContext = createContext<TickerPeriodContextProps>({
 
 export const TickerPeriodProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [ticker, setTicker] = useState<string>('SOL-USD');
-    const [period, setPeriod] = useState<string>('15min');
+    const [period, setPeriod] = useState<string>('1h');
 
     return (
         <TickerPeriodContext.Provider value={{ ticker, period, setTicker, setPeriod }}>

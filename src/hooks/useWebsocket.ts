@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useContext } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
-import { Observable, EMPTY, timer, Subject } from 'rxjs';
-import { retryWhen, delayWhen, tap, takeUntil, retry } from 'rxjs/operators';
+import { Observable, EMPTY, timer, Subject, shareReplay } from 'rxjs';
+import { retry, takeUntil } from 'rxjs/operators';
 import { useTickerPeriod } from '@/contexts/TickerPeriodContext';
 
 // Define the type for our hook's return value.
@@ -9,47 +9,39 @@ interface WebsocketStreams {
     orderflow$: Observable<any>;
     trend$: Observable<any>;
     marketflow$: Observable<any>;
-    // cvdPeriod$: Observable<any>;
+    marketflowWidget$: Observable<any>;
     // vwap$: Observable<any>;
     sendMessage: (msg: any) => void;
     close: () => void;
 }
 
 export function useWebsocket(): WebsocketStreams {
-    const { ticker } = useTickerPeriod(); // ticker is defined here - delete this line if working in useEffect
-    // const retrieve = { type: 'get_data', sym: ticker, user: '8888' };
+    const { ticker } = useTickerPeriod();
+
     // States to hold each observable stream.
     const [orderflow$, setOrderflow$] = useState<Observable<any>>(EMPTY);
     const [trend$, setTrend$] = useState<Observable<any>>(EMPTY);
     const [marketflow$, setMarketflow$] = useState<Observable<any>>(EMPTY);
-    // const [cvdPeriod$, setCvdPeriod$] = useState<Observable<any>>(EMPTY);
+    const [marketflowWidget$, setMarketflowWidget$] = useState<Observable<any>>(EMPTY);
     // const [vwap$, setVwap$] = useState<Observable<any>>(EMPTY);
 
     // Refs to hold the WebSocketSubject instances (persist across renders)
     const orderflowSocketRef = useRef<WebSocketSubject<any>>(undefined);
     const trendSocketRef = useRef<WebSocketSubject<any>>(undefined);
     const marketflowSocketRef = useRef<WebSocketSubject<any>>(undefined);
-    // const cvdPeriodSocketRef = useRef<WebSocketSubject<any>>(undefined);
-    // const vwapSocketRef = useRef<WebSocketSubject<any>>(undefined);
+    const marketflowWidgetSocketRef = useRef<WebSocketSubject<any>>(undefined);
+    // const vwapSocketRef = useRef<WebSocketSubject<any>>();
 
     // A "destroy" notifier for all reconnect pipelines.
-    // When this subject emits, the reconnect (and other) streams will stop.
     const destroy$ = useRef(new Subject<void>()).current;
 
-    // This is the message that is sent on open (adjust as needed)
+    // Initial message sent on open for orderflow only
     const retrieve = { type: 'get_data', sym: 'SOL-USD', user: '8888' };
 
-    // Reconnect operator: if an error occurs, wait 2 seconds and retry.
+    // Simple reconnect wrapper: retry with delay; stop when destroy$ emits
     const reconnect = <T>(obs: Observable<T>): Observable<T> =>
         obs.pipe(
-            retry({ delay: () => timer(4000)}),
-            retryWhen(errors =>
-                errors.pipe(
-                    tap(err => console.log('[WebSocket] Error encountered, reconnecting:', err)),
-                    delayWhen(() => timer(10))
-                )
-            ),
-            // If the component unmounts, signal all pipelines to end.
+            retry({ delay: () => timer(4000) }),
             takeUntil(destroy$)
         );
 
@@ -75,35 +67,46 @@ export function useWebsocket(): WebsocketStreams {
     };
 
     useEffect(() => {
-        // If ticker changes, close any existing sockets.
+        // Close existing sockets when ticker changes (except marketflow; see below)
         if (orderflowSocketRef.current) orderflowSocketRef.current.complete();
         if (trendSocketRef.current) trendSocketRef.current.complete();
-        if (marketflowSocketRef.current) marketflowSocketRef.current.complete();
-        // Create the WebSocket connections.
+        if (marketflowWidgetSocketRef.current) marketflowWidgetSocketRef.current.complete();
+
+        // Create/recreate sockets bound to this ticker
         orderflowSocketRef.current = getWS(`/orderflow/?sym=${ticker}`);
         trendSocketRef.current = getWS(`/trends/?sym=${ticker}`);
-        marketflowSocketRef.current = getWS(`/ws/marketflow/${encodeURIComponent(ticker)}/`);
-        // cvdPeriodSocketRef.current = getWS('/cvd_period/');
-        // vwapSocketRef.current = getWS('/vwap/');
+        marketflowWidgetSocketRef.current = getWS('/cvd/');
+
+        // Ensure/create marketflow socket (Fix A: no .asObservable() on undefined)
+        const mfSocket =
+            marketflowSocketRef.current && !marketflowSocketRef.current.closed
+                ? marketflowSocketRef.current
+                : (marketflowSocketRef.current = getWS(`/ws/marketflow/${encodeURIComponent(ticker)}/`));
 
         // Wrap the observables with reconnect logic and store them in state.
-        // setCvdPeriod$(reconnect(cvdPeriodSocketRef.current.asObservable()));
-        // setVwap$(reconnect(vwapSocketRef.current.asObservable()));
+        setOrderflow$(reconnect(orderflowSocketRef.current));
+        setTrend$(reconnect(trendSocketRef.current));
+        setMarketflowWidget$(reconnect(marketflowWidgetSocketRef.current));
 
-        setOrderflow$(reconnect(orderflowSocketRef.current.asObservable()));
-        setTrend$(reconnect(trendSocketRef.current.asObservable()));
-        setMarketflow$(reconnect(marketflowSocketRef.current.asObservable()));
+        // Marketflow: reconnect + shareReplay for late subscribers (Fix A)
+        setMarketflow$(
+            reconnect(mfSocket).pipe(
+                // keep the latest message; auto-disconnect upstream when no subscribers
+                shareReplay({ bufferSize: 1, refCount: true })
+            )
+        );
 
-        // Cleanup: complete all sockets on unmounting.
+        // Cleanup: signal pipelines to stop and close per-scope sockets.
         return () => {
-            console.log('[WebSocket] Cleanup: Closing all sockets and halting reconnections');
+            console.log('[WebSocket] Cleanup: Closing sockets and halting reconnections');
             destroy$.next();
             destroy$.complete();
 
             orderflowSocketRef.current?.complete();
             trendSocketRef.current?.complete();
-            marketflowSocketRef.current?.complete();
-            // cvdPeriodSocketRef.current?.complete();
+            // Intentionally NOT completing marketflow here to avoid killing a shared stream
+            // marketflowSocketRef.current?.complete();
+            marketflowWidgetSocketRef.current?.complete();
             // vwapSocketRef.current?.complete();
         };
         // Note: destroy$ is stable due to useRef.
@@ -117,15 +120,18 @@ export function useWebsocket(): WebsocketStreams {
         if (trendSocketRef.current && !trendSocketRef.current.closed) {
             trendSocketRef.current.next(msg);
         }
+        // Ensure/create marketflow socket on first send if needed (Fix A pattern)
+        if (!marketflowSocketRef.current || marketflowSocketRef.current.closed) {
+            marketflowSocketRef.current = getWS(`/ws/marketflow/${encodeURIComponent(ticker)}/`);
+        }
         if (marketflowSocketRef.current && !marketflowSocketRef.current.closed) {
             marketflowSocketRef.current.next(msg);
-            console.log('[WebSocket] Sending msg to marketflow:', msg);
         }
-        // if (cvdPeriodSocketRef.current && !cvdPeriodSocketRef.current.closed) {
-        //     cvdPeriodSocketRef.current.next(msg);
-        // }
+        if (marketflowWidgetSocketRef.current && !marketflowWidgetSocketRef.current.closed) {
+            marketflowWidgetSocketRef.current.next(msg);
+        }
         // if (vwapSocketRef.current && !vwapSocketRef.current.closed) {
-        //     vwapSocketRef.current.next(msg);
+        //   vwapSocketRef.current.next(msg);
         // }
     };
 
@@ -138,10 +144,8 @@ export function useWebsocket(): WebsocketStreams {
         orderflowSocketRef.current?.complete();
         trendSocketRef.current?.complete();
         marketflowSocketRef.current?.complete();
-        // cvdPeriodSocketRef.current?.complete();
+        marketflowWidgetSocketRef.current?.complete();
         // vwapSocketRef.current?.complete();
     };
-
-    // return { orderflow$, trend$, cvd$, cvdPeriod$, vwap$, sendMessage, close };
-    return { orderflow$, trend$, marketflow$, sendMessage, close };
+    return { orderflow$, trend$, marketflow$, marketflowWidget$, sendMessage, close };
 }

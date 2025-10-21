@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
-import { useWebsocket } from '@/hooks/_useWebsocket';
+import { useWebsocket } from '@/hooks/useWebsocket';
 import TrendChartsSection from '@/components/TrendChartsSection';
 import ClickTooltip from "@/components/ClickTooltip";
 import LoadingIndicator from "@/components/LoadingIndicator";
