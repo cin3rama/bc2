@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useWebsocket } from '@/hooks/_useWebsocket';
+import { useWebsocket } from '@/hooks/useWebsocket';
 import { useHeaderConfig } from '@/contexts/HeaderConfigContext';
 import { useTickerPeriod } from '@/contexts/TickerPeriodContext';
 import { applyLiveMarketflowUpdate } from '@/utils/applyLiveMarketflowUpdate';
