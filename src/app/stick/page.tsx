@@ -39,7 +39,7 @@ export default function StickPage() {
                 throw new Error(`Unsupported period: ${period}`)
             }
             const startTime = endTime - periodMs
-            const url = `https://botpilot--8000.ngrok.io/ai_prompt/?sym=${ticker}&start_time=${startTime}&end_time=${endTime}&limit=20`
+            const url = `https://botpilot--8000.ngrok.io/concentration-metrics/?ticker=${ticker}&start_time=${startTime}&end_time=${endTime}`
 
             const response = await fetch(url)
             if (!response.ok) {
