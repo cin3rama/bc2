@@ -136,6 +136,16 @@ type ConcentrationPayload = {
     }
 }
 
+type ToastWire =
+    | string
+    | {
+    id?: string | number
+    type?: string
+    title?: string
+    message?: string
+    severity?: 'info' | 'warning' | 'error' | 'success'
+}
+
 // ---- Constants --------------------------------------------------------------
 
 const API_BASE = 'https://botpilot--8000.ngrok.io/concentration-data'
@@ -520,16 +530,39 @@ export default function MarketflowAnalyticsPage() {
                         <CardDescription>Recent regime changes & signals</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                        {(mm?.toasts || []).length > 0 ? (
-                            mm!.toasts!.map((t, i) => (
-                                <div key={i} className="text-sm border rounded-md p-2 bg-muted/30">
-                                    {t}
-                                </div>
-                            ))
+                        {(mm?.toasts ?? []).length > 0 ? (
+                            (mm!.toasts as any[]).map((t, i) => {
+                                // normalize either a string or object
+                                const isObj = t && typeof t === 'object'
+                                const key = (isObj && (t.id ?? t.title ?? t.message)) || i
+                                const title = isObj ? (t.title ?? t.type ?? 'Alert') : undefined
+                                const message = isObj ? (t.message ?? '') : String(t)
+                                const sev = isObj ? (t.severity ?? t.type ?? 'info') : 'info'
+
+                                // quick badge color
+                                const sevCls =
+                                    sev === 'error'
+                                        ? 'bg-rose-500/10 text-rose-400 border-rose-600/40'
+                                        : sev === 'warning'
+                                            ? 'bg-amber-500/10 text-amber-400 border-amber-600/40'
+                                            : sev === 'success'
+                                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-600/40'
+                                                : 'bg-sky-500/10 text-sky-400 border-sky-600/40'
+
+                                return (
+                                    <div key={key} className={`text-sm border rounded-md p-2 ${sevCls}`}>
+                                        {title ? <div className="font-medium">{title}</div> : null}
+                                        <div>{message}</div>
+                                    </div>
+                                )
+                            })
                         ) : (
-                            <div className="text-sm text-muted-foreground">None yet. (Appears once previous states are supplied.)</div>
+                            <div className="text-sm text-muted-foreground">
+                                None yet. (Appears once previous states are supplied.)
+                            </div>
                         )}
                     </CardContent>
+
                 </Card>
             </div>
 
