@@ -63,7 +63,7 @@ const MarketflowDirectionalDiffChart = forwardRef<ChartHandle, DiffChartProps>(
                 },
                 yAxis: {
                     title: { text: "Directional Diff", style: { color: isDark ? "#fff" : "#000" } },
-                    gridLineColor: isDark ? "#333" : "#eee",
+                    gridLineColor: isDark ? "#333" : "#fcfcfc",
                     min,
                     max,
                     plotLines: [{ value: 0, color: isDark ? "#888" : "#666", width: 1.5, zIndex: 5 }],

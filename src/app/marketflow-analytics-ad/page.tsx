@@ -1,6 +1,6 @@
 'use client'
 
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import React, {useCallback, useEffect, useMemo, useState} from 'react'
 import {motion} from 'framer-motion'
 import {
     AlertTriangle,
@@ -16,24 +16,32 @@ import HighchartsReact from 'highcharts-react-official'
 import {useHeaderConfig} from '@/contexts/HeaderConfigContext'
 import {useTickerPeriod} from '@/contexts/TickerPeriodContext'
 
-// --- Local UI primitives (drop-in replacements for shadcn/ui) -----------------
+// --- Local UI primitives ----------------------------------------------------
 const cn = (...a: (string | undefined | false)[]) => a.filter(Boolean).join(' ')
 
 function Card({className, children}: React.PropsWithChildren<{ className?: string }>) {
     return (
         <div
-            className={cn('rounded-2xl border border-secondary dark:border-secondary-dark bg-surface dark:bg-surface-dark', className)}>
+            className={cn(
+                'rounded-2xl border border-secondary dark:border-secondary-dark bg-surface dark:bg-surface-dark',
+                className,
+            )}
+        >
             {children}
         </div>
     )
 }
 
 function CardHeader({className, children}: React.PropsWithChildren<{ className?: string }>) {
-    return <div className={cn('px-4 pt-4 pb-2 text-gray-700 dark:text-text-inverted/80', className)}>{children}</div>
+    return (
+        <div className={cn('px-4 pt-4 pb-2 text-gray-700 dark:text-text-inverted/80', className)}>{children}</div>
+    )
 }
 
 function CardContent({className, children}: React.PropsWithChildren<{ className?: string }>) {
-    return <div className={cn('px-4 pb-4 text-secondary-dark dark:text-text-inverted/80', className)}>{children}</div>
+    return (
+        <div className={cn('px-4 pb-4 text-secondary-dark dark:text-text-inverted/80', className)}>{children}</div>
+    )
 }
 
 function CardTitle({className, children}: React.PropsWithChildren<{ className?: string }>) {
@@ -43,6 +51,8 @@ function CardTitle({className, children}: React.PropsWithChildren<{ className?: 
 function CardDescription({className, children}: React.PropsWithChildren<{ className?: string }>) {
     return <p className={cn('text-sm text-secondary-dark dark:text-text-inverted/80', className)}>{children}</p>
 }
+
+// Buttons & Inputs -----------------------------------------------------------
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
     variant?: 'default' | 'secondary' | 'ghost' | 'destructive' | 'outline'
@@ -62,7 +72,11 @@ function Button({className, children, variant = 'default', size = 'md', ...props
                         : 'bg-primary text-neutral-900 hover:bg-primary-light border border-primary-dark'
 
     const sizeCls =
-        size === 'sm' ? 'px-2 py-1 text-xs rounded-lg' : size === 'lg' ? 'px-5 py-3 text-base rounded-2xl' : 'px-3 py-2 text-sm rounded-xl'
+        size === 'sm'
+            ? 'px-2 py-1 text-xs rounded-lg'
+            : size === 'lg'
+                ? 'px-5 py-3 text-base rounded-2xl'
+                : 'px-3 py-2 text-sm rounded-xl'
 
     return (
         <button
@@ -94,22 +108,25 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
 
 function Label({className, children, htmlFor}: { className?: string; children: React.ReactNode; htmlFor?: string }) {
     return (
-        <label htmlFor={htmlFor}
-               className={cn('text-xs uppercase tracking-wide text-secondary dark:text-text-inverted/80', className)}>
+        <label
+            htmlFor={htmlFor}
+            className={cn('text-xs uppercase tracking-wide text-secondary dark:text-text-inverted/80', className)}
+        >
             {children}
         </label>
     )
 }
 
 /**
- * MARKETFLOW ANALYTICS (MM domain)
- * HTTP Fetch: https://botpilot--8000.ngrok.io/concentration-data
+ * MARKETFLOW ANALYTICS — ACC/DIS PAGE (Phase 1)
+ * Same layout/UX as the MM dashboard, but the data source is the `accdis` domain.
+ * Fetches from: https://botpilot--8000.ngrok.io/concentration-data?ticker=...&start_time=...&end_time=...&limit_raw=...
  * Live updates: subscribe to marketflowAnalytics$ (rxjs) from hooks/useWebsocket
  */
 
 // ---- Types -----------------------------------------------------------------
 
-type TopShares = Record<string, number>
+type TopShares = Record<string, number> // keys: "1","3","5","10","20" → cumulative share (0..1)
 
 type SideBundle = {
     hhi: number | null
@@ -137,6 +154,7 @@ type DomainConcentration = {
     lci_star?: number | null
     fci?: number | null
     imbalance_frac?: number | null
+    // NOTE: backend may send coverage.buy_frac/sell_frac (preferred) or coverage.buy/sell (legacy)
     coverage?: { buy?: number | null; sell?: number | null; buy_frac?: number | null; sell_frac?: number | null } | null
     regime_tag?: string | null
     regime_flags?: RegimeFlags | null
@@ -167,9 +185,10 @@ type ConcentrationPayload = {
 // ---- Constants --------------------------------------------------------------
 
 const API_BASE = 'https://botpilot--8000.ngrok.io/api/mfa'
-const DEFAULT_LIMIT_RAW = 20
+const DEFAULT_LIMIT_RAW = 200
 const TICKER_OPTIONS = ['SOL-USD', 'BTC-USD', 'ETH-USD', 'ZEC-USD']
 
+// chart palette
 const CHART_SERIES = ['#8884d8', '#82ca9d', '#ffc658']
 const PIE_COLORS = ['#8884d8', '#82ca9d']
 
@@ -212,21 +231,26 @@ function shareOrNull(numerator?: number | null, denom?: number | null) {
     return (numerator as number) / (denom as number)
 }
 
-// ---- UI Subcomponents -------------------------------------------------------
-
-function StatTile({title, value, sub, icon}: { title: string; value: string; sub?: string; icon?: React.ReactNode }) {
-    return (
-        <Card className="shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{title}</CardTitle>
-                {icon}
-            </CardHeader>
-            <CardContent>
-                <div className="text-2xl font-semibold">{value}</div>
-                {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
-            </CardContent>
-        </Card>
-    )
+function TopSharesLine({ts}: { ts?: TopShares | null }) {
+    const seriesData = useMemo(() => {
+        const entries = ts ? Object.entries(ts) : []
+        entries.sort((a, b) => Number(a[0]) - Number(b[0]))
+        return entries.map(([k, v]) => ({name: `Top ${k}`, y: v * 100}))
+    }, [ts])
+    const options = useMemo(() => {
+        return {
+            chart: {type: 'line', height: 260, backgroundColor: 'transparent'},
+            title: {text: undefined},
+            xAxis: {categories: seriesData.map((p) => p.name)},
+            yAxis: {title: {text: 'Share %'}, max: 100, min: 0},
+            tooltip: {valueSuffix: '%'},
+            legend: {enabled: false},
+            series: [
+                {type: 'line', data: seriesData.map((p) => p.y), color: CHART_SERIES[0], marker: {enabled: true}},
+            ],
+        } as Highcharts.Options
+    }, [seriesData])
+    return <HighchartsReact highcharts={Highcharts} options={options}/>
 }
 
 function CoveragePie({buy, sell}: { buy?: number | null; sell?: number | null }) {
@@ -238,8 +262,8 @@ function CoveragePie({buy, sell}: { buy?: number | null; sell?: number | null })
             plotOptions: {
                 pie: {
                     innerSize: '60%',
-                    dataLabels: {enabled: true, format: '{point.name}: {point.percentage:.0f}%'}
-                }
+                    dataLabels: {enabled: true, format: '{point.name}: {point.percentage:.0f}%'},
+                },
             },
             series: [
                 {
@@ -256,40 +280,18 @@ function CoveragePie({buy, sell}: { buy?: number | null; sell?: number | null })
     return <HighchartsReact highcharts={Highcharts} options={options}/>
 }
 
-function TopSharesLine({ts}: { ts?: TopShares | null }) {
-    const seriesData = useMemo(() => {
-        const entries = ts ? Object.entries(ts) : []
-        entries.sort((a, b) => Number(a[0]) - Number(b[0]))
-        return entries.map(([k, v]) => ({name: `Top ${k}`, y: v * 100}))
-    }, [ts])
-    const options = useMemo(() => {
-        return {
-            chart: {type: 'line', height: 260, backgroundColor: 'transparent'},
-            title: {text: undefined},
-            xAxis: {categories: seriesData.map((p) => p.name)},
-            yAxis: {title: {text: 'Share %'}, max: 100, min: 0},
-            tooltip: {valueSuffix: '%'},
-            legend: {enabled: false},
-            series: [{type: 'line', data: seriesData.map((p) => p.y), color: CHART_SERIES[0], marker: {enabled: true}}],
-        } as Highcharts.Options
-    }, [seriesData])
-    return <HighchartsReact highcharts={Highcharts} options={options}/>
-}
-
 // ---- Page -------------------------------------------------------------------
 
-export default function MarketflowAnalyticsPage() {
+export default function MarketflowAnalyticsADPage() {
     const {setConfig} = useHeaderConfig()
-    // const { ticker, setTicker } = useTickerPeriod()
-
-    const {ticker: ctxTicker} = useTickerPeriod()
+    const { ticker, setTicker} = useTickerPeriod()
 
     // ensure header shows ticker, but period here is derived from manual time controls
     useEffect(() => {
         setConfig({showTicker: true, showPeriod: false})
     }, [setConfig])
 
-    const [ticker, setTicker] = useState<string>(ctxTicker || 'SOL-USD')
+    // const [ticker, setTicker] = useState<string>(ctxTicker || 'SOL-USD')
     const [startLocal, setStartLocal] = useState<string>(() => new Date(Date.now() - 60 * 60 * 1000).toISOString().slice(0, 16))
     const [endLocal, setEndLocal] = useState<string>(() => new Date().toISOString().slice(0, 16))
     const [limit, setLimit] = useState<number>(DEFAULT_LIMIT_RAW)
@@ -298,21 +300,16 @@ export default function MarketflowAnalyticsPage() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    // Live subscription state (no manual WebSocket)
+    // Live subscription state (same pattern as MM page)
     const [liveEnabled, setLiveEnabled] = useState(true)
     const [wsStatus, setWsStatus] = useState<'closed' | 'open' | 'error'>('closed')
     // access rxjs observable from shared hook (uses https under the hood for ngrok)
-    // const {marketflowAnalytics$} = require('@/hooks/useWebsocket').useWebsocket()
-    const { marketflowAnalytics$, sendMessage } = require('@/hooks/useWebsocket').useWebsocket()
+    const {marketflowAnalytics$} = require('@/hooks/useWebsocket').useWebsocket()
 
     const doFetch = useCallback(async () => {
         setLoading(true)
         setError(null)
         try {
-            const startMs = msFromLocal(startLocal)
-            const endMs = msFromLocal(endLocal)
-            if (startMs === null || endMs === null) throw new Error('Invalid date range.')
-            // const qs = new URLSearchParams({ ticker, start_time: String(startMs), end_time: String(endMs), limit: String(limit) })
             const qs = new URLSearchParams({ticker})
             const url = `${API_BASE}?${qs.toString()}&period=1h&limit=${limit}`
             const resp = await fetch(url)
@@ -326,49 +323,10 @@ export default function MarketflowAnalyticsPage() {
         }
     }, [ticker, startLocal, endLocal, limit])
 
-    // initial fetch
-
     useEffect(() => {
         if (ticker) doFetch()
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ticker])
-
-    // remember the previously joined group so we can cleanly leave it
-    const prevGroupRef = useRef<string | null>(null)
-
-    /**
-     * Join the Channels group for the current ticker whenever:
-     *  - the header-controlled `ticker` changes
-     *  - live mode toggles ON
-     */
-    useEffect(() => {
-        if (!liveEnabled) return
-        if (!ticker) return
-
-        // Adjust group name if your backend expects a different pattern:
-        // e.g. 'marketflow-analytics_SOL-USD'
-        const group = `mfa_${ticker}`
-
-        // leave previous group (if any)
-        if (prevGroupRef.current && prevGroupRef.current !== group) {
-            try { sendMessage?.({ type: 'leave', group: prevGroupRef.current }) } catch {}
-        }
-
-        // join the new group
-        try { sendMessage?.({ type: 'join', group }) } catch {}
-
-        // remember it for next change
-        prevGroupRef.current = group
-
-        // optional: when live turns OFF, leave current group
-        return () => {
-            if (!liveEnabled && prevGroupRef.current) {
-                try { sendMessage?.({ type: 'leave', group: prevGroupRef.current }) } catch {}
-            }
-        }
-    }, [ticker, liveEnabled, sendMessage])
-
-
 
     // --- Subscribe to rxjs websocket subject (marketflowAnalytics$) ---
     useEffect(() => {
@@ -377,40 +335,43 @@ export default function MarketflowAnalyticsPage() {
 
         const sub = marketflowAnalytics$.subscribe({
             next: (msg: any) => {
-                console.log('[MFA] msg: ', msg)
                 try {
                     if (!msg) return
                     // Full payload: { payload: ConcentrationPayload }
                     const full = msg.payload
                     if (full && full.concentration) {
-                        const tk = full.ticker || full.concentration?.mm?.ticker
+                        const tk = full.ticker || full.concentration?.accdis?.ticker || full.concentration?.mm?.ticker
                         if (tk && tk !== ticker) return
-                        const mm = full.concentration.mm
-                        if (mm?.coverage && (mm.coverage.buy_frac != null || mm.coverage.sell_frac != null)) {
-                            mm.coverage = {
-                                buy: mm.coverage.buy ?? mm.coverage.buy_frac ?? null,
-                                sell: mm.coverage.sell ?? mm.coverage.sell_frac ?? null
+
+                        // normalize coverage for accdis branch if present
+                        const ad = full.concentration.accdis
+                        if (ad?.coverage && (ad.coverage.buy_frac != null || ad.coverage.sell_frac != null)) {
+                            ad.coverage = {
+                                buy: ad.coverage.buy ?? ad.coverage.buy_frac ?? null,
+                                sell: ad.coverage.sell ?? ad.coverage.sell_frac ?? null,
                             }
                         }
                         setData(full)
                         return
                     }
 
-                    // Delta: { type: 'minute_update', ticker, mm: DomainConcentration }
+                    // Delta: { type: 'minute_update', ticker, accdis: DomainConcentration }
                     if (msg.type === 'minute_update') {
-                        const msgTicker = msg.ticker || msg?.concentration?.mm?.ticker
+                        const msgTicker = msg.ticker || msg?.concentration?.accdis?.ticker || msg?.concentration?.mm?.ticker
                         if (msgTicker && msgTicker !== ticker) return
-                        const mm = msg.mm || msg?.concentration?.mm
-                        if (!mm) return
+                        const accdis = msg.accdis || msg?.concentration?.accdis
+                        if (!accdis) return
 
-                        const cov = mm.coverage
-                        const normCoverage = cov ? {
-                            buy: cov.buy ?? cov.buy_frac ?? null,
-                            sell: cov.sell ?? cov.sell_frac ?? null
-                        } : undefined
-                        const nextMm = {...mm, coverage: normCoverage}
+                        const cov = accdis.coverage
+                        const normCoverage = cov
+                            ? {
+                                buy: cov.buy ?? cov.buy_frac ?? null,
+                                sell: cov.sell ?? cov.sell_frac ?? null,
+                            }
+                            : undefined
+                        const nextAd = {...accdis, coverage: normCoverage}
 
-                        setData(prev => {
+                        setData((prev) => {
                             const base: ConcentrationPayload =
                                 prev ?? {
                                     ticker: msgTicker || ticker,
@@ -418,19 +379,19 @@ export default function MarketflowAnalyticsPage() {
                                         window: {start_time: 0, end_time: 0},
                                         generated_at_ms: Date.now(),
                                         version: 'live',
-                                        source: 'ws'
+                                        source: 'ws',
                                     },
                                     concentration: {mm: null, accdis: null, all: null},
                                 }
                             return {
                                 ...base,
                                 meta: {...base.meta, generated_at_ms: Date.now(), source: 'ws'},
-                                concentration: {...base.concentration, mm: nextMm as any}
+                                concentration: {...base.concentration, accdis: nextAd as any},
                             }
                         })
                     }
                 } catch (e) {
-                    console.error('[marketflowAnalytics$] parse error', e)
+                    console.error('[marketflowAnalytics$][AD] parse error', e)
                 }
             },
             error: () => setWsStatus('error'),
@@ -443,15 +404,18 @@ export default function MarketflowAnalyticsPage() {
         }
     }, [liveEnabled, marketflowAnalytics$, ticker])
 
-    const mm = data?.concentration?.mm || null
-    const buy = mm?.buy || null
-    const sell = mm?.sell || null
+    // ---- pick the ACC/DIS domain ------------------------------------------------
+    const accdis = data?.concentration?.accdis || null
+    const buy = accdis?.buy || null
+    const sell = accdis?.sell || null
 
-    const hhi = mm?.buy?.hhi ?? null
-    const lci = mm?.lci ?? null
-    const fci = mm?.fci ?? null
-    const imb = mm?.imbalance_frac ?? null
+    // KPIs
+    const hhi = accdis?.buy?.hhi ?? null // keep buy-focused HHI as primary
+    const lci = accdis?.lci ?? null
+    const fci = accdis?.fci ?? null
+    const imb = accdis?.imbalance_frac ?? null
 
+    // derive coverage from volume sums; fallback to backend coverage.{buy_frac,sell_frac} or legacy coverage.{buy,sell}
     const buyVol = buy?.volume_sum ?? null
     const sellVol = sell?.volume_sum ?? null
     const totalVol = (Number(buyVol) || 0) + (Number(sellVol) || 0)
@@ -459,8 +423,8 @@ export default function MarketflowAnalyticsPage() {
     const derivedBuyShare = shareOrNull(buyVol, totalVol)
     const derivedSellShare = shareOrNull(sellVol, totalVol)
 
-    const coverageBuy = (derivedBuyShare ?? mm?.coverage?.buy ?? mm?.coverage?.buy_frac) ?? null
-    const coverageSell = (derivedSellShare ?? mm?.coverage?.sell ?? mm?.coverage?.sell_frac) ?? null
+    const coverageBuy = (derivedBuyShare ?? accdis?.coverage?.buy ?? accdis?.coverage?.buy_frac) ?? null
+    const coverageSell = (derivedSellShare ?? accdis?.coverage?.sell ?? accdis?.coverage?.sell_frac) ?? null
 
     const generatedAt = data?.meta?.generated_at_ms
 
@@ -477,19 +441,20 @@ export default function MarketflowAnalyticsPage() {
                     <div className="flex items-center gap-3 text-gray-900 dark:text-gray-100">
                         <motion.div initial={{opacity: 0, y: -6}} animate={{opacity: 1, y: 0}}
                                     className="text-2xl font-semibold">
-                            Marketflow Analytics — Concentration (Phase 1)
+                            Marketflow Analytics — Accumulators & Distributors (Phase 1)
                         </motion.div>
-                        {mm?.regime_tag && <span className={regimeBadgeClass(mm.regime_tag)}>{mm.regime_tag}</span>}
+                        {accdis?.regime_tag &&
+                            <span className={regimeBadgeClass(accdis.regime_tag)}>{accdis.regime_tag}</span>}
                     </div>
                     <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <span className={cn(
-                'inline-flex items-center gap-1 px-2 py-0.5 rounded-md border',
-                wsStatus === 'open' && 'border-green-500/40 text-green-600 dark:text-green-400',
-                wsStatus === 'error' && 'border-rose-500/40 text-rose-600 dark:text-rose-400',
-                wsStatus === 'closed' && 'border-zinc-300/40 text-zinc-500 dark:text-zinc-400',
-            )}>
-              Live: {wsStatus}
-            </span>
+                        <span className={cn(
+                            'inline-flex items-center gap-1 px-2 py-0.5 rounded-md border',
+                            wsStatus === 'open' && 'border-green-500/40 text-green-600 dark:text-green-400',
+                            wsStatus === 'error' && 'border-rose-500/40 text-rose-600 dark:text-rose-400',
+                            wsStatus === 'closed' && 'border-zinc-300/40 text-zinc-500 dark:text-zinc-400',
+                        )}>
+                          Live: {wsStatus}
+                        </span>
                         {generatedAt ? `Generated: ${new Date(generatedAt).toLocaleString()}` : ''}
                     </div>
                 </div>
@@ -506,7 +471,9 @@ export default function MarketflowAnalyticsPage() {
                                     onChange={(e) => setTicker(e.target.value)}
                                 >
                                     {TICKER_OPTIONS.map((t) => (
-                                        <option key={t} value={t}>{t}</option>
+                                        <option key={t} value={t}>
+                                            {t}
+                                        </option>
                                     ))}
                                 </select>
                             </div>
@@ -523,18 +490,26 @@ export default function MarketflowAnalyticsPage() {
                             </div>
                             <div className="flex flex-col gap-2">
                                 <Label htmlFor="limit">limit_raw</Label>
-                                <Input id="limit" type="number" min={1} step={1} value={limit}
-                                       onChange={(e) => setLimit(Number(e.target.value) || 1)}/>
+                                <Input
+                                    id="limit"
+                                    type="number"
+                                    min={1}
+                                    step={1}
+                                    value={limit}
+                                    onChange={(e) => setLimit(Number(e.target.value) || 1)}
+                                />
                             </div>
 
                             <div className="flex items-end gap-2">
                                 <Button onClick={doFetch} disabled={loading} className="w-full">
                                     {loading ? (
-                                        <span className="inline-flex items-center gap-2"><Loader2
-                                            className="h-4 w-4 animate-spin"/> Fetching</span>
+                                        <span className="inline-flex items-center gap-2">
+                                          <Loader2 className="h-4 w-4 animate-spin"/> Fetching
+                                        </span>
                                     ) : (
-                                        <span className="inline-flex items-center gap-2"><RefreshCcw
-                                            className="h-4 w-4"/> Fetch</span>
+                                        <span className="inline-flex items-center gap-2">
+                                          <RefreshCcw className="h-4 w-4"/> Fetch
+                                        </span>
                                     )}
                                 </Button>
                                 <Button variant="outline" onClick={copyJSON} disabled={!data}
@@ -545,9 +520,7 @@ export default function MarketflowAnalyticsPage() {
                                 <Label className="sr-only">Live</Label>
                                 <Button
                                     variant={liveEnabled ? 'secondary' : 'outline'}
-                                    onClick={() => {
-                                        setLiveEnabled((v) => !v)
-                                    }}
+                                    onClick={() => setLiveEnabled((v) => !v)}
                                 >
                                     {liveEnabled ? 'Live ON' : 'Live OFF'}
                                 </Button>
@@ -578,9 +551,11 @@ export default function MarketflowAnalyticsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
                 <Card className="shadow-sm lg:col-span-2">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-base flex items-center gap-2"><PieIcon className="h-4 w-4"/> Coverage
-                            (k-used: {mm?.k_used ?? '—'})</CardTitle>
-                        <CardDescription>Share of volume covered by top-k participants</CardDescription>
+                        <CardTitle className="text-base flex items-center gap-2">
+                            <PieIcon className="h-4 w-4"/> Coverage (k-used: {accdis?.k_used ?? '—'})
+                        </CardTitle>
+                        <CardDescription>Share of accumulator/distributor volume covered by top-k
+                            participants</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <CoveragePie buy={coverageBuy} sell={coverageSell}/>
@@ -593,7 +568,7 @@ export default function MarketflowAnalyticsPage() {
 
                 <Card className="shadow-sm">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Top-k Cumulative Shares (Buy)</CardTitle>
+                        <CardTitle className="text-base">Top-k Cumulative Shares (Buy — Accumulators)</CardTitle>
                         <CardDescription>How quickly the top ranks accumulate share</CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -603,7 +578,7 @@ export default function MarketflowAnalyticsPage() {
 
                 <Card className="shadow-sm">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Top-k Cumulative Shares (Sell)</CardTitle>
+                        <CardTitle className="text-base">Top-k Cumulative Shares (Sell — Distributors)</CardTitle>
                         <CardDescription>How quickly the top ranks accumulate share</CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -616,9 +591,10 @@ export default function MarketflowAnalyticsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <Card className="shadow-sm">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Buy Side</CardTitle>
-                        <CardDescription>Participants: {fmt(buy?.n_participants, 0)} •
-                            Volume: {fmt(buy?.volume_sum)}</CardDescription>
+                        <CardTitle className="text-base">Buy Side — Accumulators</CardTitle>
+                        <CardDescription>
+                            Participants: {fmt(buy?.n_participants, 0)} • Volume: {fmt(buy?.volume_sum)}
+                        </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -634,9 +610,10 @@ export default function MarketflowAnalyticsPage() {
 
                 <Card className="shadow-sm">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Sell Side</CardTitle>
-                        <CardDescription>Participants: {fmt(sell?.n_participants, 0)} •
-                            Volume: {fmt(sell?.volume_sum)}</CardDescription>
+                        <CardTitle className="text-base">Sell Side — Distributors</CardTitle>
+                        <CardDescription>
+                            Participants: {fmt(sell?.n_participants, 0)} • Volume: {fmt(sell?.volume_sum)}
+                        </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -655,30 +632,48 @@ export default function MarketflowAnalyticsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <Card className="shadow-sm lg:col-span-2 mb-8">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Regime & Rationale</CardTitle>
+                        <CardTitle className="text-base">Regime & Rationale (Acc/Dis)</CardTitle>
                         <CardDescription>Flags and reasons for current tag</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
                         <div className="flex flex-wrap gap-2 text-xs">
-                            {mm?.regime_flags && (
+                            {accdis?.regime_flags && (
                                 <>
+                                  <span
+                                      className={`px-2 py-0.5 rounded-full ${accdis.regime_flags.is_fragmented ? 'bg-sky-200 text-sky-900 dark:bg-sky-300/20 dark:text-sky-300' : 'dark:bg-neutral-200 bg-gray-900'}`}
+                                  >
+                                    fragmented
+                                  </span>
                                     <span
-                                        className={`px-2 py-0.5 rounded-full ${mm.regime_flags.is_fragmented ? 'bg-sky-200 text-sky-900 dark:bg-sky-300/20 dark:text-sky-300' : 'dark:bg-neutral-200 bg-gray-900'}`}>fragmented</span>
+                                        className={`px-2 py-0.5 rounded-full ${accdis.regime_flags.is_concentrated ? 'bg-amber-200 text-amber-900 dark:bg-amber-300/20 dark:text-amber-300' : 'dark:bg-neutral-200 bg-gray-900'}`}
+                                    >
+                                    concentrated
+                                  </span>
                                     <span
-                                        className={`px-2 py-0.5 rounded-full ${mm.regime_flags.is_concentrated ? 'bg-amber-200 text-amber-900 dark:bg-amber-300/20 dark:text-amber-300' : 'dark:bg-neutral-200 bg-gray-900'}`}>concentrated</span>
+                                        className={`px-2 py-0.5 rounded-full ${accdis.regime_flags.is_dominated ? 'bg-rose-200 text-rose-900 dark:bg-rose-300/20 dark:text-rose-300' : 'dark:bg-neutral-200 bg-gray-900'}`}
+                                    >
+                                    dominated
+                                  </span>
                                     <span
-                                        className={`px-2 py-0.5 rounded-full ${mm.regime_flags.is_dominated ? 'bg-rose-200 text-rose-900 dark:bg-rose-300/20 dark:text-rose-300' : 'dark:bg-neutral-200 bg-gray-900'}`}>dominated</span>
+                                        className={`px-2 py-0.5 rounded-full ${accdis.regime_flags.trap_risk ? 'bg-fuchsia-200 text-fuchsia-900 dark:bg-fuchsia-300/20 dark:text-fuchsia-300' : 'dark:bg-neutral-200 bg-gray-900'}`}
+                                    >
+                                    trap risk
+                                  </span>
                                     <span
-                                        className={`px-2 py-0.5 rounded-full ${mm.regime_flags.trap_risk ? 'bg-fuchsia-200 text-fuchsia-900 dark:bg-fuchsia-300/20 dark:text-fuchsia-300' : 'dark:bg-neutral-200 bg-gray-900'}`}>trap risk</span>
-                                    <span
-                                        className={`px-2 py-0.5 rounded-full ${mm.regime_flags.squeeze_risk ? 'bg-emerald-200 text-emerald-900 dark:bg-emerald-300/20 dark:text-emerald-300' : 'dark:bg-neutral-200 bg-gray-900'}`}>squeeze risk</span>
+                                        className={`px-2 py-0.5 rounded-full ${accdis.regime_flags.squeeze_risk ? 'bg-emerald-200 text-emerald-900 dark:bg-emerald-300/20 dark:text-emerald-300' : 'dark:bg-neutral-200 bg-gray-900'}`}
+                                    >
+                                    squeeze risk
+                                  </span>
                                 </>
                             )}
                         </div>
                         <ul className="list-disc pl-6 text-sm space-y-1">
-                            {(mm?.reasons || []).map((r, i) => (<li key={i}>{r}</li>))}
-                            {(!mm?.reasons || mm?.reasons.length === 0) &&
-                                <li className="text-muted-foreground">No reasons provided.</li>}
+                            {(accdis?.reasons || []).map((r, i) => (
+                                <li key={i}>{r}</li>
+                            ))}
+                            {(!accdis?.reasons || accdis?.reasons.length === 0) && (
+                                <li className="text-muted-foreground">No reasons provided.</li>
+                            )}
                         </ul>
                     </CardContent>
                 </Card>
@@ -689,13 +684,14 @@ export default function MarketflowAnalyticsPage() {
                         <CardDescription>Recent regime changes & signals</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2 ">
-                        {(mm?.toasts ?? []).length > 0 ? (
-                            (mm!.toasts as any[]).map((t, i) => {
+                        {(accdis?.toasts ?? []).length > 0 ? (
+                            (accdis!.toasts as any[]).map((t, i) => {
                                 const isObj = t && typeof t === 'object'
-                                const key = (isObj && (t.id ?? t.title ?? t.message)) || i
-                                const title = isObj ? (t.title ?? t.type ?? 'Alert') : undefined
+                                const key = (isObj && (t.id ?? (t as any).title ?? (t as any).message)) || i
+                                const title = isObj ? (t.title ?? (t as any).type ?? 'Alert') : undefined
                                 const message = isObj ? (t.message ?? '') : String(t)
-                                const sev = isObj ? (t.severity ?? t.type ?? 'info') : 'info'
+                                const sev = isObj ? ((t as any).severity ?? (t as any).type ?? 'info') : 'info'
+
                                 const sevCls =
                                     sev === 'error'
                                         ? 'bg-error/10 text-error border border-error/40'
@@ -704,6 +700,7 @@ export default function MarketflowAnalyticsPage() {
                                             : sev === 'success'
                                                 ? 'bg-success/10 text-success border border-success/40'
                                                 : 'bg-secondary/10 text-secondary border border-secondary/40'
+
                                 return (
                                     <div key={key} className={`text-sm border rounded-md p-2 ${sevCls}`}>
                                         {title ? <div className="font-medium">{title}</div> : null}
@@ -719,5 +716,31 @@ export default function MarketflowAnalyticsPage() {
                 </Card>
             </div>
         </div>
+    )
+}
+
+// ---- Small tiles component (at bottom to avoid TS hoist issues) ------------
+function StatTile({
+                      title,
+                      value,
+                      sub,
+                      icon,
+                  }: {
+    title: string
+    value: string
+    sub?: string
+    icon?: React.ReactNode
+}) {
+    return (
+        <Card className="shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">{title}</CardTitle>
+                {icon}
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-semibold">{value}</div>
+                {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+            </CardContent>
+        </Card>
     )
 }
