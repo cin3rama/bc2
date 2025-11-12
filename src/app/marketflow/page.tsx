@@ -317,6 +317,7 @@ export default function MarketflowPage() {
             try {
                 if (!msg || msg.type !== "minute_update") return;
                 if (msg.ticker && ma.ticker && msg.ticker !== ma.ticker) return;
+                console.log('[MF] ws ticker: ', msg.ticker, '& ma.ticker: ', ma.ticker);
                 const ts: number = Number(msg.ts_ms);
                 if (!Number.isFinite(ts)) return;
 
@@ -435,41 +436,12 @@ export default function MarketflowPage() {
                 <MarketflowWidget
                     marketflow$={marketflow$}
                     httpBase="https://botpilot--8000.ngrok.io"
-                    ticker="SOL-USD"
+                    ticker={headerTicker}
                     period="1h"
                     seedMinutes={60}
                     onAlert={(alerts, payload) => console.log("ALERT", alerts, payload)}
                 />
             </section>
-
-            {/* Redundant Cards Below - Delete After Widget Test */}
-            {/* Summary Cards (below manual inputs, above charts) */}
-            {/*<section className="grid grid-cols-1 sm:grid-cols-4 lg gap-3">*/}
-            {/*    <div className="rounded-2xl border border-gray-300 dark:border-gray-700 p-3 bg-white dark:bg-gray-900">*/}
-            {/*        <div className="text-xs opacity-70">MM Net (last)</div>*/}
-            {/*        <div className="text-lg font-semibold">{fmtNum(lastMm)}</div>*/}
-            {/*    </div>*/}
-            {/*    <div className="rounded-2xl border border-gray-300 dark:border-gray-700 p-3 bg-white dark:bg-gray-900">*/}
-            {/*        <div className="text-xs opacity-70">Acc/Dis Net (last)</div>*/}
-            {/*        <div className="text-lg font-semibold">{fmtNum(lastAd)}</div>*/}
-            {/*    </div>*/}
-            {/*    <div className="rounded-2xl border border-gray-300 dark:border-gray-700 p-3 bg-white dark:bg-gray-900">*/}
-            {/*        <div className="text-xs opacity-70">Spread (|MM| + |AD|)</div>*/}
-            {/*        <div className="text-lg font-semibold">{fmtNum(lastSpread)}</div>*/}
-            {/*    </div>*/}
-            {/*    <div className="rounded-2xl border border-gray-300 dark:border-gray-700 p-3 bg-white dark:bg-gray-900">*/}
-            {/*        <div className="text-xs opacity-70">Directional Diff (MM + AD)</div>*/}
-            {/*        <div className="text-lg font-semibold">{fmtNum(lastDiff)}</div>*/}
-            {/*    </div>*/}
-                {/*<div className="rounded-2xl border border-gray-300 dark:border-gray-700 p-3 bg-white dark:bg-gray-900">*/}
-                {/*    <div className="text-xs opacity-70">Directional Bias (ratio)</div>*/}
-                {/*    <div className="text-lg font-semibold">{fmtNum(lastBiasRatio, { maximumFractionDigits: 3 })}</div>*/}
-                {/*</div>*/}
-                {/*<div className="rounded-2xl border border-gray-300 dark:border-gray-700 p-3 bg-white dark:bg-gray-900">*/}
-                {/*    <div className="text-xs opacity-70">Directional Bias (%)</div>*/}
-                {/*    <div className="text-lg font-semibold">{fmtNum(lastBiasPct, { maximumFractionDigits: 2 })}%</div>*/}
-                {/*</div>*/}
-            {/*</section>*/}
 
             {/* Chart 1: Net */}
             <section className="rounded-2xl border border-gray-300 dark:border-gray-700 p-2 md:p-3 bg-white dark:bg-gray-900">

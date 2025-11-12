@@ -1,6 +1,7 @@
 'use client';
 // contexts/TickerPeriodContext.tsx
 import React, { createContext, useState, useContext } from 'react';
+import {string} from 'postcss-selector-parser';
 
 interface TickerPeriodContextProps {
     ticker: string;
@@ -10,8 +11,8 @@ interface TickerPeriodContextProps {
 }
 
 const TickerPeriodContext = createContext<TickerPeriodContextProps>({
-    ticker: 'SOL-USD',
-    period: '15min',
+    ticker: '',
+    period: '',
     setTicker: () => {},
     setPeriod: () => {},
 });

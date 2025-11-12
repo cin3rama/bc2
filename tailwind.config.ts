@@ -23,11 +23,13 @@ export default {
         neutral: {
           900: '#000000',       // Black
           800: '#1A1A1A',       // Cool gray
+          500: '#6c6c6c',       // Medium gray
           100: '#F3F3F3',       // Light gray
           50: '#FFFFFF',        // White
         },
         secondary: {
-          DEFAULT: '#374151',
+          // DEFAULT: '#374151',
+          DEFAULT: '#FFFFFF',
           dark: '#1F2937',
         },
         success: {
@@ -40,7 +42,7 @@ export default {
         },
         surface: {
           DEFAULT: '#F3F3F3',   // Backgrounds
-          dark: '#1A1A1A',
+          dark: '#111827',
         },
         text: {
           DEFAULT: '#000000',
