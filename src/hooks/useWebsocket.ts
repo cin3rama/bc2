@@ -108,7 +108,7 @@ export function useWebsocket(): WebsocketStreams {
 
         setMarketflow$(
             reconnect(marketflowSocketRef.current!).pipe(
-                filter((msg: any) => msg?.ticker === ticker),
+                // filter((msg: any) => msg?.ticker === ticker),
                 shareReplay(replayCfg)
             )
         );
@@ -116,7 +116,7 @@ export function useWebsocket(): WebsocketStreams {
         setMarketflowAnalytics$(
             reconnect(marketflowAnalyticsSocketRef.current!).pipe(
                 // belt-and-suspenders: drop any stray first emission from previous ticker
-                filter((msg: any) => msg?.ticker === ticker),
+                // filter((msg: any) => msg?.ticker === ticker),
                 shareReplay(replayCfg)
             )
         );

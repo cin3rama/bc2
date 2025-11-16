@@ -280,16 +280,16 @@ function TopSharesLine({ts}: { ts?: TopShares | null }) {
 
 export default function MarketflowAnalyticsPage() {
     const {setConfig} = useHeaderConfig()
-    // const { ticker, setTicker } = useTickerPeriod()
+    const { ticker, setTicker } = useTickerPeriod()
 
-    const {ticker: ctxTicker} = useTickerPeriod()
+    // const {ticker: ctxTicker} = useTickerPeriod()
 
     // ensure header shows ticker, but period here is derived from manual time controls
     useEffect(() => {
         setConfig({showTicker: true, showPeriod: false})
     }, [setConfig])
 
-    const [ticker, setTicker] = useState<string>(ctxTicker || 'SOL-USD')
+    // const [ticker, setTicker] = useState<string>(ctxTicker || 'SOL-USD')
     const [startLocal, setStartLocal] = useState<string>(() => new Date(Date.now() - 60 * 60 * 1000).toISOString().slice(0, 16))
     const [endLocal, setEndLocal] = useState<string>(() => new Date().toISOString().slice(0, 16))
     const [limit, setLimit] = useState<number>(DEFAULT_LIMIT_RAW)
@@ -301,17 +301,16 @@ export default function MarketflowAnalyticsPage() {
     // Live subscription state (no manual WebSocket)
     const [liveEnabled, setLiveEnabled] = useState(true)
     const [wsStatus, setWsStatus] = useState<'closed' | 'open' | 'error'>('closed')
-    // access rxjs observable from shared hook (uses https under the hood for ngrok)
-    // const {marketflowAnalytics$} = require('@/hooks/useWebsocket').useWebsocket()
-    const { marketflowAnalytics$, sendMessage } = require('@/hooks/useWebsocket').useWebsocket()
+    // access rxjs observable from shared hook (uses https under the hood for ngrok) - is being received
+    const {marketflowAnalytics$, sendMessage} = require('@/hooks/useWebsocket').useWebsocket()
 
     const doFetch = useCallback(async () => {
         setLoading(true)
         setError(null)
         try {
-            const startMs = msFromLocal(startLocal)
-            const endMs = msFromLocal(endLocal)
-            if (startMs === null || endMs === null) throw new Error('Invalid date range.')
+            // const startMs = msFromLocal(startLocal)
+            // const endMs = msFromLocal(endLocal)
+            // if (startMs === null || endMs === null) throw new Error('Invalid date range.')
             // const qs = new URLSearchParams({ ticker, start_time: String(startMs), end_time: String(endMs), limit: String(limit) })
             const qs = new URLSearchParams({ticker})
             const url = `${API_BASE}?${qs.toString()}&period=1h&limit=${limit}`
@@ -374,14 +373,15 @@ export default function MarketflowAnalyticsPage() {
     useEffect(() => {
         if (!liveEnabled || !marketflowAnalytics$) return
         setWsStatus('open')
-
+        console.log('[MFA] marketflowAnalytics$ ', marketflowAnalytics$)
         const sub = marketflowAnalytics$.subscribe({
             next: (msg: any) => {
-                console.log('[MFA] msg: ', msg)
+                console.log('[MFA] msg ', msg)
                 try {
                     if (!msg) return
                     // Full payload: { payload: ConcentrationPayload }
                     const full = msg.payload
+                    console.log('[MFA] msg.payload - full: ', full)
                     if (full && full.concentration) {
                         const tk = full.ticker || full.concentration?.mm?.ticker
                         if (tk && tk !== ticker) return
