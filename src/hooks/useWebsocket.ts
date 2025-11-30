@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
 import { Observable, EMPTY, timer, Subject, shareReplay, filter } from 'rxjs';
 import { retry, takeUntil } from 'rxjs/operators';
@@ -26,24 +26,23 @@ export function useWebsocket(): WebsocketStreams {
     // const [vwap$, setVwap$] = useState<Observable<any>>(EMPTY);
 
     // WebSocketSubject refs (persist across renders)
-    const orderflowSocketRef = useRef<WebSocketSubject<any>>(undefined);
-    const trendSocketRef = useRef<WebSocketSubject<any>>(undefined);
-    const marketflowSocketRef = useRef<WebSocketSubject<any>>(undefined);
-    const marketflowAnalyticsSocketRef = useRef<WebSocketSubject<any>>(undefined);
+    // @ts-ignore
+    const orderflowSocketRef = useRef<WebSocketSubject<any>>();
+    // @ts-ignore
+    const trendSocketRef = useRef<WebSocketSubject<any>>();
+    // @ts-ignore
+    const marketflowSocketRef = useRef<WebSocketSubject<any>>();
+    // @ts-ignore
+    const marketflowAnalyticsSocketRef = useRef<WebSocketSubject<any>>();
     // const vwapSocketRef = useRef<WebSocketSubject<any>>();
-
-    // Initial message for orderflow
-    const retrieve = { type: 'get_data', ticker: 'SOL-USD', user: '8888' };
 
     // Factory for WebSocketSubjects with observers
     const getWS = (url: string): WebSocketSubject<any> =>
         webSocket({
             url: `https://botpilot--8080.ngrok.io${url}`,
             openObserver: {
-                next: () => {
-                    if (url === '/orderflow/') {
-                        orderflowSocketRef.current?.next(retrieve);
-                    }
+                next: (event) => {
+                    console.log(`[Websocket] Connection open on ${url}`, event);
                 },
             },
             closeObserver: {
@@ -67,19 +66,25 @@ export function useWebsocket(): WebsocketStreams {
         // --- FORCE CLOSE sockets bound to the previous ticker (including marketflow) ---
         orderflowSocketRef.current?.complete();
         trendSocketRef.current?.complete();
-        marketflowSocketRef.current?.complete();            // ← important
-        marketflowAnalyticsSocketRef.current?.complete();   // ← you already had this
+        marketflowSocketRef.current?.complete();
+        marketflowAnalyticsSocketRef.current?.complete();
 
-        // Clear refs so "ensure" logic can't reuse old connections
+        // Clear refs so we always create fresh connections for this ticker
+        // @ts-ignore
         orderflowSocketRef.current = undefined;
+        // @ts-ignore
         trendSocketRef.current = undefined;
+        // @ts-ignore
         marketflowSocketRef.current = undefined;
+        // @ts-ignore
         marketflowAnalyticsSocketRef.current = undefined;
 
         // --- Create fresh sockets for the new ticker ---
         orderflowSocketRef.current = getWS(`/orderflow/?sym=${ticker}`);
         trendSocketRef.current = getWS(`/trends/?sym=${ticker}`);
         marketflowSocketRef.current = getWS(`/ws/marketflow/${encodeURIComponent(ticker)}/`);
+
+        // Backend currently hard-codes period=1h; we still send it explicitly
         marketflowAnalyticsSocketRef.current = getWS(
             `/ws/mfa/?ticker=${encodeURIComponent(ticker)}&period=1h&limit=20`
         );
@@ -133,28 +138,30 @@ export function useWebsocket(): WebsocketStreams {
         };
     }, [ticker]);
 
-    // Send to all open sockets
-    const sendMessage = (msg: any) => {
-        orderflowSocketRef.current && !orderflowSocketRef.current.closed && orderflowSocketRef.current.next(msg);
-        trendSocketRef.current && !trendSocketRef.current.closed && trendSocketRef.current.next(msg);
+    // Send to all open sockets (no new sockets created here)
+    const sendMessage = useCallback(
+        (msg: any) => {
+            orderflowSocketRef.current &&
+            !orderflowSocketRef.current.closed &&
+            orderflowSocketRef.current.next(msg);
 
-        // Ensure marketflow socket exists before sending (Fix A pattern)
-        if (!marketflowSocketRef.current || marketflowSocketRef.current.closed) {
-            marketflowSocketRef.current = getWS(`/ws/marketflow/${encodeURIComponent(ticker)}/`);
-        }
-        if (!marketflowSocketRef.current.closed) {
+            trendSocketRef.current &&
+            !trendSocketRef.current.closed &&
+            trendSocketRef.current.next(msg);
+
+            // Use the SAME sockets that feed the observables
+            marketflowSocketRef.current &&
+            !marketflowSocketRef.current.closed &&
             marketflowSocketRef.current.next(msg);
-        }
-        // Ensure marketflow socket exists before sending (Fix A pattern)
-        if (!marketflowAnalyticsSocketRef.current || marketflowAnalyticsSocketRef.current.closed) {
-            marketflowAnalyticsSocketRef.current = getWS(`/ws/mfa/?ticker=${encodeURIComponent(ticker)}&period=1h&limit=20`);
-        }
-        if (!marketflowAnalyticsSocketRef.current.closed) {
-            marketflowAnalyticsSocketRef.current.next(msg);
-        }
 
-        // vwapSocketRef.current && !vwapSocketRef.current.closed && vwapSocketRef.current.next(msg);
-    };
+            marketflowAnalyticsSocketRef.current &&
+            !marketflowAnalyticsSocketRef.current.closed &&
+            marketflowAnalyticsSocketRef.current.next(msg);
+
+            // vwapSocketRef.current && !vwapSocketRef.current.closed && vwapSocketRef.current.next(msg);
+        },
+        [ticker]
+    );
 
     // Manual shutdown (explicit global close)
     const close = () => {

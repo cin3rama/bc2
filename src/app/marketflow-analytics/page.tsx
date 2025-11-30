@@ -477,7 +477,7 @@ export default function MarketflowAnalyticsPage() {
                     <div className="flex items-center gap-3 text-gray-900 dark:text-gray-100">
                         <motion.div initial={{opacity: 0, y: -6}} animate={{opacity: 1, y: 0}}
                                     className="text-2xl font-semibold">
-                            Marketflow Analytics — Concentration (Phase 1)
+                            Marketflow Analytics — Market Makers
                         </motion.div>
                         {mm?.regime_tag && <span className={regimeBadgeClass(mm.regime_tag)}>{mm.regime_tag}</span>}
                     </div>
