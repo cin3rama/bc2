@@ -1,6 +1,6 @@
 {
   "name": "bc2",
-  "version": "0.0.25",
+  "version": "0.0.26",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -12,6 +12,7 @@
     "@react-three/drei": "^10.7.6",
     "@react-three/fiber": "^9.3.0",
     "autoprefixer": "^10.4.20",
+    "clsx": "^2.1.1",
     "framer-motion": "^12.4.4",
     "gsap": "^3.13.0",
     "highcharts": "^12.3.0",
