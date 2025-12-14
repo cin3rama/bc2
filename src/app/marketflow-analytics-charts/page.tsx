@@ -57,6 +57,7 @@ type PeriodOption = (typeof PERIOD_OPTIONS)[number];
 const isValidPeriod = (value: string | null): value is PeriodOption =>
     !!value && (PERIOD_OPTIONS as readonly string[]).includes(value);
 
+
 const MarketflowAnalyticsChartsPage: React.FC = () => {
     const { setConfig } = useHeaderConfig();
     const { ticker, period, setPeriod } = useTickerPeriod();
@@ -77,24 +78,25 @@ const MarketflowAnalyticsChartsPage: React.FC = () => {
     const adRef = useRef<HHIADChartHandle | null>(null);
     const spreadRef = useRef<CompareHHIChartHandle | null>(null);
 
-    // Configure header for this page
+    // Configure header for this page: use *global* ticker + period selectors
     useEffect(() => {
         setConfig({
             showTicker: true,
-            showPeriod: false, // local period selector instead of header dropdown
+            showPeriod: true, // period is controlled via Header dropdown
         });
     }, [setConfig]);
 
-    // On mount: sync period from URL (if valid), otherwise ensure URL reflects current context period
+    // On mount: sync period from URL -> context (if valid); otherwise push current context period into URL
     useEffect(() => {
         const qpPeriod = searchParams.get('period');
         const currentPeriod = period || '1h';
 
-        if (isValidPeriod(qpPeriod)) {
+        if (qpPeriod && isValidPeriod(qpPeriod)) {
             if (qpPeriod !== period) {
-                setPeriod(qpPeriod);
+                setPeriod(qpPeriod as string);
             }
-        } else {
+        }
+         else {
             const params = new URLSearchParams(searchParams.toString());
             params.set('period', currentPeriod);
             router.replace(`${pathname}?${params.toString()}`);
@@ -102,15 +104,18 @@ const MarketflowAnalyticsChartsPage: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // run once on mount
 
-    const handlePeriodChange = (value: PeriodOption) => {
-        if (value === period) return;
+    // Keep URL in sync when period changes via Header dropdown (context -> URL)
+    useEffect(() => {
+        if (!period) return;
 
-        setPeriod(value);
+        const qpPeriod = searchParams.get('period');
+        if (qpPeriod === period) return;
+        if (!isValidPeriod(period)) return;
 
         const params = new URLSearchParams(searchParams.toString());
-        params.set('period', value);
-        router.push(`${pathname}?${params.toString()}`);
-    };
+        params.set('period', period);
+        router.replace(`${pathname}?${params.toString()}`);
+    }, [period, searchParams, router, pathname]);
 
     // Subscribe to Marketflow Analytics stream
     useEffect(() => {
@@ -261,34 +266,13 @@ const MarketflowAnalyticsChartsPage: React.FC = () => {
                                 {ticker ?? '—'}
                             </span>
                         </span>
-                        {renderWsStatusBadge(wsStatus)}
-                    </div>
-
-                    {/* Period selector */}
-                    <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs uppercase tracking-wide opacity-70">
-                            Period
+                        <span className="text-neutral-600 dark:text-neutral-100/70">
+                            Period:{' '}
+                            <span className="ml-1 font-mono text-text dark:text-text-inverted">
+                                {period ?? '—'}
+                            </span>
                         </span>
-                        <div className="flex overflow-hidden rounded-full border border-gray-300 bg-surface dark:border-gray-700 dark:bg-secondary-dark">
-                            {PERIOD_OPTIONS.map((opt) => {
-                                const active = opt === period;
-                                return (
-                                    <button
-                                        key={opt}
-                                        type="button"
-                                        onClick={() => handlePeriodChange(opt)}
-                                        className={[
-                                            'px-3 py-1 text-xs font-medium transition-colors',
-                                            active
-                                                ? 'bg-primary dark:bg-primary-dark text-black dark:text-text-inverted'
-                                                : 'bg-transparent text-neutral-600 dark:text-neutral-100/70 hover:bg-neutral-100 dark:hover:bg-neutral-800',
-                                        ].join(' ')}
-                                    >
-                                        {opt}
-                                    </button>
-                                );
-                            })}
-                        </div>
+                        {renderWsStatusBadge(wsStatus)}
                     </div>
 
                     <div className="text-neutral-600 dark:text-neutral-100/70">

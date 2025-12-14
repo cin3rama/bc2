@@ -1,6 +1,7 @@
 'use client';
 
-import React, {
+import React,
+{
     useCallback,
     useEffect,
     useMemo,
@@ -163,7 +164,7 @@ const formatNumber = (
     if (typeof v !== 'number' || Number.isNaN(v)) return '—';
     const sign = v < 0 ? '-' : '';
     const abs = Math.abs(v);
-    const fixed = abs.toFixed(digits); // "5417547.93"
+    const fixed = abs.toFixed(digits);
     const [intPart, decPart] = fixed.split('.');
     const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     return decPart !== undefined
@@ -273,7 +274,7 @@ export default function MarketflowBehaviorPage() {
 
                     const mapped: MfbWindow[] = list
                         .filter(
-                            item =>
+                            (item: any) =>
                                 item &&
                                 item.mfb &&
                                 item.meta?.window?.start_time != null &&
@@ -386,7 +387,7 @@ export default function MarketflowBehaviorPage() {
                     const label = regimeLabel(nextRegime.regime_state);
                     pushToast(
                         `Fakeout low detected in regime ${label}`,
-                        'bg-amber-600 text-white',
+                        'bg-amber-500 text-black',
                     );
                 }
 
@@ -398,7 +399,7 @@ export default function MarketflowBehaviorPage() {
                     const label = regimeLabel(nextRegime.regime_state);
                     pushToast(
                         `Fakeout high detected in regime ${label}`,
-                        'bg-amber-600 text-white',
+                        'bg-rose-500 text-white',
                     );
                 }
             }
@@ -434,15 +435,14 @@ export default function MarketflowBehaviorPage() {
 
         const sub = marketflowAnalytics$.subscribe({
             next: (msg: any) => {
-                // if (!msg || msg.type !== 'update_data') return;
                 const full = msg.payload;
                 if (!full) return;
 
-                // PERIOD GUARD REMOVED: only enforce ticker
+                // Only enforce ticker here; period is handled upstream
                 if (full.ticker !== ticker) {
                     return;
                 }
-                console.log('[MFB] ws object: ', full)
+                console.log('[MFB] ws object: ', full);
 
                 const meta: MfaWindowMeta | undefined = full.meta;
                 const mfb: MfbSection | undefined = full.mfb;
@@ -492,6 +492,7 @@ export default function MarketflowBehaviorPage() {
         period,
         liveEnabled,
         upsertWindowWithToasts,
+        sendMessage,
     ]);
 
     // ---------- Derived state ----------
@@ -575,6 +576,115 @@ export default function MarketflowBehaviorPage() {
             sequence,
         };
     }, [selectedWindows]);
+
+    // Fakeout pill summary (top bar) — based on selection if present, else latest window
+    const fakeoutSummary = useMemo(() => {
+        const focusWindows: MfbWindow[] =
+            selectedWindows.length > 0
+                ? selectedWindows
+                : latestWindow
+                    ? [latestWindow]
+                    : [];
+
+        if (!focusWindows.length) {
+            return {
+                label: 'No Fakeout',
+                badgeClass: 'bg-slate-600 text-white',
+                tooltip: 'No fakeouts detected yet in the current Ω regime view.',
+                countLow: 0,
+                countHigh: 0,
+            };
+        }
+
+        let countLow = 0;
+        let countHigh = 0;
+        let latestFakeout: MfbWindow | null = null;
+
+        for (const w of focusWindows) {
+            const { fakeout_low, fakeout_high } = w.mfb.regime;
+            if (fakeout_low) {
+                countLow += 1;
+                latestFakeout = w;
+            }
+            if (fakeout_high) {
+                countHigh += 1;
+                latestFakeout = w;
+            }
+        }
+
+        if (!countLow && !countHigh) {
+            const tooltipBase =
+                selectedWindows.length > 0
+                    ? 'No fakeout highs or lows in the selected windows.'
+                    : 'No fakeout highs or lows in the latest window.';
+            return {
+                label: 'No Fakeout',
+                badgeClass: 'bg-slate-600 text-white',
+                tooltip: tooltipBase,
+                countLow,
+                countHigh,
+            };
+        }
+
+        let label = '';
+        let badgeClass = '';
+
+        if (countLow && countHigh) {
+            label = 'Fakeout High & Low';
+            badgeClass = 'bg-fuchsia-600 text-white';
+        } else if (countLow) {
+            label = 'Fakeout Low';
+            badgeClass = 'bg-sky-400 text-black';
+        } else {
+            label = 'Fakeout High';
+            badgeClass = 'bg-amber-400 text-black';
+        }
+
+        let tooltip = `${label} detected. Lows: ${countLow}, highs: ${countHigh}.`;
+
+        if (latestFakeout) {
+            const { regime, normalized } = latestFakeout.mfb;
+            const ts = new Date(
+                latestFakeout.meta.window.end_time,
+            ).toLocaleString();
+
+            const fr = formatNumber(normalized.fr_level, 4);
+            const frDelta = formatNumber(normalized.fr_delta, 4);
+            const pz = formatNumber(normalized.price_return_z, 2);
+            const vz = formatNumber(normalized.volume_z, 2);
+
+            const full: any = latestFakeout.fullPayload ?? {};
+            const vp = full?.struct?.value_profile;
+            const valPrice = vp?.val_price;
+            const vahPrice = vp?.vah_price;
+            const troughPrice = vp?.trough_price;
+
+            const parts: string[] = [
+                `Last fakeout in ${regimeLabel(regime.regime_state)} regime`,
+                `window ending ${ts}`,
+                `FR ${fr} (Δ ${frDelta})`,
+                `price_z ${pz}, vol_z ${vz}`,
+            ];
+
+            const vpBits: string[] = [];
+            if (valPrice != null) vpBits.push(`VAL ${valPrice}`);
+            if (vahPrice != null) vpBits.push(`VAH ${vahPrice}`);
+            if (troughPrice != null) vpBits.push(`trough ${troughPrice}`);
+            if (vpBits.length) {
+                parts.push(vpBits.join(' · '));
+            }
+
+            tooltip = parts.join(' · ');
+        }
+
+        return {
+            label,
+            badgeClass,
+            tooltip,
+            countLow,
+            countHigh,
+        };
+    }, [selectedWindows, latestWindow]);
 
     // ---------- Selection handlers (regime strip) ----------
 
@@ -722,7 +832,7 @@ export default function MarketflowBehaviorPage() {
                     <h1 className="text-2xl font-semibold text-text dark:text-text-inverted">
                         Marketflow Behavioral — Ω Regime v1
                     </h1>
-                    <p className="mt-1 text-sm text-text dark:text-text-inverted opacity-70">
+                    <p className="mt-1 text-sm text-text dark:text-text-inverted">
                         Ticker: <span className="font-mono">{ticker}</span> ·
                         Period:{' '}
                         <span className="font-mono">{period}</span> · Top-K:{' '}
@@ -731,8 +841,9 @@ export default function MarketflowBehaviorPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
+                    {/* Regime pill */}
                     <div className="flex items-center gap-2">
-                        <span className="text-xs uppercase tracking-wide text-text dark:text-text-inverted opacity-70">
+                        <span className="text-xs uppercase tracking-wide text-text dark:text-text-inverted">
                             Regime
                         </span>
                         <span
@@ -753,8 +864,23 @@ export default function MarketflowBehaviorPage() {
                         </span>
                     </div>
 
+                    {/* Fakeout / Liquidity Trap pill */}
                     <div className="flex items-center gap-2">
-                        <span className="text-xs uppercase tracking-wide text-text dark:text-text-inverted opacity-70">
+                        <span className="text-xs uppercase tracking-wide text-text dark:text-text-inverted">
+                            Fakeout
+                        </span>
+                        <Tooltip content={fakeoutSummary.tooltip}>
+                            <span
+                                className={`inline-flex cursor-help items-center rounded-full px-3 py-1 text-xs font-semibold ${fakeoutSummary.badgeClass}`}
+                            >
+                                {fakeoutSummary.label}
+                            </span>
+                        </Tooltip>
+                    </div>
+
+                    {/* Live status */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs uppercase tracking-wide text-text dark:text-text-inverted">
                             Live
                         </span>
                         <span
@@ -764,7 +890,7 @@ export default function MarketflowBehaviorPage() {
                         >
                             {liveEnabled ? wsStatus : 'paused'}
                         </span>
-                        <label className="flex items-center gap-1 text-xs text-text dark:text-text-inverted opacity-70">
+                        <label className="flex items-center gap-1 text-xs text-text dark:text-text-inverted">
                             <input
                                 type="checkbox"
                                 className="h-4 w-4 accent-emerald-500"
@@ -777,7 +903,8 @@ export default function MarketflowBehaviorPage() {
                         </label>
                     </div>
 
-                    <div className="text-xs text-text dark:text-text-inverted opacity-70">
+                    {/* Generated time */}
+                    <div className="text-xs text-text dark:text-text-inverted">
                         Generated:{' '}
                         {latestWindow ? (
                             <span className="font-mono">
@@ -813,7 +940,7 @@ export default function MarketflowBehaviorPage() {
                                 <CardTitle className="text-base font-semibold text-text dark:text-text-inverted">
                                     Ω vs ROM Inventory Flows
                                 </CardTitle>
-                                <span className="text-xs text-text dark:text-text-inverted opacity-70">
+                                <span className="text-xs text-text dark:text-text-inverted">
                                     Each point = one {period} window
                                 </span>
                             </CardHeader>
@@ -832,7 +959,7 @@ export default function MarketflowBehaviorPage() {
                                     Regime Strip
                                 </CardTitle>
                                 <Tooltip content="Click segments to select windows for AI analysis.">
-                                    <span className="cursor-help text-xs text-text dark:text-text-inverted opacity-70">
+                                    <span className="cursor-help text-xs text-text dark:text-text-inverted">
                                         Click to select windows
                                     </span>
                                 </Tooltip>
@@ -884,7 +1011,7 @@ export default function MarketflowBehaviorPage() {
                                         );
                                     })}
                                 </div>
-                                <p className="mt-2 text-xs text-text dark:text-text-inverted opacity-70">
+                                <p className="mt-2 text-xs text-text dark:text-text-inverted">
                                     Each segment corresponds to a{' '}
                                     <span className="font-mono">
                                         {period}
@@ -909,7 +1036,7 @@ export default function MarketflowBehaviorPage() {
                                 {latestWindow ? (
                                     <>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 Regime
                                             </span>
                                             <span
@@ -931,7 +1058,7 @@ export default function MarketflowBehaviorPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 Dominant Ω
                                             </span>
                                             <span className="font-mono">
@@ -942,7 +1069,7 @@ export default function MarketflowBehaviorPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 Ω address
                                             </span>
                                             <span className="font-mono">
@@ -953,7 +1080,7 @@ export default function MarketflowBehaviorPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 MM share
                                             </span>
                                             <span className="font-mono">
@@ -964,7 +1091,7 @@ export default function MarketflowBehaviorPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 AD share
                                             </span>
                                             <span className="font-mono">
@@ -975,7 +1102,7 @@ export default function MarketflowBehaviorPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 Overlap k
                                             </span>
                                             <span className="font-mono">
@@ -987,12 +1114,12 @@ export default function MarketflowBehaviorPage() {
                                             </span>
                                         </div>
                                         <hr className="my-2 border-surface/50" />
-                                        <p className="text-xs leading-snug text-text dark:text-text-inverted opacity-80">
+                                        <p className="text-xs leading-snug text-text dark:text-text-inverted">
                                             {dominanceNarrative}
                                         </p>
                                     </>
                                 ) : (
-                                    <p className="text-sm text-text dark:text-text-inverted opacity-70">
+                                    <p className="text-sm text-text dark:text-text-inverted">
                                         No Ω regime data available yet.
                                     </p>
                                 )}
@@ -1010,7 +1137,7 @@ export default function MarketflowBehaviorPage() {
                                 {latestWindow ? (
                                     <>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 Ω MM net
                                             </span>
                                             <span className="font-mono">
@@ -1021,7 +1148,7 @@ export default function MarketflowBehaviorPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 ROM MM net
                                             </span>
                                             <span className="font-mono">
@@ -1032,7 +1159,7 @@ export default function MarketflowBehaviorPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 Ω AD net
                                             </span>
                                             <span className="font-mono">
@@ -1043,7 +1170,7 @@ export default function MarketflowBehaviorPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 ROM AD net
                                             </span>
                                             <span className="font-mono">
@@ -1054,7 +1181,7 @@ export default function MarketflowBehaviorPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 Ω inventory flow
                                             </span>
                                             <span className="font-mono">
@@ -1065,7 +1192,7 @@ export default function MarketflowBehaviorPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 ROM inventory flow
                                             </span>
                                             <span className="font-mono">
@@ -1077,7 +1204,7 @@ export default function MarketflowBehaviorPage() {
                                         </div>
                                     </>
                                 ) : (
-                                    <p className="text-sm text-text dark:text-text-inverted opacity-70">
+                                    <p className="text-sm text-text dark:text-text-inverted">
                                         No flow data available yet.
                                     </p>
                                 )}
@@ -1095,7 +1222,7 @@ export default function MarketflowBehaviorPage() {
                                 {latestWindow ? (
                                     <>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 Ω inv. flow z
                                             </span>
                                             <span className="font-mono">
@@ -1106,7 +1233,7 @@ export default function MarketflowBehaviorPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 ROM inv. flow z
                                             </span>
                                             <span className="font-mono">
@@ -1117,7 +1244,7 @@ export default function MarketflowBehaviorPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 Price return z
                                             </span>
                                             <span className="font-mono">
@@ -1128,7 +1255,7 @@ export default function MarketflowBehaviorPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-text dark:text-text-inverted opacity-70">
+                                            <span className="text-text dark:text-text-inverted">
                                                 Volume z
                                             </span>
                                             <span className="font-mono">
@@ -1140,28 +1267,35 @@ export default function MarketflowBehaviorPage() {
                                         </div>
                                         <div className="flex items-center justify-between">
                                             <Tooltip content="Funding rate level (normalized)">
-                                                <span className="cursor-help text-text dark:text-text-inverted opacity-70">
+                                                <span className="cursor-help text-text dark:text-text-inverted">
                                                     FR level
                                                 </span>
                                             </Tooltip>
                                             <span className="font-mono">
-                                                {formatNumber(latestWindow.mfb.normalized.fr_level, 4)}
+                                                {formatNumber(
+                                                    latestWindow.mfb.normalized
+                                                        .fr_level,
+                                                    4,
+                                                )}
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">
                                             <Tooltip content="Change in funding rate over the window (normalized)">
-                                                <span className="cursor-help text-text dark:text-text-inverted opacity-70">
+                                                <span className="cursor-help text-text dark:text-text-inverted">
                                                     FR delta
                                                 </span>
                                             </Tooltip>
                                             <span className="font-mono">
                                                 {formatNumber(
-                                                    latestWindow.mfb.normalized.fr_delta, 4)}
+                                                    latestWindow.mfb.normalized
+                                                        .fr_delta,
+                                                    4,
+                                                )}
                                             </span>
                                         </div>
                                     </>
                                 ) : (
-                                    <p className="text-sm text-text dark:text-text-inverted opacity-70">
+                                    <p className="text-sm text-text dark:text-text-inverted">
                                         No normalized context available yet.
                                     </p>
                                 )}
@@ -1208,7 +1342,7 @@ export default function MarketflowBehaviorPage() {
                                 </div>
                             </div>
                         ) : (
-                            <div className="rounded-md border border-dashed border-surface/60 bg-surface/40 px-3 py-2 text-xs text-text dark:border-surface/60 dark:bg-surface/70 dark:text-text-inverted opacity-80">
+                            <div className="rounded-md border border-dashed border-surface/60 bg-surface/40 px-3 py-2 text-xs text-text dark:border-surface/60 dark:bg-surface/70 dark:text-text-inverted">
                                 No windows selected. Click on the regime strip
                                 above to select one or more windows for AI
                                 analysis.
@@ -1218,7 +1352,7 @@ export default function MarketflowBehaviorPage() {
                         {/* Form */}
                         <form className="space-y-4" onSubmit={handleAiSubmit}>
                             <div className="space-y-1">
-                                <label className="block text-xs font-medium text-text dark:text-text-inverted opacity-80">
+                                <label className="block text-xs font-medium text-text dark:text-text-inverted">
                                     Prompt
                                 </label>
                                 <textarea
@@ -1232,7 +1366,7 @@ export default function MarketflowBehaviorPage() {
                             </div>
 
                             <div className="space-y-1">
-                                <label className="block text-xs font-medium text-text dark:text-text-inverted opacity-80">
+                                <label className="block text-xs font-medium text-text dark:text-text-inverted">
                                     Chart images (optional)
                                 </label>
                                 <input
@@ -1243,7 +1377,7 @@ export default function MarketflowBehaviorPage() {
                                     className="block w-full text-xs text-text dark:text-text-inverted file:mr-3 file:rounded-md file:border-0 file:bg-primary/80 file:px-3 file:py-1 file:text-xs file:font-medium file:text-white hover:file:bg-primary"
                                 />
                                 {aiFiles.length > 0 && (
-                                    <p className="mt-1 text-[11px] text-text dark:text-text-inverted opacity-70">
+                                    <p className="mt-1 text-[11px] text-text dark:text-text-inverted">
                                         {aiFiles.length} file
                                         {aiFiles.length === 1 ? '' : 's'} ready
                                         to send.
@@ -1252,7 +1386,7 @@ export default function MarketflowBehaviorPage() {
                             </div>
 
                             <div className="space-y-1">
-                                <label className="block text-xs font-medium text-text dark:text-text-inverted opacity-80">
+                                <label className="block text-xs font-medium text-text dark:text-text-inverted">
                                     Paste full mfa_obj JSON (optional)
                                 </label>
                                 <textarea
@@ -1275,9 +1409,9 @@ export default function MarketflowBehaviorPage() {
                                         ? 'Analyzing…'
                                         : 'Analyze Selection'}
                                 </button>
-                                <div className="text-[11px] text-text dark:text-text-inverted opacity-60">
+                                <div className="text-[11px] text-text dark:text-text-inverted">
                                     POST /api/mfb-analyze · backend will call
-                                    OpenAI with MAFA/MFB payloads.
+                                    OpenAI with MFA/MFB payloads.
                                 </div>
                             </div>
                         </form>
