@@ -9,6 +9,9 @@ export interface MfbPAoi {
     status: string;
     aoi_type: string;
     first_seen_ts_ms: number;
+    lifecycle_state: string;
+    entry_reason: string;
+    notes: string;
     created_at: string;   // ISO datetime string
     updated_at: string;   // ISO datetime string
 }
@@ -171,6 +174,7 @@ export interface MfbPAoiDetailMeta {
     lookback_minutes: number;
     event_limit: number;
     generated_at_ms: number;
+    series_health: any;
 }
 
 export interface MfbPAoiDetail {
