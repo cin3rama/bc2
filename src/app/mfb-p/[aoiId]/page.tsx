@@ -7,7 +7,11 @@ export function generateStaticParams() {
     return [
         { aoiId: "3" }, // c9dc
         { aoiId: "36" }, // 8185
+        { aoiId: "57" }, // e483
         { aoiId: "72" }, // ba93
+        { aoiId: "73" }, // f147
+        { aoiId: "82" }, // 6a47
+        { aoiId: "107" }, // cb04
         { aoiId: "127" }, // 336a
         { aoiId: "707" }, // 2305
         { aoiId: "2308" }, // 7d28
