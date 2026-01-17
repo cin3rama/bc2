@@ -1,18 +1,12 @@
-// app/mfb-p/lens/page.tsx
-"use client";
+// /opt/frontend/a3therflow/app/mfb-p/lens/page.tsx
 
-import React from "react";
-import { useSearchParams } from "next/navigation";
-import MfbPParticipantClient from "@/components/mfb-p/MfbPParticipantClient";
+import React, { Suspense } from "react";
+import LensClient from "./LensClient";
 
-export default function MfbPLensPage() {
-    const sp = useSearchParams();
-    const aoiIdRaw = sp.get("aoiId");
-    const aoiId = aoiIdRaw ? Number(aoiIdRaw) : NaN;
-
-    if (!Number.isFinite(aoiId)) {
-        return <div className="p-4 text-sm text-red-600 dark:text-red-400">Missing/invalid aoiId.</div>;
-    }
-
-    return <MfbPParticipantClient aoiId={aoiId} />;
+export default function Page() {
+    return (
+        <Suspense fallback={null}>
+            <LensClient />
+        </Suspense>
+    );
 }
