@@ -52,7 +52,7 @@ export default function MfbPHubPage() {
                 setError(null);
 
                 // If you later wire env vars, replace this with your canonical origin logic.
-                const url = `https://botpilot--8000.ngrok.io/api/mfb-p/aoi-watchlist/?status=active`;
+                const url = `https://api.a3therflow.com/api/mfb-p/aoi-watchlist/?status=active`;
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`HTTP ${res.status} fetching AOI watchlist`);
 

@@ -28,7 +28,7 @@ import Tooltip from '@/components/Tooltip';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
 
-const API_BASE = 'https://botpilot--8000.ngrok.io/api/mfa';
+const API_BASE = 'https://api.a3thefrflow.com/api/mfa';
 const LIMIT_TOPK = 20 as const;
 
 type RegimeCode = 'N' | 'A' | 'MU' | 'D' | 'MD';
