@@ -17,7 +17,7 @@ export function useMarketflowRuntime(params?: {
     onAlert?: (alerts: string[], payload: any) => void;
 }) {
     const {
-        httpBase = "https://botpilot--8000.ngrok.io",
+        httpBase = "https://api.a3therflow.com",
         marketflow$,
         ticker = "SOL-USD",
         period = "1h",

@@ -67,7 +67,7 @@ export type MarketflowWidgetProps = {
 };
 
 export default function MarketflowWidget({
-                                             httpBase = "https://botpilot--8000.ngrok.io",
+                                             httpBase = "https://api.a3therflow.com",
                                              ticker = "SOL-USD",
                                              period = "1h",
                                              seedMinutes = 60,

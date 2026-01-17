@@ -26,7 +26,7 @@ export default function MarketflowPage() {
         const fetchInitialData = async () => {
             setLoading(true);
             try {
-                const res = await fetch(`https://botpilot8000.ngrok.io/marketflow_activity/?sym=${ticker}`);
+                const res = await fetch(`https://api.a3therflow.com/marketflow_activity/?sym=${ticker}`);
                 const data = await res.json();
                 setMarketData(data);
                 setResetTime(Date.now());

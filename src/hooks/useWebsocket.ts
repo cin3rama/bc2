@@ -43,7 +43,7 @@ export function useWebsocket(aoiId?: number): WebsocketStreams {
     // Factory for WebSocketSubjects with observers
     const getWS = (url: string): WebSocketSubject<any> =>
         webSocket({
-            url: `https://botpilot--8080.ngrok.io${url}`,
+            url: `wss://ws.a3therflow.com${url}`,
             openObserver: {
                 next: event => {
                     console.log(`[Websocket] Connection open on ${url}`, event);

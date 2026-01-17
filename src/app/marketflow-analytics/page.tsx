@@ -103,7 +103,7 @@ function Label({className, children, htmlFor}: { className?: string; children: R
 
 /**
  * MARKETFLOW ANALYTICS (MM domain)
- * HTTP Fetch: https://botpilot--8000.ngrok.io/concentration-data
+ * HTTP Fetch: https://api.a3therflow.com/concentration-data
  * Live updates: subscribe to marketflowAnalytics$ (rxjs) from hooks/useWebsocket
  */
 
@@ -166,7 +166,7 @@ type ConcentrationPayload = {
 
 // ---- Constants --------------------------------------------------------------
 
-const API_BASE = 'https://botpilot--8000.ngrok.io/api/mfa'
+const API_BASE = 'https://api.a3therflow.com/api/mfa'
 const DEFAULT_LIMIT_RAW = 20
 const TICKER_OPTIONS = ['SOL-USD', 'BTC-USD', 'ETH-USD', 'ZEC-USD']
 

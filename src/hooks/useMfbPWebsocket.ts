@@ -10,7 +10,7 @@ import type { MfbPSnapshot } from "@/types/mfb_p";
 
 // Hard-coded origin per current constraints.
 // You’ll swap this later when env vars are behaving again.
-const BASE_WS_ORIGIN = "https://botpilot--8080.ngrok.io";
+const BASE_WS_ORIGIN = "ws.a3therflow.com";
 
 export interface MfbPWebsocketParams {
     aoiId?: number;

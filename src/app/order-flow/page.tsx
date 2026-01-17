@@ -544,7 +544,7 @@ const TradeAnimationPage: React.FC<TradeAnimationPageProps> = () => {
                 };
                 const periodSeconds = periodMapping[period];
                 const startTime = endTime - periodSeconds;
-                const url = `https://botpilot--8000.ngrok.io/orderflow_activity/?sym=${ticker}&start_time=${startTime}&end_time=${endTime}`;
+                const url = `https://api.a3therflow.com/orderflow_activity/?sym=${ticker}&start_time=${startTime}&end_time=${endTime}`;
                 const response = await fetch(url);
                 if (!response.ok) throw new Error('Network response was not ok');
                 const result = await response.json();

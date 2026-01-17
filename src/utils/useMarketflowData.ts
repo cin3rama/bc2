@@ -7,7 +7,7 @@ export async function useMarketflowData(
     startTime: number,
     endTime: number
 ): Promise<MarketflowDataType> {
-    const url = `https://botpilot--8000.ngrok.io/orderflow_activity/?sym=${ticker}&start_time=${startTime}&end_time=${endTime}`;
+    const url = `https://api.a3therflow.com/orderflow_activity/?sym=${ticker}&start_time=${startTime}&end_time=${endTime}`;
 
     try {
         const res = await fetch(url);

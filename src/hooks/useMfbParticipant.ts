@@ -221,7 +221,7 @@ export function useMfbParticipant({
                 const base =
                     process.env.NEXT_PUBLIC_MFBP_HTTP_ORIGIN?.replace(/\/$/, "") ??
                     ""; // empty => same-origin
-                const url = `https://botpilot--8000.ngrok.io/api/mfb-p/aoi-detail/?${params.toString()}`;
+                const url = `https://api.a3therflow.com/api/mfb-p/aoi-detail/?${params.toString()}`;
                 console.log('BASE: ', process.env.NEXT_PUBLIC_MFBP_HTTP_ORIGIN, 'URL: ',  url);
 
                 const res = await fetch(url);

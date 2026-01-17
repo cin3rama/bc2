@@ -14,7 +14,7 @@ const MarketflowNetChart = dynamic(() => import("./MarketflowNetChart"), { ssr: 
 const MarketflowDirectionalDiffChart = dynamic(() => import("./MarketflowDirectionalDiffChart"), { ssr: false });
 const MarketflowCandlesChart = dynamic(() => import("./MarketflowCandlesChart"), { ssr: false });
 
-const API_URL = "https://botpilot--8000.ngrok.io/marketflow";
+const API_URL = "https://api.a3therflow.com/marketflow";
 
 // Types
 type XY = [number, number | null];
@@ -435,7 +435,7 @@ export default function MarketflowPage() {
 
                 <MarketflowWidget
                     marketflow$={marketflow$}
-                    httpBase="https://botpilot--8000.ngrok.io"
+                    httpBase="https://api.a3therflow.com"
                     ticker={headerTicker}
                     period="1h"
                     seedMinutes={60}
