@@ -24,11 +24,12 @@ import {
 import ToastShelf, { Toast } from '@/components/ToastShelf';
 import LoadingIndicator from '@/components/LoadingIndicator';
 import Tooltip from '@/components/Tooltip';
-
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
+import { API_BASE } from '@/lib/env';
 
-const API_BASE = 'https://api.a3thefrflow.com/api/mfa';
+
+const api_endpoint = `${API_BASE}/api/mfa`;
 const LIMIT_TOPK = 20 as const;
 
 type RegimeCode = 'N' | 'A' | 'MU' | 'D' | 'MD';
@@ -250,7 +251,7 @@ export default function MarketflowBehaviorPage() {
             setSeedError(null);
 
             try {
-                const url = `${API_BASE}/?ticker=${encodeURIComponent(
+                const url = `${api_endpoint}/?ticker=${encodeURIComponent(
                     ticker,
                 )}&period=${encodeURIComponent(
                     period,

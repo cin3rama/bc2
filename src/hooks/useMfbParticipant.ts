@@ -14,6 +14,7 @@ import type {
 } from "@/types/mfb_p";
 
 import { useMfbPWebsocket } from "@/hooks/useMfbPWebsocket";
+import {API_BASE} from '@/lib/env';
 
 export type MfbPMode = "aoi" | "ticker";
 
@@ -217,12 +218,12 @@ export function useMfbParticipant({
                 if (mode === "aoi" && aoiId != null) {
                     params.append("aoi_id", String(aoiId));
                 }
-
-                const base =
-                    process.env.NEXT_PUBLIC_MFBP_HTTP_ORIGIN?.replace(/\/$/, "") ??
-                    ""; // empty => same-origin
-                const url = `https://api.a3therflow.com/api/mfb-p/aoi-detail/?${params.toString()}`;
-                console.log('BASE: ', process.env.NEXT_PUBLIC_MFBP_HTTP_ORIGIN, 'URL: ',  url);
+                // delete base below after testing
+                // const base =
+                //     process.env.NEXT_PUBLIC_WS_BASE?.replace(/\/$/, "") ??
+                //     ""; // empty => same-origin
+                const url = `${API_BASE}/api/mfb-p/aoi-detail/?${params.toString()}`;
+                console.log('BASE: ', process.env.NEXT_PUBLIC_WS_BASE, 'URL: ',  url);
 
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`HTTP ${res.status} when fetching AOI detail`);

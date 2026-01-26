@@ -8,6 +8,7 @@ import { applyLiveMarketflowUpdate } from '@/utils/applyLiveMarketflowUpdate';
 import LoadingIndicator from '@/components/LoadingIndicator';
 import SegmentTable from '@/components/SegmentTable';
 import MarketflowSummary from '@/components/MarketflowSummary';
+import { API_BASE } from '@/lib/env';
 
 export default function MarketflowPage() {
     const { ticker } = useTickerPeriod();
@@ -26,7 +27,7 @@ export default function MarketflowPage() {
         const fetchInitialData = async () => {
             setLoading(true);
             try {
-                const res = await fetch(`https://api.a3therflow.com/marketflow_activity/?sym=${ticker}`);
+                const res = await fetch(`${API_BASE}/marketflow_activity/?sym=${ticker}`);
                 const data = await res.json();
                 setMarketData(data);
                 setResetTime(Date.now());

@@ -7,6 +7,8 @@ import { adaptSnapshot, buildSnapshotURL, fetchSnapshot } from "@/lib/marketflow
 import { adaptTick, LiveMinute } from "@/lib/marketflow/tick";
 import type { Regime, Tick as WorkerTick } from "@/utils/marketflow.worker";
 import { nowUtcMs } from "@/lib/marketflow/constants";
+import { API_BASE, WS_BASE } from "@/lib/env";
+
 
 export function useMarketflowRuntime(params?: {
     httpBase?: string;
@@ -17,7 +19,7 @@ export function useMarketflowRuntime(params?: {
     onAlert?: (alerts: string[], payload: any) => void;
 }) {
     const {
-        httpBase = "https://api.a3therflow.com",
+        httpBase = API_BASE,
         marketflow$,
         ticker = "SOL-USD",
         period = "1h",

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
 import { useTickerPeriod } from "@/contexts/TickerPeriodContext";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import  { API_BASE } from '@/lib/env';
 
 type AoiApiRow = {
     aoi_id: number;
@@ -52,7 +53,7 @@ export default function MfbPHubPage() {
                 setError(null);
 
                 // If you later wire env vars, replace this with your canonical origin logic.
-                const url = `https://api.a3therflow.com/api/mfb-p/aoi-watchlist/?status=active`;
+                const url = `${API_BASE}/api/mfb-p/aoi-watchlist/?status=active`;
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`HTTP ${res.status} fetching AOI watchlist`);
 

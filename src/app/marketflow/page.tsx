@@ -6,6 +6,7 @@ import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
 import { useTickerPeriod } from "@/contexts/TickerPeriodContext";
 import MarketflowWidget from "@/components/MarketflowWidget";
 import dynamic from "next/dynamic";
+import { API_BASE } from "@/lib/env";
 
 import { useWebsocket } from "@/hooks/useWebsocket";
 
@@ -14,7 +15,7 @@ const MarketflowNetChart = dynamic(() => import("./MarketflowNetChart"), { ssr: 
 const MarketflowDirectionalDiffChart = dynamic(() => import("./MarketflowDirectionalDiffChart"), { ssr: false });
 const MarketflowCandlesChart = dynamic(() => import("./MarketflowCandlesChart"), { ssr: false });
 
-const API_URL = "https://api.a3therflow.com/marketflow";
+const API_URL = `${API_BASE}/marketflow`;
 
 // Types
 type XY = [number, number | null];
@@ -435,7 +436,7 @@ export default function MarketflowPage() {
 
                 <MarketflowWidget
                     marketflow$={marketflow$}
-                    httpBase="https://api.a3therflow.com"
+                    httpBase= {API_BASE}
                     ticker={headerTicker}
                     period="1h"
                     seedMinutes={60}

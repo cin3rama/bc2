@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useMarketflowRuntime } from "@/hooks/useMarketflowRuntime";
 import type { Observable } from "rxjs";
 import type { LiveMinute } from "@/lib/marketflow/tick";
+import { API_BASE } from '@/lib/env';
 
 // ---------- Types & helpers (local, so this file is self-contained) ----------
 type Severity =
@@ -67,7 +68,7 @@ export type MarketflowWidgetProps = {
 };
 
 export default function MarketflowWidget({
-                                             httpBase = "https://api.a3therflow.com",
+                                             httpBase = API_BASE,
                                              ticker = "SOL-USD",
                                              period = "1h",
                                              seedMinutes = 60,

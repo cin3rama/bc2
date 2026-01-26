@@ -5,12 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { webSocket, WebSocketSubject } from "rxjs/webSocket";
 import { Observable, EMPTY, Subject, timer } from "rxjs";
 import { retry, takeUntil, shareReplay } from "rxjs/operators";
+import { WS_BASE } from '@/lib/env';
 
 import type { MfbPSnapshot } from "@/types/mfb_p";
 
 // Hard-coded origin per current constraints.
-// You’ll swap this later when env vars are behaving again.
-const BASE_WS_ORIGIN = "ws.a3therflow.com";
 
 export interface MfbPWebsocketParams {
     aoiId?: number;
@@ -46,7 +45,7 @@ export function useMfbPWebsocket(
             qs.set("lookback_minutes", String(lookbackMinutes));
         }
 
-        const fullUrl = `${BASE_WS_ORIGIN.replace(/\/$/, "")}/ws/mfb-p/?${qs.toString()}`;
+        const fullUrl = `${WS_BASE.replace(/\/$/, "")}/ws/mfb-p/?${qs.toString()}`;
         console.log("[MFB_P][WS] url", { fullUrl });
         return fullUrl;
     }, [params.aoiId, params.ticker, params.period, params.lookbackMinutes, depsKey]);
