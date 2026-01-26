@@ -7,6 +7,7 @@ import { getSharedOrderflowStreams } from '@/hooks/getSharedOrderflowStreams';
 import { motion } from 'framer-motion';
 import ClickTooltip from "@/components/ClickTooltip";
 import LoadingIndicator from "@/components/LoadingIndicator";
+import { API_BASE, URL_BASE, WS_BASE } from '@/lib/env';
 
 const MAX_RECTANGLES = 50;
 const scaleFactor = 0.05;
@@ -429,7 +430,7 @@ const TradeAnimation: React.FC<TradeAnimationProps> = ({
                         <h2 className="text-m font-bold">Net Buy/Sell Action</h2>
                         <ClickTooltip
                             content="This section shows a summary of Market Maker & Top Accumulator (Whales) net activity in real-time."
-                            link="https://bitcoinisle.com/portfolio/orderflow"
+                            link="${URL_BASE}/portfolio/orderflow"
                             linkText="Learn more..."
                         />
                     </div>
@@ -544,7 +545,7 @@ const TradeAnimationPage: React.FC<TradeAnimationPageProps> = () => {
                 };
                 const periodSeconds = periodMapping[period];
                 const startTime = endTime - periodSeconds;
-                const url = `https://api.a3therflow.com/orderflow_activity/?sym=${ticker}&start_time=${startTime}&end_time=${endTime}`;
+                const url = `${API_BASE}/orderflow_activity/?sym=${ticker}&start_time=${startTime}&end_time=${endTime}`;
                 const response = await fetch(url);
                 if (!response.ok) throw new Error('Network response was not ok');
                 const result = await response.json();

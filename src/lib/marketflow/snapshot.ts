@@ -11,6 +11,14 @@ export type BackendSnapshot = {
     candles: { ohlc: [number, number, number, number, number][] };
 };
 
+function normalizeBase(base: string): string {
+    const b = (base ?? "").trim();
+    if (!b) throw new Error("API_BASE is empty (check NEXT_PUBLIC_API_BASE / env.ts / restart dev server).");
+    // If someone accidentally set "botpilot--8000.ngrok.io" without scheme
+    if (!/^https?:\/\//i.test(b)) return `https://${b}`;
+    return b;
+}
+
 export function buildSnapshotURL(
     base: string,
     ticker = "SOL-USD",
@@ -18,13 +26,14 @@ export function buildSnapshotURL(
     start_ms?: number,
     end_ms?: number
 ): string {
-    const u = new URL("/marketflow/", base);
+    const u = new URL("/marketflow/", normalizeBase(base));
     u.searchParams.set("ticker", ticker);
     u.searchParams.set("period", period);
     if (typeof start_ms === "number") u.searchParams.set("start_ms", String(start_ms));
     if (typeof end_ms === "number") u.searchParams.set("end_ms", String(end_ms));
     return u.toString();
 }
+
 
 export async function fetchSnapshot(url: string): Promise<BackendSnapshot> {
     const res = await fetch(url, { cache: "no-store" });

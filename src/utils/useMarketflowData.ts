@@ -1,5 +1,7 @@
 // utils/useMarketflowData.ts
 import { MarketflowDataType } from '@/types/marketflowDataType';
+import { API_BASE } from "@/lib/env";
+
 
 export async function useMarketflowData(
     ticker: string,
@@ -7,7 +9,7 @@ export async function useMarketflowData(
     startTime: number,
     endTime: number
 ): Promise<MarketflowDataType> {
-    const url = `https://api.a3therflow.com/orderflow_activity/?sym=${ticker}&start_time=${startTime}&end_time=${endTime}`;
+    const url = `${API_BASE}/orderflow_activity/?sym=${ticker}&start_time=${startTime}&end_time=${endTime}`;
 
     try {
         const res = await fetch(url);

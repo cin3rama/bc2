@@ -4,6 +4,7 @@ import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
 import { Observable, EMPTY, timer, Subject, shareReplay, filter } from 'rxjs';
 import { retry, takeUntil } from 'rxjs/operators';
 import { useTickerPeriod } from '@/contexts/TickerPeriodContext';
+import { WS_BASE } from '@/lib/env';
 
 // Define the type for our hook's return value.
 interface WebsocketStreams {
@@ -43,7 +44,7 @@ export function useWebsocket(aoiId?: number): WebsocketStreams {
     // Factory for WebSocketSubjects with observers
     const getWS = (url: string): WebSocketSubject<any> =>
         webSocket({
-            url: `wss://ws.a3therflow.com${url}`,
+            url: `${WS_BASE}${url}`,
             openObserver: {
                 next: event => {
                     console.log(`[Websocket] Connection open on ${url}`, event);

@@ -15,6 +15,7 @@ import Highcharts from 'highcharts'
 import HighchartsReact from 'highcharts-react-official'
 import {useHeaderConfig} from '@/contexts/HeaderConfigContext'
 import {useTickerPeriod} from '@/contexts/TickerPeriodContext'
+import {API_BASE} from '@/lib/env';
 
 // --- Local UI primitives (drop-in replacements for shadcn/ui) -----------------
 const cn = (...a: (string | undefined | false)[]) => a.filter(Boolean).join(' ')
@@ -166,7 +167,7 @@ type ConcentrationPayload = {
 
 // ---- Constants --------------------------------------------------------------
 
-const API_BASE = 'https://api.a3therflow.com/api/mfa'
+const api_endpoint = `${API_BASE}/api/mfa`
 const DEFAULT_LIMIT_RAW = 20
 const TICKER_OPTIONS = ['SOL-USD', 'BTC-USD', 'ETH-USD', 'ZEC-USD']
 
@@ -313,7 +314,7 @@ export default function MarketflowAnalyticsPage() {
             // if (startMs === null || endMs === null) throw new Error('Invalid date range.')
             // const qs = new URLSearchParams({ ticker, start_time: String(startMs), end_time: String(endMs), limit: String(limit) })
             const qs = new URLSearchParams({ticker})
-            const url = `${API_BASE}?${qs.toString()}&period=1h&limit=${limit}`
+            const url = `${api_endpoint}?${qs.toString()}&period=1h&limit=${limit}`
             const resp = await fetch(url)
             if (!resp.ok) throw new Error(`Request failed: ${resp.status}`)
             const json = (await resp.json()) as ConcentrationPayload
