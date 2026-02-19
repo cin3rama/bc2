@@ -5,8 +5,6 @@ export type DecimalLike = string | number;
 export interface MfbPAoi {
     id: number;
     account_id: string;
-
-    // backend may include these; keep optional to avoid FE breakage
     label?: string | null;
     aoi_type?: string | null;
     first_seen_ts_ms?: number | null;
