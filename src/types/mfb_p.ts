@@ -8,7 +8,6 @@ export interface MfbPAoi {
 
     // backend may include these; keep optional to avoid FE breakage
     label?: string | null;
-    status?: string | null;
     aoi_type?: string | null;
     first_seen_ts_ms?: number | null;
 

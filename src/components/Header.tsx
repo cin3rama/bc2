@@ -95,6 +95,8 @@ export default function Header() {
                                     <option value="ETH-USD">ETH-USD</option>
                                     <option value="SOL-USD">SOL-USD</option>
                                     <option value="ZEC-USD">ZEC-USD</option>
+                                    <option value="MON-USD">MON-USD</option>
+                                    <option value="XMR-USD">XMR-USD</option>
                                 </select>
                             )}
                             {showPeriod && (
