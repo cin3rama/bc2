@@ -53,7 +53,7 @@ export default function MfbPHubPage() {
                 setError(null);
 
                 // If you later wire env vars, replace this with your canonical origin logic.
-                const url = `${API_BASE}/api/mfb-p/aoi-watchlist/?status=active`;
+                const url = `${API_BASE}/api/mfb-p/aoi-watchlist/?lifecycle_state=active`;
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`HTTP ${res.status} fetching AOI watchlist`);
 
@@ -136,7 +136,7 @@ export default function MfbPHubPage() {
                                     </thead>
                                     <tbody>
                                     {aois.map((aoi) => {
-                                        const status = coerceStatus(aoi.lifecycle_state);
+                                        const lifecycle_state = coerceStatus(aoi.lifecycle_state);
                                         return (
                                             <tr
                                                 key={aoi.aoi_id}
@@ -161,12 +161,12 @@ export default function MfbPHubPage() {
                                                 <td className="py-2 px-2 align-top">
                             <span
                                 className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                    status === "active"
+                                    lifecycle_state === "active"
                                         ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                                         : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
                                 }`}
                             >
-                              {status.toUpperCase()}
+                              {lifecycle_state.toUpperCase()}
                             </span>
                                                 </td>
 
