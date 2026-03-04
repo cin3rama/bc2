@@ -97,7 +97,7 @@ function buildLeaderboardWsUrl(windowDays: SuccessLeaderWindowDays, asofDayMs: n
 export default function MfbPSuccessLeaderHubPage() {
     const { setConfig } = useHeaderConfig();
 
-    const [windowDays, setWindowDays] = useState<SuccessLeaderWindowDays>(30);
+    const [windowDays, setWindowDays] = useState<SuccessLeaderWindowDays>(7);
     const [seed, setSeed] = useState<SeedResponse | null>(null);
     const [seedLoading, setSeedLoading] = useState(false);
     const [seedError, setSeedError] = useState<string | null>(null);
@@ -121,7 +121,7 @@ export default function MfbPSuccessLeaderHubPage() {
                 setSnapshot(null);
                 setWsError(null);
 
-                const url = `${API_BASE}/api/mfb_p_success_leader/seed?window_days=${encodeURIComponent(
+                const url = `${API_BASE}/api/mfb-p-success-leader/seed/?window_days=${encodeURIComponent(
                     String(windowDays)
                 )}`;
 
