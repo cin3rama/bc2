@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import LoadingIndicator from "@/components/LoadingIndicator";
 import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
 import { useTickerPeriod } from "@/contexts/TickerPeriodContext";
-import MarketflowWidget from "@/components/MarketflowWidget";
+// import MarketflowWidget from "@/components/MarketflowWidget";
 import dynamic from "next/dynamic";
 import { API_BASE } from "@/lib/env";
 
@@ -432,17 +432,17 @@ export default function MarketflowPage() {
                     </div>
                 )}
             </section>
-            <section className="rounded-2xl border border-gray-300 dark:border-gray-700 p-2 md:p-3 bg-white dark:bg-gray-900">
+            {/*<section className="rounded-2xl border border-gray-300 dark:border-gray-700 p-2 md:p-3 bg-white dark:bg-gray-900">*/}
 
-                <MarketflowWidget
-                    marketflow$={marketflow$}
-                    httpBase= {API_BASE}
-                    ticker={headerTicker}
-                    period="1h"
-                    seedMinutes={60}
-                    onAlert={(alerts, payload) => console.log("ALERT", alerts, payload)}
-                />
-            </section>
+            {/*    <MarketflowWidget*/}
+            {/*        marketflow$={marketflow$}*/}
+            {/*        httpBase= {API_BASE}*/}
+            {/*        ticker={headerTicker}*/}
+            {/*        period="1h"*/}
+            {/*        seedMinutes={60}*/}
+            {/*        onAlert={(alerts, payload) => console.log("ALERT", alerts, payload)}*/}
+            {/*    />*/}
+            {/*</section>*/}
 
             {/* Chart 1: Net */}
             <section className="rounded-2xl border border-gray-300 dark:border-gray-700 p-2 md:p-3 bg-white dark:bg-gray-900">
