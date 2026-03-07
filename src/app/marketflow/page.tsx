@@ -1,19 +1,17 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import LoadingIndicator from "@/components/LoadingIndicator";
-import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
-import { useTickerPeriod } from "@/contexts/TickerPeriodContext";
-// import MarketflowWidget from "@/components/MarketflowWidget";
+import {useHeaderConfig} from "@/contexts/HeaderConfigContext";
+import {useTickerPeriod} from "@/contexts/TickerPeriodContext";
+import MarketflowWidget from "@/components/MarketflowWidget";
 import dynamic from "next/dynamic";
-import { API_BASE } from "@/lib/env";
+import {API_BASE} from "@/lib/env";
 
-import { useWebsocket } from "@/hooks/useWebsocket";
-
-// Lazy-load chart components to reduce initial bundle
-const MarketflowNetChart = dynamic(() => import("./MarketflowNetChart"), { ssr: false });
-const MarketflowDirectionalDiffChart = dynamic(() => import("./MarketflowDirectionalDiffChart"), { ssr: false });
-const MarketflowCandlesChart = dynamic(() => import("./MarketflowCandlesChart"), { ssr: false });
+// Lazy-load chart components to reduce an initial bundle
+const MarketflowNetChart = dynamic(() => import("./MarketflowNetChart"), {ssr: false});
+const MarketflowDirectionalDiffChart = dynamic(() => import("./MarketflowDirectionalDiffChart"), {ssr: false});
+const MarketflowCandlesChart = dynamic(() => import("./MarketflowCandlesChart"), {ssr: false});
 
 const API_URL = `${API_BASE}/marketflow`;
 
@@ -55,10 +53,12 @@ function lastValue(series?: XY[] | null): number | null {
 }
 
 export default function MarketflowPage() {
-    const { setConfig } = useHeaderConfig();
-    const { ticker: headerTicker, period: headerPeriod, setPeriod } = useTickerPeriod();
+    const {setConfig} = useHeaderConfig();
+    const {ticker: headerTicker, period: headerPeriod, setPeriod} = useTickerPeriod();
 
-    useEffect(() => { setConfig({ showTicker: true, showPeriod: true }); }, [setConfig]);
+    useEffect(() => {
+        setConfig({showTicker: true, showPeriod: true});
+    }, [setConfig]);
 
     // Normalize the header period once (keeps current behavior — no global changes)
     useEffect(() => {
@@ -102,16 +102,18 @@ export default function MarketflowPage() {
     // Use manual window if provided, else let backend decide
     const queryWindow = useMemo(() => {
         if (manualOpen && manualStartMs && manualEndMs) {
-            const s = Number(manualStartMs); const e = Number(manualEndMs);
-            if (Number.isFinite(s) && Number.isFinite(e) && e > s) return { start_ms: s, end_ms: e };
+            const s = Number(manualStartMs);
+            const e = Number(manualEndMs);
+            if (Number.isFinite(s) && Number.isFinite(e) && e > s) return {start_ms: s, end_ms: e};
         }
         return null as unknown as { start_ms: number; end_ms: number } | null;
     }, [manualOpen, manualStartMs, manualEndMs]);
 
     const fetchData = useCallback(async () => {
-        setLoading(true); setError(null);
+        setLoading(true);
+        setError(null);
         try {
-            const params = new URLSearchParams({ ticker: effectiveTicker });
+            const params = new URLSearchParams({ticker: effectiveTicker});
             if (queryWindow) {
                 params.set("start_ms", String(queryWindow.start_ms));
                 params.set("end_ms", String(queryWindow.end_ms));
@@ -139,24 +141,30 @@ export default function MarketflowPage() {
 
             // Derive if server didn't provide
             const derivedDiffInit: XY[] = mm.map((a, i) => {
-                const b = ad[i]; if (!b) return [a[0], null];
+                const b = ad[i];
+                if (!b) return [a[0], null];
                 const v = a[1] == null || b[1] == null ? null : Number(a[1]) + Number(b[1]);
                 return [a[0], v];
             });
             const derivedSpreadInit: XY[] = mm.map((a, i) => {
-                const b = ad[i]; if (!b) return [a[0], null];
+                const b = ad[i];
+                if (!b) return [a[0], null];
                 const v = a[1] == null || b[1] == null ? null : Math.abs(Number(a[1])) + Math.abs(Number(b[1]));
                 return [a[0], v];
             });
             const derivedBiasRatioInit: XY[] = mm.map((a, i) => {
-                const b = ad[i]; if (!b) return [a[0], null];
-                const va = a[1], vb = b[1]; if (va == null || vb == null) return [a[0], null];
+                const b = ad[i];
+                if (!b) return [a[0], null];
+                const va = a[1], vb = b[1];
+                if (va == null || vb == null) return [a[0], null];
                 const denom = Math.abs(Number(vb)) || 1e-9;
                 return [a[0], Math.abs(Number(va)) / denom];
             });
             const derivedBiasPctInit: XY[] = mm.map((a, i) => {
-                const b = ad[i]; if (!b) return [a[0], null];
-                const va = a[1], vb = b[1]; if (va == null || vb == null) return [a[0], null];
+                const b = ad[i];
+                if (!b) return [a[0], null];
+                const va = a[1], vb = b[1];
+                if (va == null || vb == null) return [a[0], null];
                 const mmAbs = Math.abs(Number(va)), adAbs = Math.abs(Number(vb));
                 const denom = (mmAbs + adAbs) || 1e-9;
                 return [a[0], ((mmAbs - adAbs) / denom) * 100];
@@ -172,14 +180,25 @@ export default function MarketflowPage() {
         } catch (err: any) {
             setError(err?.message ?? "Unknown error");
             setMa(null);
-            setLiveMm([]); setLiveAd([]); setLiveOhlc([]);
-            setLiveDiff([]); setLiveSpread([]); setLiveBiasRatio([]); setLiveBiasPct([]);
-        } finally { setLoading(false); }
+            setLiveMm([]);
+            setLiveAd([]);
+            setLiveOhlc([]);
+            setLiveDiff([]);
+            setLiveSpread([]);
+            setLiveBiasRatio([]);
+            setLiveBiasPct([]);
+        } finally {
+            setLoading(false);
+        }
     }, [effectiveTicker, headerPeriod, queryWindow]);
 
     useEffect(() => {
-        if (!manualOpen) { fetchData(); return; }
-        const s = Number(manualStartMs); const e = Number(manualEndMs);
+        if (!manualOpen) {
+            fetchData();
+            return;
+        }
+        const s = Number(manualStartMs);
+        const e = Number(manualEndMs);
         if (Number.isFinite(s) && Number.isFinite(e) && e > s && manualTicker.trim()) fetchData();
     }, [fetchData, manualOpen, manualStartMs, manualEndMs, manualTicker]);
 
@@ -226,9 +245,9 @@ export default function MarketflowPage() {
         const net = netRef.current?.getChart?.();
         const dif = diffRef.current?.getChart?.();
         const cd = candleRef.current?.getChart?.();
-        if (net?.xAxis?.[0]) net.xAxis[0].setExtremes(windowStart, windowEnd, true, false, { trigger: "sync" });
-        if (dif?.xAxis?.[0]) dif.xAxis[0].setExtremes(windowStart, windowEnd, true, false, { trigger: "sync" });
-        if (cd?.xAxis?.[0]) cd.xAxis[0].setExtremes(windowStart, windowEnd, true, false, { trigger: "sync" });
+        if (net?.xAxis?.[0]) net.xAxis[0].setExtremes(windowStart, windowEnd, true, false, {trigger: "sync"});
+        if (dif?.xAxis?.[0]) dif.xAxis[0].setExtremes(windowStart, windowEnd, true, false, {trigger: "sync"});
+        if (cd?.xAxis?.[0]) cd.xAxis[0].setExtremes(windowStart, windowEnd, true, false, {trigger: "sync"});
     }, [windowStart, windowEnd]);
 
     // Crosshair/tooltip sync (mouse move binding)
@@ -240,7 +259,8 @@ export default function MarketflowPage() {
 
         const bind = (from: any, toList: any[]) => {
             const el: HTMLElement | null = (from as any).renderTo ?? (from.container as HTMLElement | null) ?? null;
-            if (!el) return () => {};
+            if (!el) return () => {
+            };
             const onMove = (e: MouseEvent) => {
                 toList.forEach((to) => {
                     const evt = to.pointer?.normalize(e);
@@ -248,22 +268,33 @@ export default function MarketflowPage() {
                 });
             };
             const onLeave = () => {
-                toList.forEach((to) => { to.tooltip?.hide(0); to.xAxis?.[0]?.hideCrosshair(); });
+                toList.forEach((to) => {
+                    to.tooltip?.hide(0);
+                    to.xAxis?.[0]?.hideCrosshair();
+                });
             };
-            el.addEventListener("mousemove", onMove); el.addEventListener("mouseleave", onLeave);
-            return () => { el.removeEventListener("mousemove", onMove); el.removeEventListener("mouseleave", onLeave); };
+            el.addEventListener("mousemove", onMove);
+            el.addEventListener("mouseleave", onLeave);
+            return () => {
+                el.removeEventListener("mousemove", onMove);
+                el.removeEventListener("mouseleave", onLeave);
+            };
         };
 
         const un1 = bind(net, [dif, cd]);
         const un2 = bind(dif, [net, cd]);
         const un3 = bind(cd, [net, dif]);
-        return () => { un1 && un1(); un2 && un2(); un3 && un3(); };
+        return () => {
+            un1 && un1();
+            un2 && un2();
+            un3 && un3();
+        };
     }, [netRef.current, diffRef.current, candleRef.current]);
 
     const isDark = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
 
     // --- Live minute updates via websocket ---
-    const { marketflow$ } = require("@/hooks/useWebsocket").useWebsocket();
+    const {marketflow$} = require("@/hooks/useWebsocket").useWebsocket();
 
     useEffect(() => {
         if (!ma || !marketflow$) return;
@@ -274,20 +305,23 @@ export default function MarketflowPage() {
             if (!Number.isFinite(fromTs)) return;
             let cursor = fromTs + NET_BUCKET;
 
-            const pad = <T,>(setter: React.Dispatch<React.SetStateAction<T[]>>, mk: (ts: number) => T) => {
+            const pad = <T, >(setter: React.Dispatch<React.SetStateAction<T[]>>, mk: (ts: number) => T) => {
                 const tmp: T[] = [];
                 let t = cursor;
-                while (t < toTs) { tmp.push(mk(t)); t += NET_BUCKET; }
+                while (t < toTs) {
+                    tmp.push(mk(t));
+                    t += NET_BUCKET;
+                }
                 if (tmp.length) setter(prev => [...prev, ...tmp]);
             };
 
-            pad(setLiveMm,     (t) => [t, null] as any);
-            pad(setLiveAd,     (t) => [t, null] as any);
-            pad(setLiveDiff,   (t) => [t, null] as any);
+            pad(setLiveMm, (t) => [t, null] as any);
+            pad(setLiveAd, (t) => [t, null] as any);
+            pad(setLiveDiff, (t) => [t, null] as any);
             pad(setLiveSpread, (t) => [t, null] as any);
             pad(setLiveBiasRatio, (t) => [t, null] as any);
-            pad(setLiveBiasPct,   (t) => [t, null] as any);
-            pad(setLiveOhlc,   (t) => [t, null, null, null, null] as any);
+            pad(setLiveBiasPct, (t) => [t, null] as any);
+            pad(setLiveOhlc, (t) => [t, null, null, null, null] as any);
         };
 
         const updateSeries = <T extends XY>(
@@ -339,7 +373,7 @@ export default function MarketflowPage() {
                 updateSeries(setLiveDiff, ts, diffVal);
                 updateSeries(setLiveSpread, ts, spreadVal);
                 if (!Number.isNaN(biasRatioVal)) updateSeries(setLiveBiasRatio, ts, biasRatioVal);
-                if (!Number.isNaN(biasPctVal))   updateSeries(setLiveBiasPct, ts, biasPctVal);
+                if (!Number.isNaN(biasPctVal)) updateSeries(setLiveBiasPct, ts, biasPctVal);
 
                 // Candles
                 setLiveOhlc(prev => {
@@ -389,7 +423,7 @@ export default function MarketflowPage() {
     const lastBiasRatio = lastValue(biasRatioSeries);
     const lastBiasPct = lastValue(biasPctSeries);
 
-    const fmtNum = (v: number | null, opts: Intl.NumberFormatOptions = { maximumFractionDigits: 2 }) =>
+    const fmtNum = (v: number | null, opts: Intl.NumberFormatOptions = {maximumFractionDigits: 2}) =>
         v == null || !Number.isFinite(v) ? "—" : new Intl.NumberFormat("en-US", opts).format(v);
 
 
@@ -397,15 +431,17 @@ export default function MarketflowPage() {
         <main className="flex flex-col gap-4 p-2 md:p-4 lg:p-6">
             <section className="flex flex-col gap-2">
                 <h1 className="text-xl md:text-2xl font-semibold">Marketflow</h1>
-                <p className="text-sm opacity-80">Compare NET values between Market Makers and Accumulators/Distributors over time.</p>
+                <p className="text-sm opacity-80">Compare NET values between Market Makers and Accumulators/Distributors
+                    over time.</p>
             </section>
 
             {/* Manual mode */}
-            <section className="rounded-2xl border border-gray-300 dark:border-gray-700 p-3 md:p-4 bg-white dark:bg-gray-900">
+            <section
+                className="rounded-2xl border border-gray-300 dark:border-gray-700 p-3 md:p-4 bg-white dark:bg-gray-900">
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                         <label className="font-medium">Manual mode (UTC ms)</label>
-                        <input type="checkbox" checked={manualOpen} onChange={() => setManualOpen((v) => !v)} />
+                        <input type="checkbox" checked={manualOpen} onChange={() => setManualOpen((v) => !v)}/>
                     </div>
                     {/*<div className="text-xs opacity-70">Endpoint: <code>{API_URL}</code></div>*/}
                 </div>
@@ -414,39 +450,54 @@ export default function MarketflowPage() {
                     <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3">
                         <div className="flex flex-col">
                             <label className="text-xs mb-1">Ticker</label>
-                            <input className="rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-2" placeholder="BTC-USD" value={manualTicker} onChange={(e) => setManualTicker(e.target.value)} />
+                            <input
+                                className="rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-2"
+                                placeholder="BTC-USD" value={manualTicker}
+                                onChange={(e) => setManualTicker(e.target.value)}/>
                         </div>
                         <div className="flex flex-col">
                             <label className="text-xs mb-1">Start (ms, UTC)</label>
-                            <input className="rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-2" placeholder="e.g. 1757134800000" value={manualStartMs} onChange={(e) => setManualStartMs(e.target.value)} />
+                            <input
+                                className="rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-2"
+                                placeholder="e.g. 1757134800000" value={manualStartMs}
+                                onChange={(e) => setManualStartMs(e.target.value)}/>
                         </div>
                         <div className="flex flex-col">
                             <label className="text-xs mb-1">End (ms, UTC)</label>
-                            <input className="rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-2" placeholder="e.g. 1757480400000" value={manualEndMs} onChange={(e) => setManualEndMs(e.target.value)} />
+                            <input
+                                className="rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-2"
+                                placeholder="e.g. 1757480400000" value={manualEndMs}
+                                onChange={(e) => setManualEndMs(e.target.value)}/>
                         </div>
                         <div className="flex items-end">
-                            <button className="w-full rounded-xl bg-primary dark:bg-primary-dark text-black dark:text-white px-4 py-2" onClick={() => { fetchData(); }}>
+                            <button
+                                className="w-full rounded-xl bg-primary dark:bg-primary-dark text-black dark:text-white px-4 py-2"
+                                onClick={() => {
+                                    fetchData();
+                                }}>
                                 Fetch
                             </button>
                         </div>
                     </div>
                 )}
             </section>
-            {/*<section className="rounded-2xl border border-gray-300 dark:border-gray-700 p-2 md:p-3 bg-white dark:bg-gray-900">*/}
+            <section
+                className="rounded-2xl border border-gray-300 dark:border-gray-700 p-2 md:p-3 bg-white dark:bg-gray-900">
 
-            {/*    <MarketflowWidget*/}
-            {/*        marketflow$={marketflow$}*/}
-            {/*        httpBase= {API_BASE}*/}
-            {/*        ticker={headerTicker}*/}
-            {/*        period="1h"*/}
-            {/*        seedMinutes={60}*/}
-            {/*        onAlert={(alerts, payload) => console.log("ALERT", alerts, payload)}*/}
-            {/*    />*/}
-            {/*</section>*/}
+                <MarketflowWidget
+                    marketflow$={marketflow$}
+                    httpBase={API_BASE}
+                    ticker={headerTicker}
+                    period="1h"
+                    seedMinutes={60}
+                    onAlert={(alerts, payload) => console.log("ALERT", alerts, payload)}
+                />
+            </section>
 
             {/* Chart 1: Net */}
-            <section className="rounded-2xl border border-gray-300 dark:border-gray-700 p-2 md:p-3 bg-white dark:bg-gray-900">
-                {loading && <LoadingIndicator message="Loading net values…" />}
+            <section
+                className="rounded-2xl border border-gray-300 dark:border-gray-700 p-2 md:p-3 bg-white dark:bg-gray-900">
+                {loading && <LoadingIndicator message="Loading net values…"/>}
                 {!loading && error && <div className="text-red-600 dark:text-red-400 p-3">Error: {error}</div>}
                 {!loading && !error && ma && (
                     <MarketflowNetChart
@@ -457,17 +508,21 @@ export default function MarketflowPage() {
                         onSetExtremes={(min, max) => {
                             const dif = diffRef.current?.getChart?.();
                             const cd = candleRef.current?.getChart?.();
-                            const a1 = dif?.xAxis?.[0]; if (a1 && (a1.min !== min || a1.max !== max)) a1.setExtremes(min, max, true, false, { trigger: "sync" });
-                            const a2 = cd?.xAxis?.[0];  if (a2 && (a2.min !== min || a2.max !== max)) a2.setExtremes(min, max, true, false, { trigger: "sync" });
+                            const a1 = dif?.xAxis?.[0];
+                            if (a1 && (a1.min !== min || a1.max !== max)) a1.setExtremes(min, max, true, false, {trigger: "sync"});
+                            const a2 = cd?.xAxis?.[0];
+                            if (a2 && (a2.min !== min || a2.max !== max)) a2.setExtremes(min, max, true, false, {trigger: "sync"});
                         }}
                     />
                 )}
-                {!loading && !error && !ma && <div className="p-3 text-sm opacity-80">No data available for the selected range.</div>}
+                {!loading && !error && !ma &&
+                    <div className="p-3 text-sm opacity-80">No data available for the selected range.</div>}
             </section>
 
             {/* Chart 2: Directional Difference */}
-            <section className="rounded-2xl border border-gray-300 dark:border-gray-700 p-2 md:p-3 bg-white dark:bg-gray-900">
-                {loading && <LoadingIndicator message="Loading directional difference…" />}
+            <section
+                className="rounded-2xl border border-gray-300 dark:border-gray-700 p-2 md:p-3 bg-white dark:bg-gray-900">
+                {loading && <LoadingIndicator message="Loading directional difference…"/>}
                 {!loading && !error && ma && (
                     <MarketflowDirectionalDiffChart
                         ref={diffRef as any}
@@ -476,17 +531,21 @@ export default function MarketflowPage() {
                         onSetExtremes={(min, max) => {
                             const net = netRef.current?.getChart?.();
                             const cd = candleRef.current?.getChart?.();
-                            const a1 = net?.xAxis?.[0]; if (a1 && (a1.min !== min || a1.max !== max)) a1.setExtremes(min, max, true, false, { trigger: "sync" });
-                            const a2 = cd?.xAxis?.[0];  if (a2 && (a2.min !== min || a2.max !== max)) a2.setExtremes(min, max, true, false, { trigger: "sync" });
+                            const a1 = net?.xAxis?.[0];
+                            if (a1 && (a1.min !== min || a1.max !== max)) a1.setExtremes(min, max, true, false, {trigger: "sync"});
+                            const a2 = cd?.xAxis?.[0];
+                            if (a2 && (a2.min !== min || a2.max !== max)) a2.setExtremes(min, max, true, false, {trigger: "sync"});
                         }}
                     />
                 )}
-                {!loading && !error && !ma && <div className="p-3 text-sm opacity-80">No directional difference data.</div>}
+                {!loading && !error && !ma &&
+                    <div className="p-3 text-sm opacity-80">No directional difference data.</div>}
             </section>
 
             {/* Chart 3: Candles */}
-            <section className="rounded-2xl border border-gray-300 dark:border-gray-700 p-2 md:p-3 bg-white dark:bg-gray-900">
-                {loading && <LoadingIndicator message="Loading candles…" />}
+            <section
+                className="rounded-2xl border border-gray-300 dark:border-gray-700 p-2 md:p-3 bg-white dark:bg-gray-900">
+                {loading && <LoadingIndicator message="Loading candles…"/>}
                 {!loading && !error && ma?.candles && (
                     <MarketflowCandlesChart
                         ref={candleRef as any}
@@ -495,8 +554,10 @@ export default function MarketflowPage() {
                         onSetExtremes={(min, max) => {
                             const net = netRef.current?.getChart?.();
                             const dif = diffRef.current?.getChart?.();
-                            const a1 = net?.xAxis?.[0]; if (a1 && (a1.min !== min || a1.max !== max)) a1.setExtremes(min, max, true, false, { trigger: "sync" });
-                            const a2 = dif?.xAxis?.[0]; if (a2 && (a2.min !== min || a2.max !== max)) a2.setExtremes(min, max, true, false, { trigger: "sync" });
+                            const a1 = net?.xAxis?.[0];
+                            if (a1 && (a1.min !== min || a1.max !== max)) a1.setExtremes(min, max, true, false, {trigger: "sync"});
+                            const a2 = dif?.xAxis?.[0];
+                            if (a2 && (a2.min !== min || a2.max !== max)) a2.setExtremes(min, max, true, false, {trigger: "sync"});
                         }}
                     />
                 )}
