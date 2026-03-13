@@ -85,6 +85,14 @@ export default function MarketflowPage() {
     const diffRef = useRef<{ getChart: () => any } | null>(null);
     const candleRef = useRef<{ getChart: () => any } | null>(null);
 
+    const reflowCharts = useCallback(() => {
+        requestAnimationFrame(() => {
+            netRef.current?.getChart?.()?.reflow?.();
+            diffRef.current?.getChart?.()?.reflow?.();
+            candleRef.current?.getChart?.()?.reflow?.();
+        });
+    }, []);
+
     const effectiveTicker = manualOpen && manualTicker.trim() ? manualTicker.trim() : headerTicker;
 
     // --- Live series + window state (initialized from backend payload) ---
@@ -201,6 +209,46 @@ export default function MarketflowPage() {
         const e = Number(manualEndMs);
         if (Number.isFinite(s) && Number.isFinite(e) && e > s && manualTicker.trim()) fetchData();
     }, [fetchData, manualOpen, manualStartMs, manualEndMs, manualTicker]);
+
+    useEffect(() => {
+        let resumeTimer: ReturnType<typeof setTimeout> | null = null;
+
+        const resumePage = async () => {
+            if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+
+            try {
+                await fetchData();
+            } catch (err) {
+                console.error("[marketflow] resume fetch failed", err);
+            } finally {
+                if (resumeTimer) clearTimeout(resumeTimer);
+                resumeTimer = setTimeout(() => {
+                    reflowCharts();
+                }, 75);
+            }
+        };
+
+        const onVisibilityChange = () => {
+            if (document.visibilityState === "visible") {
+                void resumePage();
+            }
+        };
+
+        const onFocus = () => {
+            if (typeof document === "undefined" || document.visibilityState !== "hidden") {
+                void resumePage();
+            }
+        };
+
+        document.addEventListener("visibilitychange", onVisibilityChange);
+        window.addEventListener("focus", onFocus);
+
+        return () => {
+            document.removeEventListener("visibilitychange", onVisibilityChange);
+            window.removeEventListener("focus", onFocus);
+            if (resumeTimer) clearTimeout(resumeTimer);
+        };
+    }, [fetchData, reflowCharts]);
 
     // Derived series for charts (always sorted)
     const mmNet = useMemo(() => sortByTime(liveMm), [liveMm]);
