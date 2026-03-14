@@ -90,6 +90,7 @@ interface MfaWindowMeta {
     };
     generated_at_ms: number;
     requested_period: string;
+    last_ready_window_start_ms?: number;
     [key: string]: any;
 }
 
@@ -501,12 +502,20 @@ export default function MarketflowBehaviorPage() {
     const latestWindow = windows[windows.length - 1] ?? null;
 
     const flowsChartOptions = useMemo(() => {
+        const chartTs = (w: MfbWindow): number =>
+            Number(
+                w.meta.last_ready_window_start_ms ??
+                w.meta.window.end_time ??
+                w.meta.window.start_time
+            );
+
         const seriesOmega = windows.map(w => [
-            w.meta.window.start_time,
+            chartTs(w),
             w.mfb.flows.omega_inventory_flow,
         ]);
+
         const seriesRom = windows.map(w => [
-            w.meta.window.start_time,
+            chartTs(w),
             w.mfb.flows.rom_inventory_flow,
         ]);
 
