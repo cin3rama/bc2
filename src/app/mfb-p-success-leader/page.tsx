@@ -1,18 +1,16 @@
 // app/mfb-p-success-leader/page.tsx
 "use client"; // MUST be the first non-empty line
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { webSocket, WebSocketSubject } from "rxjs/webSocket";
-import { EMPTY, Observable, Subject, timer } from "rxjs";
-import { retry, takeUntil, shareReplay } from "rxjs/operators";
 
 import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { API_BASE, WS_BASE } from "@/lib/env";
+import { API_BASE } from "@/lib/env";
 
 import type {
     DecimalLike,
+    SuccessLeaderAccountSnapshotV1,
     SuccessLeaderLeaderboardSnapshotV1,
     SuccessLeaderWindowDays,
     WsUpdateDataEnvelope,
@@ -20,34 +18,23 @@ import type {
 import {
     isSuccessLeaderLeaderboardSnapshotV1,
     SUCCESS_LEADER_LEADERBOARD_KIND,
+    SUCCESS_LEADER_SNAPSHOT_KIND,
 } from "@/types/mfb_p_success_leader";
 
-type SeedResponse = {
-    asof_day_ms: number | null;
-    window_days: SuccessLeaderWindowDays;
-};
-
 const WINDOWS: SuccessLeaderWindowDays[] = [7, 30, 60];
-
-function toWsOrigin(base: string): string {
-    const b = (base ?? "").trim().replace(/\/$/, "");
-    if (b.startsWith("https://")) return `wss://${b.slice("https://".length)}`;
-    if (b.startsWith("https://")) return `ws://${b.slice("https://".length)}`;
-    return b; // assume already ws/wss
-}
 
 function formatUtcMs(ms: number | null | undefined): string {
     if (ms == null) return "—";
     try {
-        return new Date(ms).toISOString(); // ✅ UTC
+        return new Date(ms).toISOString(); // ✅ UTC only
     } catch {
         return String(ms);
     }
 }
 
-function shortAccountId(full: string): string {
-    if (!full?.startsWith("0x") || full.length <= 10) return full || "—";
-    return `0x…${full.slice(-5)}`;
+function accountTail5(full: string): string {
+    if (!full) return "—";
+    return full.slice(-5);
 }
 
 function parseDecimalLike(x: DecimalLike | null | undefined): number | null {
@@ -65,15 +52,15 @@ function formatNumber(x: DecimalLike | null | undefined, decimals = 2): string {
     });
 }
 
-function formatPercentGrowth(pctGrowth: DecimalLike | null | undefined): string {
+function formatPctGrowth(pctGrowth: DecimalLike | null | undefined): string {
     const n = parseDecimalLike(pctGrowth);
     if (n == null) return "—";
-    const pct = n * 100;
+    // pct_growth is already a ratio (e.g. 0.12 = 12%) in other modules,
+    // but your seed example shows pct_growth as 16.69 (already % as ratio?).
+    // DO NOT invent — display raw as percent-like if > 1 else *100.
+    const displayPct = Math.abs(n) > 1 ? n : n * 100;
     return (
-        pct.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-        }) + "%"
+        displayPct.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%"
     );
 }
 
@@ -85,165 +72,167 @@ function growthClass(pctGrowth: DecimalLike | null | undefined): string {
     return "text-gray-800 dark:text-gray-200";
 }
 
-function buildLeaderboardWsUrl(windowDays: SuccessLeaderWindowDays, asofDayMs: number): string {
-    const origin = toWsOrigin(WS_BASE);
-    const qs = new URLSearchParams({
-        window_days: String(windowDays),
-        asof_day_ms: String(asofDayMs),
-    });
-    return `${origin}/ws/mfb_p_success_leader/?${qs.toString()}`;
+/** Derived UI field: Confidence badge from days_observed */
+function confidenceBadge(daysObserved: number, windowDays: SuccessLeaderWindowDays) {
+    if (daysObserved >= windowDays) return { label: "Full Window", cls: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" };
+    if (daysObserved >= windowDays * 0.5) return { label: "Partial Window", cls: "bg-yellow-100 text-yellow-900 dark:bg-yellow-900/30 dark:text-yellow-200" };
+    return { label: "Low Observation", cls: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" };
+}
+
+/** Derived UI field: Funding badge from cashflow_cumulative */
+function fundingBadge(cashflow: DecimalLike) {
+    const n = parseDecimalLike(cashflow) ?? 0;
+    const eps = 1e-9;
+    if (Math.abs(n) <= eps) return { label: "Organic", cls: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" };
+    if (n > 0) return { label: "Cashflow Assisted", cls: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200" };
+    return { label: "Withdrawal Distorted", cls: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200" };
+}
+
+/**
+ * Seed can arrive in one of these shapes:
+ * - Envelope: { type:"update_data", payload:<leaderboard_snapshot> }  (matches your example)
+ * - Raw payload: <leaderboard_snapshot>
+ * - Minimal legacy: { asof_day_ms, window_days, leaders } (no kind/meta)  -> still render leaders, but do NOT invent missing fields
+ */
+function extractLeaderboardSeed(raw: any): {
+    leaderboard: SuccessLeaderLeaderboardSnapshotV1 | null;
+    minimal: { asof_day_ms: number | null; window_days: SuccessLeaderWindowDays; leaders: any[] } | null;
+} {
+    // Envelope
+    if (raw && typeof raw === "object" && raw.type === "update_data" && raw.payload) {
+        if (isSuccessLeaderLeaderboardSnapshotV1(raw.payload)) {
+            return { leaderboard: raw.payload, minimal: null };
+        }
+    }
+
+    // Raw payload
+    if (isSuccessLeaderLeaderboardSnapshotV1(raw)) {
+        return { leaderboard: raw, minimal: null };
+    }
+
+    // Minimal legacy-ish
+    const wd = raw?.window_days;
+    const asof = raw?.asof_day_ms;
+    const leaders = raw?.leaders;
+    if ((wd === 7 || wd === 30 || wd === 60) && (asof == null || typeof asof === "number") && Array.isArray(leaders)) {
+        return {
+            leaderboard: null,
+            minimal: {
+                asof_day_ms: typeof asof === "number" ? asof : null,
+                window_days: wd,
+                leaders,
+            },
+        };
+    }
+
+    return { leaderboard: null, minimal: null };
 }
 
 export default function MfbPSuccessLeaderHubPage() {
     const { setConfig } = useHeaderConfig();
 
-    const [windowDays, setWindowDays] = useState<SuccessLeaderWindowDays>(7);
-    const [seed, setSeed] = useState<SeedResponse | null>(null);
-    const [seedLoading, setSeedLoading] = useState(false);
-    const [seedError, setSeedError] = useState<string | null>(null);
+    const [windowDays, setWindowDays] = useState<SuccessLeaderWindowDays>(30);
 
-    const [snapshot, setSnapshot] = useState<SuccessLeaderLeaderboardSnapshotV1 | null>(null);
-    const [wsError, setWsError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    // Header: show ticker, hide period (Success Leader uses 7/30/60 window selector in-page)
+    // Authoritative seed snapshot (preferred)
+    const [leaderboard, setLeaderboard] = useState<SuccessLeaderLeaderboardSnapshotV1 | null>(null);
+    // Fallback minimal seed (if backend returns minimal form)
+    const [minimalSeed, setMinimalSeed] = useState<{
+        asof_day_ms: number | null;
+        window_days: SuccessLeaderWindowDays;
+        leaders: any[];
+    } | null>(null);
+
+    // Header config: ticker visible, period hidden (Success Leader uses 7/30/60 selector in-page)
     useEffect(() => {
         setConfig({ showTicker: true, showPeriod: false });
     }, [setConfig]);
 
-    // Seed fetch (HTTP only)
+    const fetchSeed = useCallback(async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            setLeaderboard(null);
+            setMinimalSeed(null);
+
+            // LOCKED endpoint (hyphenated)
+            const url = `${API_BASE}/api/mfb-p-success-leader/seed?window_days=${encodeURIComponent(String(windowDays))}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP ${res.status} fetching Success Leader seed`);
+
+            const raw = await res.json();
+            const extracted = extractLeaderboardSeed(raw);
+
+            if (extracted.leaderboard) {
+                setLeaderboard(extracted.leaderboard);
+                return;
+            }
+            if (extracted.minimal) {
+                setMinimalSeed(extracted.minimal);
+                return;
+            }
+
+            throw new Error("Seed response did not match expected Success Leader contracts");
+        } catch (e: any) {
+            setError(e?.message ?? "Failed to load seed");
+        } finally {
+            setLoading(false);
+        }
+    }, [windowDays]);
+
+    // Seed on mount + on window change
     useEffect(() => {
         let cancelled = false;
-
-        async function fetchSeed() {
-            try {
-                setSeedLoading(true);
-                setSeedError(null);
-                setSnapshot(null);
-                setWsError(null);
-
-                const url = `${API_BASE}/api/mfb-p-success-leader/seed/?window_days=${encodeURIComponent(
-                    String(windowDays)
-                )}`;
-
-                const res = await fetch(url);
-                if (!res.ok) throw new Error(`HTTP ${res.status} fetching Success Leader seed`);
-
-                const raw = (await res.json()) as unknown;
-                if (cancelled) return;
-
-                const r = raw as any;
-                const next: SeedResponse = {
-                    asof_day_ms: typeof r?.asof_day_ms === "number" ? r.asof_day_ms : null,
-                    window_days:
-                        r?.window_days === 7 || r?.window_days === 30 || r?.window_days === 60
-                            ? r.window_days
-                            : windowDays,
-                };
-
-                setSeed(next);
-            } catch (err: any) {
-                if (!cancelled) setSeedError(err?.message ?? "Failed to load seed");
-            } finally {
-                if (!cancelled) setSeedLoading(false);
-            }
-        }
-
-        fetchSeed();
+        (async () => {
+            if (cancelled) return;
+            await fetchSeed();
+        })();
         return () => {
             cancelled = true;
         };
-    }, [windowDays]);
+    }, [fetchSeed]);
 
-    // WS subscription (leaderboard)
-    useEffect(() => {
-        // No seed yet / no eligible day => do not open WS (LOCKED rule)
-        if (!seed || seed.asof_day_ms == null) return;
+    const effectiveWindowDays: SuccessLeaderWindowDays = useMemo(() => {
+        return (leaderboard?.window_days ?? minimalSeed?.window_days ?? windowDays) as SuccessLeaderWindowDays;
+    }, [leaderboard?.window_days, minimalSeed?.window_days, windowDays]);
 
-        const stop$ = new Subject<void>();
-        const wsUrl = buildLeaderboardWsUrl(seed.window_days, seed.asof_day_ms);
+    const effectiveAsofDayMs: number | null = useMemo(() => {
+        if (leaderboard) return typeof leaderboard.asof_day_ms === "number" ? leaderboard.asof_day_ms : null;
+        return minimalSeed?.asof_day_ms ?? null;
+    }, [leaderboard, minimalSeed]);
 
-        const ws: WebSocketSubject<any> = webSocket({
-            url: wsUrl,
-            openObserver: { next: (e) => console.log("[SuccessLeader][WS] open", wsUrl, e) },
-            closeObserver: { next: (e) => console.log("[SuccessLeader][WS] close", wsUrl, e) },
-        });
+    const runId: string | null = useMemo(() => {
+        if (leaderboard?.meta?.run_id) return leaderboard.meta.run_id;
+        return null;
+    }, [leaderboard?.meta?.run_id]);
 
-        const replayCfg = {
-            bufferSize: 1,
-            refCount: true,
-            resetOnRefCountZero: true,
-            resetOnComplete: true,
-            resetOnError: true,
-        } as const;
+    const leaders: SuccessLeaderAccountSnapshotV1[] = useMemo(() => {
+        // Authoritative: leaders array contains per-account snapshot objects
+        const arr = leaderboard?.leaders ?? minimalSeed?.leaders ?? [];
+        // Only accept items shaped like per-account snapshots; do not invent
+        return arr.filter((x: any) => x && x.kind === SUCCESS_LEADER_SNAPSHOT_KIND && x.version === 1) as SuccessLeaderAccountSnapshotV1[];
+    }, [leaderboard?.leaders, minimalSeed?.leaders]);
 
-        const stream = (ws.pipe(
-            retry({ delay: () => timer(4000) }),
-            takeUntil(stop$),
-            shareReplay(replayCfg)
-        ) as unknown) as Observable<WsUpdateDataEnvelope<any>>;
-
-        const sub = stream.subscribe({
-            next: (msg: any) => {
-                try {
-                    if (!msg || msg.type !== "update_data" || !msg.payload) return;
-
-                    const payload = msg.payload as any;
-
-                    // Kind/version gate
-                    if (payload.kind !== SUCCESS_LEADER_LEADERBOARD_KIND) return;
-                    if (!isSuccessLeaderLeaderboardSnapshotV1(payload)) return;
-
-                    // Hard-drop mismatches (defensive)
-                    if (payload.window_days !== seed.window_days) return;
-                    if (payload.asof_day_ms !== seed.asof_day_ms) return;
-
-                    setSnapshot(payload);
-                    setWsError(null);
-                } catch (e: any) {
-                    console.error("[SuccessLeader][WS] apply error", e);
-                    setWsError(e?.message ?? "WS apply error");
-                }
-            },
-            error: (err) => {
-                console.error("[SuccessLeader][WS] error", err);
-                setWsError("WebSocket error");
-            },
-        });
-
-        return () => {
-            stop$.next();
-            stop$.complete();
-            sub.unsubscribe();
-            ws.complete();
-        };
-    }, [seed?.asof_day_ms, seed?.window_days]);
-
-    const headerSubtitle = useMemo(() => {
-        if (seedLoading) return "Loading seed…";
-        if (seedError) return seedError;
-        if (!seed) return "—";
-        if (seed.asof_day_ms == null) return "No eligible day available yet.";
-        return `As-of day (UTC): ${formatUtcMs(seed.asof_day_ms)}`;
-    }, [seedLoading, seedError, seed]);
-
-    const leaders = snapshot?.leaders ?? [];
+    const hasEligibleDay = effectiveAsofDayMs != null;
     const hasLeaders = leaders.length > 0;
 
     return (
         <main className="flex flex-col gap-4 p-2 md:p-4">
-            {/* Page header */}
+            {/* Header */}
             <section className="flex flex-col gap-2">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                     <div>
                         <h1 className="text-xl md:text-2xl font-semibold text-text dark:text-text-inverted">
-                            MFB_P – Success Leaderboard
+                            MFB_P — Success Leaderboard
                         </h1>
                         <p className="mt-1 text-xs md:text-sm text-gray-600 dark:text-gray-300">
                             Top accounts by <span className="font-semibold">pct_growth</span> over the selected window. Times are UTC.
                         </p>
                     </div>
 
-                    {/* In-page window selector (7/30/60) */}
+                    {/* In-page controls */}
                     <div className="flex items-center gap-2">
                         <span className="text-xs md:text-sm text-gray-600 dark:text-gray-300">Window</span>
                         <select
@@ -257,10 +246,25 @@ export default function MfbPSuccessLeaderHubPage() {
                                 </option>
                             ))}
                         </select>
+
+                        <button
+                            onClick={fetchSeed}
+                            className="inline-flex items-center rounded-full border border-gray-300 dark:border-gray-700 px-3 py-1 text-[11px] md:text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        >
+                            Refresh
+                        </button>
                     </div>
                 </div>
 
-                <div className="text-[11px] md:text-xs text-gray-500 dark:text-gray-400">{headerSubtitle}</div>
+                <div className="text-[11px] md:text-xs text-gray-500 dark:text-gray-400">
+                    <span className="font-semibold">As-of (UTC):</span> {formatUtcMs(effectiveAsofDayMs)}{" "}
+                    {runId ? (
+                        <>
+                            • <span className="font-semibold">run_id:</span>{" "}
+                            <span className="font-mono">{runId}</span>
+                        </>
+                    ) : null}
+                </div>
             </section>
 
             {/* Leaderboard */}
@@ -269,24 +273,26 @@ export default function MfbPSuccessLeaderHubPage() {
                     <CardHeader>
                         <CardTitle>Leaders</CardTitle>
                     </CardHeader>
+
                     <CardContent>
-                        {seedLoading ? (
+                        {loading ? (
                             <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
-                        ) : seedError ? (
-                            <p className="text-sm text-red-600 dark:text-red-400">{seedError}</p>
-                        ) : !seed || seed.asof_day_ms == null ? (
+                        ) : error ? (
+                            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                        ) : !hasEligibleDay ? (
                             <div className="space-y-2">
                                 <p className="text-sm text-gray-500 dark:text-gray-400">No leaders available yet.</p>
                                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    The backend will emit leaders once an eligible as-of day exists (coverage-gated).
+                                    The backend will emit leaders once an eligible as-of day exists.
                                 </p>
                             </div>
-                        ) : wsError ? (
-                            <p className="text-sm text-red-600 dark:text-red-400">{wsError}</p>
-                        ) : !snapshot ? (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">Waiting for leaderboard…</p>
                         ) : !hasLeaders ? (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">No leaders returned for this window.</p>
+                            <div className="space-y-2">
+                                <p className="text-sm text-gray-500 dark:text-gray-400">No leaders returned for this window.</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    asof_day_ms={String(effectiveAsofDayMs)} • window_days={String(effectiveWindowDays)}
+                                </p>
+                            </div>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="min-w-full text-xs md:text-sm">
@@ -294,32 +300,33 @@ export default function MfbPSuccessLeaderHubPage() {
                                     <tr className="border-b border-gray-200 dark:border-gray-800">
                                         <th className="py-2 pr-4 text-left font-semibold">Rank</th>
                                         <th className="py-2 px-2 text-left font-semibold">Account</th>
-                                        <th className="py-2 px-2 text-left font-semibold">Pct Growth</th>
-                                        <th className="py-2 px-2 text-left font-semibold">Value End</th>
-                                        <th className="py-2 px-2 text-left font-semibold">Equity Start</th>
-                                        <th className="py-2 px-2 text-left font-semibold">Equity End</th>
-                                        <th className="py-2 px-2 text-left font-semibold">Cashflow Cum</th>
-                                        <th className="py-2 px-2 text-left font-semibold">Days Obs</th>
-                                        <th className="py-2 pl-2 text-right font-semibold">Actions</th>
+                                        <th className="py-2 px-2 text-left font-semibold">Growth</th>
+                                        <th className="py-2 px-2 text-left font-semibold">Ending Value</th>
+                                        <th className="py-2 px-2 text-left font-semibold">Days</th>
+                                        <th className="py-2 px-2 text-left font-semibold">Badges</th>
+                                        <th className="py-2 pl-2 text-right font-semibold">Lens</th>
                                     </tr>
                                     </thead>
 
                                     <tbody>
-                                    {leaders.map((r, idx) => {
-                                        const rank = r.rank ?? idx + 1;
+                                    {leaders.map((row, idx) => {
+                                        const rank = idx + 1;
+
+                                        const conf = confidenceBadge(row.days_observed, row.window_days);
+                                        const fund = fundingBadge(row.cashflow_cumulative);
 
                                         const lensHref =
-                                            seed.asof_day_ms != null
+                                            effectiveAsofDayMs != null
                                                 ? `/mfb-p-success-leader/lens?account_id=${encodeURIComponent(
-                                                    r.account_id
-                                                )}&window_days=${encodeURIComponent(String(seed.window_days))}&asof_day_ms=${encodeURIComponent(
-                                                    String(seed.asof_day_ms)
+                                                    row.account_id
+                                                )}&window_days=${encodeURIComponent(String(row.window_days))}&asof_day_ms=${encodeURIComponent(
+                                                    String(effectiveAsofDayMs)
                                                 )}`
                                                 : "#";
 
                                         return (
                                             <tr
-                                                key={`${r.account_id}-${idx}`}
+                                                key={`${row.account_id}-${idx}`}
                                                 className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
                                             >
                                                 <td className="py-2 pr-4 align-top">
@@ -327,18 +334,27 @@ export default function MfbPSuccessLeaderHubPage() {
                                                 </td>
 
                                                 <td className="py-2 px-2 align-top">
-                                                    <span className="font-mono text-[11px]">{shortAccountId(r.account_id)}</span>
+                                                    <span className="font-mono text-[11px]">…{accountTail5(row.account_id)}</span>
                                                 </td>
 
-                                                <td className={`py-2 px-2 align-top font-semibold ${growthClass(r.pct_growth)}`}>
-                                                    {formatPercentGrowth(r.pct_growth)}
+                                                <td className={`py-2 px-2 align-top font-semibold ${growthClass(row.pct_growth)}`}>
+                                                    {formatPctGrowth(row.pct_growth)}
                                                 </td>
 
-                                                <td className="py-2 px-2 align-top">{formatNumber(r.value_end)}</td>
-                                                <td className="py-2 px-2 align-top">{formatNumber(r.equity_start)}</td>
-                                                <td className="py-2 px-2 align-top">{formatNumber(r.equity_end)}</td>
-                                                <td className="py-2 px-2 align-top">{formatNumber(r.cashflow_cumulative)}</td>
-                                                <td className="py-2 px-2 align-top">{String(r.days_observed ?? "—")}</td>
+                                                <td className="py-2 px-2 align-top">{formatNumber(row.value_end)}</td>
+
+                                                <td className="py-2 px-2 align-top">{String(row.days_observed)}</td>
+
+                                                <td className="py-2 px-2 align-top">
+                                                    <div className="flex flex-wrap gap-2">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${conf.cls}`}>
+                                {conf.label}
+                              </span>
+                                                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${fund.cls}`}>
+                                {fund.label}
+                              </span>
+                                                    </div>
+                                                </td>
 
                                                 <td className="py-2 pl-2 pr-0 align-top text-right">
                                                     <Link
@@ -355,8 +371,8 @@ export default function MfbPSuccessLeaderHubPage() {
                                 </table>
 
                                 <div className="mt-3 text-[11px] text-gray-500 dark:text-gray-400">
-                                    <span className="font-semibold">Window:</span> {snapshot.window_days}d •{" "}
-                                    <span className="font-semibold">As-of (UTC):</span> {formatUtcMs(snapshot.asof_day_ms)} •{" "}
+                                    <span className="font-semibold">Window:</span> {effectiveWindowDays}d •{" "}
+                                    <span className="font-semibold">As-of (UTC):</span> {formatUtcMs(effectiveAsofDayMs)} •{" "}
                                     <span className="font-semibold">Leaders:</span> {leaders.length}
                                 </div>
                             </div>
