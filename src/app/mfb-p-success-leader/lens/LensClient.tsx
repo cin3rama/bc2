@@ -5,6 +5,9 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
+import Highcharts from "highcharts";
+import HighchartsReact from "highcharts-react-official";
+
 import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { API_BASE } from "@/lib/env";
@@ -145,6 +148,24 @@ function extractLeaderboardSeed(raw: any): {
     return { leaderboard: null, minimal: null };
 }
 
+type RoiDailyPoint = [number, DecimalLike];
+type LeaderMaybeV2 = SuccessLeaderAccountSnapshotV1 & {
+    version?: number;
+    roi_daily?: RoiDailyPoint[];
+};
+
+function isRoiDailyArray(x: any): x is RoiDailyPoint[] {
+    if (!Array.isArray(x)) return false;
+    // lightweight structural check; backend guarantees ascending, we do not sort
+    return x.every(
+        (p) =>
+            Array.isArray(p) &&
+            p.length === 2 &&
+            typeof p[0] === "number" &&
+            (typeof p[1] === "number" || typeof p[1] === "string")
+    );
+}
+
 export default function LensClient() {
     const { setConfig } = useHeaderConfig();
     const sp = useSearchParams();
@@ -160,7 +181,7 @@ export default function LensClient() {
 
     const windowDays: SuccessLeaderWindowDays | null = useMemo(() => {
         const n = windowDaysRaw ? Number(windowDaysRaw) : NaN;
-        return (n === 7 || n === 30 || n === 60) ? (n as SuccessLeaderWindowDays) : null;
+        return n === 7 || n === 30 || n === 60 ? (n as SuccessLeaderWindowDays) : null;
     }, [windowDaysRaw]);
 
     const asofDayMs: number | null = useMemo(() => {
@@ -171,7 +192,8 @@ export default function LensClient() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const [leader, setLeader] = useState<SuccessLeaderAccountSnapshotV1 | null>(null);
+    // ✅ leader can be v1 or v2; v2 handling stays local (no type changes elsewhere)
+    const [leader, setLeader] = useState<LeaderMaybeV2 | null>(null);
     const [seedAsof, setSeedAsof] = useState<number | null>(null);
     const [seedRunId, setSeedRunId] = useState<string | null>(null);
 
@@ -205,7 +227,7 @@ export default function LensClient() {
                 return;
             }
 
-            // Deterministic: if URL had asof_day_ms and it doesn't match seed, warn (do not invent alternate fetches)
+            // Deterministic: if URL had asof_day_ms and it doesn't match seed, warn
             if (asofDayMs != null && asofDayMs !== asof) {
                 setError(
                     `Lens params asof_day_ms (${asofDayMs}) does not match current seed asof_day_ms (${asof}). Go back and reopen lens from the leaderboard.`
@@ -217,11 +239,11 @@ export default function LensClient() {
                 return (
                     x &&
                     x.kind === SUCCESS_LEADER_SNAPSHOT_KIND &&
-                    x.version === 1 &&
+                    (x.version === 1 || x.version === 2) &&
                     typeof x.account_id === "string" &&
                     x.account_id.toLowerCase() === accountId.toLowerCase()
                 );
-            }) as SuccessLeaderAccountSnapshotV1 | undefined;
+            }) as LeaderMaybeV2 | undefined;
 
             if (!found) {
                 setError("Account not found in current seed leaders list.");
@@ -264,6 +286,68 @@ export default function LensClient() {
         );
     }
 
+    // --- ROI chart (v2+ only, safe guard) ---
+    const canShowRoi = useMemo(() => {
+        if (!leader) return false;
+        const v = typeof leader.version === "number" ? leader.version : 1;
+        return v >= 2 && isRoiDailyArray((leader as any).roi_daily) && (leader as any).roi_daily.length > 0;
+    }, [leader]);
+
+    const roiSeriesData = useMemo(() => {
+        if (!canShowRoi || !leader) return null;
+        const pts = (leader as any).roi_daily as RoiDailyPoint[];
+        // Map: [day_ms, pct_growth] -> [day_ms, pct*100]
+        return pts.map(([dayMs, pct]) => {
+            const n = parseDecimalLike(pct);
+            return [dayMs, n == null ? null : n * 100] as [number, number | null];
+        });
+    }, [canShowRoi, leader]);
+
+    const roiChartOptions = useMemo(() => {
+        if (!roiSeriesData || roiSeriesData.length === 0) return null;
+
+        return {
+            chart: { height: 260, zoomType: "x" },
+            title: { text: undefined },
+            xAxis: { type: "datetime", title: { text: "Day (UTC)" } },
+            yAxis: {
+                title: { text: "ROI (%)" },
+                labels: {
+                    formatter: function (this: any) {
+                        const v = typeof this.value === "number" ? this.value : Number(this.value);
+                        if (!Number.isFinite(v)) return String(this.value);
+                        return v.toFixed(0) + "%";
+                    },
+                },
+            },
+            legend: { enabled: false },
+            plotOptions: {
+                series: {
+                    marker: { enabled: false },
+                    lineWidth: 2,
+                },
+            },
+            tooltip: {
+                shared: false,
+                useHTML: true,
+                formatter: function (this: any) {
+                    const x = this.x as number;
+                    const y = this.y as number;
+                    const date = Highcharts.dateFormat("%b %e, %Y", x); // UTC epoch ms in, HC formats as UTC
+                    return `${date}: <b>${Number(y).toFixed(2)}%</b>`;
+                },
+            },
+            series: [
+                {
+                    type: "line",
+                    name: "ROI",
+                    data: roiSeriesData,
+                    connectNulls: false,
+                },
+            ],
+        } as Highcharts.Options;
+    }, [roiSeriesData]);
+
     return (
         <main className="flex flex-col gap-4 p-2 md:p-4">
             <section className="flex flex-col gap-1">
@@ -290,9 +374,7 @@ export default function LensClient() {
 
                 <div className="text-xs text-gray-600 dark:text-gray-300">
                     As-of (UTC):{" "}
-                    <span className="font-mono text-[11px]">
-            {formatUtcMs(seedAsof ?? asofDayMs)}
-          </span>
+                    <span className="font-mono text-[11px]">{formatUtcMs(seedAsof ?? asofDayMs)}</span>
                     {seedRunId ? (
                         <>
                             {" "}
@@ -319,7 +401,9 @@ export default function LensClient() {
                         <CardTitle>No lens data</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">No snapshot found for this account.</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                            No snapshot found for this account.
+                        </p>
                     </CardContent>
                 </Card>
             ) : (
@@ -374,10 +458,14 @@ export default function LensClient() {
                                     const fund = fundingBadge(leader.cashflow_cumulative);
                                     return (
                                         <div className="flex flex-wrap gap-2">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${conf.cls}`}>
+                      <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${conf.cls}`}
+                      >
                         {conf.label}
                       </span>
-                                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${fund.cls}`}>
+                                            <span
+                                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${fund.cls}`}
+                                            >
                         {fund.label}
                       </span>
                                         </div>
@@ -386,6 +474,37 @@ export default function LensClient() {
                             </CardContent>
                         </Card>
                     </section>
+
+                    {/* ROI Chart (v2+ only; silent if missing) */}
+                    {canShowRoi && roiChartOptions ? (
+                        <section>
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>ROI ({leader.window_days}D)</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <HighchartsReact highcharts={Highcharts} options={roiChartOptions} />
+                                    <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                                        Daily cumulative ROI (%) • UTC day boundaries
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </section>
+                    ) : null}
+
+                    {/* Optional empty state if version>=2 but array empty */}
+                    {leader && typeof leader.version === "number" && leader.version >= 2 && isRoiDailyArray((leader as any).roi_daily) && (leader as any).roi_daily.length === 0 ? (
+                        <section>
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>ROI ({leader.window_days}D)</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">No ROI data available.</p>
+                                </CardContent>
+                            </Card>
+                        </section>
+                    ) : null}
 
                     {/* Detailed metrics */}
                     <section>
@@ -396,7 +515,9 @@ export default function LensClient() {
                             <CardContent>
                                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 text-sm">
                                     <div>
-                                        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Identity</div>
+                                        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                                            Identity
+                                        </div>
                                         <div className="mt-1">
                                             <span className="font-semibold">Account:</span>{" "}
                                             <span className="font-mono text-[11px]">{leader.account_id}</span>
@@ -408,23 +529,32 @@ export default function LensClient() {
                                         <div>
                                             <span className="font-semibold">Window:</span> {leader.window_days}d
                                         </div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                            version: {String(leader.version ?? 1)}
+                                        </div>
                                     </div>
 
                                     <div>
-                                        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Equity</div>
+                                        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                                            Equity
+                                        </div>
                                         <div className="mt-1">equity_start: {formatNumber(leader.equity_start)}</div>
                                         <div>equity_end: {formatNumber(leader.equity_end)}</div>
                                     </div>
 
                                     <div>
-                                        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Value / Cashflow</div>
+                                        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                                            Value / Cashflow
+                                        </div>
                                         <div className="mt-1">value_start: {formatNumber(leader.value_start)}</div>
                                         <div>value_end: {formatNumber(leader.value_end)}</div>
                                         <div>cashflow_cumulative: {formatNumber(leader.cashflow_cumulative)}</div>
                                     </div>
 
                                     <div>
-                                        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Return</div>
+                                        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                                            Return
+                                        </div>
                                         <div className={`mt-1 font-semibold ${growthClass(leader.pct_growth)}`}>
                                             pct_growth: {formatPctGrowth(leader.pct_growth)}
                                         </div>
@@ -432,9 +562,12 @@ export default function LensClient() {
                                     </div>
 
                                     <div className="md:col-span-2 xl:col-span-2">
-                                        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Meta</div>
+                                        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                                            Meta
+                                        </div>
                                         <div className="mt-1">
-                                            run_id: <span className="font-mono text-[11px]">{leader.meta?.run_id ?? "—"}</span>
+                                            run_id:{" "}
+                                            <span className="font-mono text-[11px]">{leader.meta?.run_id ?? "—"}</span>
                                         </div>
                                     </div>
                                 </div>
