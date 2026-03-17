@@ -13,11 +13,9 @@ import type {
     SuccessLeaderAccountSnapshotV1,
     SuccessLeaderLeaderboardSnapshotV1,
     SuccessLeaderWindowDays,
-    WsUpdateDataEnvelope,
 } from "@/types/mfb_p_success_leader";
 import {
     isSuccessLeaderLeaderboardSnapshotV1,
-    SUCCESS_LEADER_LEADERBOARD_KIND,
     SUCCESS_LEADER_SNAPSHOT_KIND,
 } from "@/types/mfb_p_success_leader";
 
@@ -55,12 +53,11 @@ function formatNumber(x: DecimalLike | null | undefined, decimals = 2): string {
 function formatPctGrowth(pctGrowth: DecimalLike | null | undefined): string {
     const n = parseDecimalLike(pctGrowth);
     if (n == null) return "—";
-    // pct_growth is already a ratio (e.g. 0.12 = 12%) in other modules,
-    // but your seed example shows pct_growth as 16.69 (already % as ratio?).
     // DO NOT invent — display raw as percent-like if > 1 else *100.
     const displayPct = Math.abs(n) > 1 ? n : n * 100;
     return (
-        displayPct.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%"
+        displayPct.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
+        "%"
     );
 }
 
@@ -74,25 +71,47 @@ function growthClass(pctGrowth: DecimalLike | null | undefined): string {
 
 /** Derived UI field: Confidence badge from days_observed */
 function confidenceBadge(daysObserved: number, windowDays: SuccessLeaderWindowDays) {
-    if (daysObserved >= windowDays) return { label: "Full Window", cls: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" };
-    if (daysObserved >= windowDays * 0.5) return { label: "Partial Window", cls: "bg-yellow-100 text-yellow-900 dark:bg-yellow-900/30 dark:text-yellow-200" };
-    return { label: "Low Observation", cls: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" };
+    if (daysObserved >= windowDays)
+        return {
+            label: "Full Window",
+            cls: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+        };
+    if (daysObserved >= windowDays * 0.5)
+        return {
+            label: "Partial Window",
+            cls: "bg-yellow-100 text-yellow-900 dark:bg-yellow-900/30 dark:text-yellow-200",
+        };
+    return {
+        label: "Low Observation",
+        cls: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+    };
 }
 
 /** Derived UI field: Funding badge from cashflow_cumulative */
 function fundingBadge(cashflow: DecimalLike) {
     const n = parseDecimalLike(cashflow) ?? 0;
     const eps = 1e-9;
-    if (Math.abs(n) <= eps) return { label: "Organic", cls: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" };
-    if (n > 0) return { label: "Cashflow Assisted", cls: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200" };
-    return { label: "Withdrawal Distorted", cls: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200" };
+    if (Math.abs(n) <= eps)
+        return {
+            label: "Organic",
+            cls: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+        };
+    if (n > 0)
+        return {
+            label: "Cashflow Assisted",
+            cls: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200",
+        };
+    return {
+        label: "Withdrawal Distorted",
+        cls: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200",
+    };
 }
 
 /**
  * Seed can arrive in one of these shapes:
- * - Envelope: { type:"update_data", payload:<leaderboard_snapshot> }  (matches your example)
+ * - Envelope: { type:"update_data", payload:<leaderboard_snapshot> }
  * - Raw payload: <leaderboard_snapshot>
- * - Minimal legacy: { asof_day_ms, window_days, leaders } (no kind/meta)  -> still render leaders, but do NOT invent missing fields
+ * - Minimal legacy: { asof_day_ms, window_days, leaders }
  */
 function extractLeaderboardSeed(raw: any): {
     leaderboard: SuccessLeaderLeaderboardSnapshotV1 | null;
@@ -136,16 +155,13 @@ export default function MfbPSuccessLeaderHubPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Authoritative seed snapshot (preferred)
     const [leaderboard, setLeaderboard] = useState<SuccessLeaderLeaderboardSnapshotV1 | null>(null);
-    // Fallback minimal seed (if backend returns minimal form)
     const [minimalSeed, setMinimalSeed] = useState<{
         asof_day_ms: number | null;
         window_days: SuccessLeaderWindowDays;
         leaders: any[];
     } | null>(null);
 
-    // Header config: ticker visible, period hidden (Success Leader uses 7/30/60 selector in-page)
     useEffect(() => {
         setConfig({ showTicker: true, showPeriod: false });
     }, [setConfig]);
@@ -157,8 +173,9 @@ export default function MfbPSuccessLeaderHubPage() {
             setLeaderboard(null);
             setMinimalSeed(null);
 
-            // LOCKED endpoint (hyphenated)
-            const url = `${API_BASE}/api/mfb-p-success-leader/seed?window_days=${encodeURIComponent(String(windowDays))}`;
+            const url = `${API_BASE}/api/mfb-p-success-leader/seed?window_days=${encodeURIComponent(
+                String(windowDays)
+            )}`;
             const res = await fetch(url);
             if (!res.ok) throw new Error(`HTTP ${res.status} fetching Success Leader seed`);
 
@@ -182,7 +199,6 @@ export default function MfbPSuccessLeaderHubPage() {
         }
     }, [windowDays]);
 
-    // Seed on mount + on window change
     useEffect(() => {
         let cancelled = false;
         (async () => {
@@ -208,11 +224,17 @@ export default function MfbPSuccessLeaderHubPage() {
         return null;
     }, [leaderboard?.meta?.run_id]);
 
-    const leaders: SuccessLeaderAccountSnapshotV1[] = useMemo(() => {
-        // Authoritative: leaders array contains per-account snapshot objects
+    // ✅ ACCEPT v1 OR v2 leader rows (do not change types file; keep it local)
+    type LeaderRow = SuccessLeaderAccountSnapshotV1 & { version?: number };
+
+    const leaders: LeaderRow[] = useMemo(() => {
         const arr = leaderboard?.leaders ?? minimalSeed?.leaders ?? [];
-        // Only accept items shaped like per-account snapshots; do not invent
-        return arr.filter((x: any) => x && x.kind === SUCCESS_LEADER_SNAPSHOT_KIND && x.version === 1) as SuccessLeaderAccountSnapshotV1[];
+        return arr.filter(
+            (x: any) =>
+                x &&
+                x.kind === SUCCESS_LEADER_SNAPSHOT_KIND &&
+                (x.version === 1 || x.version === 2) // ✅ THIS IS THE FIX
+        ) as LeaderRow[];
     }, [leaderboard?.leaders, minimalSeed?.leaders]);
 
     const hasEligibleDay = effectiveAsofDayMs != null;
@@ -220,7 +242,6 @@ export default function MfbPSuccessLeaderHubPage() {
 
     return (
         <main className="flex flex-col gap-4 p-2 md:p-4">
-            {/* Header */}
             <section className="flex flex-col gap-2">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                     <div>
@@ -232,7 +253,6 @@ export default function MfbPSuccessLeaderHubPage() {
                         </p>
                     </div>
 
-                    {/* In-page controls */}
                     <div className="flex items-center gap-2">
                         <span className="text-xs md:text-sm text-gray-600 dark:text-gray-300">Window</span>
                         <select
@@ -267,7 +287,6 @@ export default function MfbPSuccessLeaderHubPage() {
                 </div>
             </section>
 
-            {/* Leaderboard */}
             <section>
                 <Card>
                     <CardHeader>
@@ -311,7 +330,6 @@ export default function MfbPSuccessLeaderHubPage() {
                                     <tbody>
                                     {leaders.map((row, idx) => {
                                         const rank = idx + 1;
-
                                         const conf = confidenceBadge(row.days_observed, row.window_days);
                                         const fund = fundingBadge(row.cashflow_cumulative);
 
