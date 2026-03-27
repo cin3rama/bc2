@@ -84,6 +84,46 @@ function blockEntries(block: Record<string, unknown>): MetricEntry[] {
     return flattenMetricEntries(block);
 }
 
+function formatBadge(badge: unknown): string {
+    if (badge === null || badge === undefined) return '—';
+
+    if (
+        typeof badge === 'string' ||
+        typeof badge === 'number' ||
+        typeof badge === 'boolean'
+    ) {
+        return String(badge);
+    }
+
+    if (Array.isArray(badge)) {
+        return badge.map((item) => formatBadge(item)).join(' · ');
+    }
+
+    if (typeof badge === 'object') {
+        const obj = badge as Record<string, unknown>;
+
+        const primary =
+            obj.primary !== undefined && obj.primary !== null
+                ? String(obj.primary)
+                : '';
+
+        const secondary =
+            obj.secondary !== undefined && obj.secondary !== null
+                ? String(obj.secondary)
+                : '';
+
+        if (primary && secondary) return `${primary} · ${secondary}`;
+        if (primary) return primary;
+        if (secondary) return secondary;
+
+        return Object.entries(obj)
+            .map(([k, v]) => `${labelize(k)}: ${String(v)}`)
+            .join(' · ');
+    }
+
+    return String(badge);
+}
+
 function MetricGridCard({
                             title,
                             block,
@@ -163,7 +203,8 @@ function ParticipantTable({
                             </td>
                             <td className="p-2">
                                 <div className="flex flex-wrap gap-1">
-                                    {(row.prev_rank_badges || []).length === 0 ? (
+                                    {!Array.isArray(row.prev_rank_badges) ||
+                                    row.prev_rank_badges.length === 0 ? (
                                         <span className="opacity-50">—</span>
                                     ) : (
                                         row.prev_rank_badges.map((badge, idx) => (
@@ -171,7 +212,7 @@ function ParticipantTable({
                                                 key={`${row.account_id}-badge-${idx}`}
                                                 className="px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-700"
                                             >
-                                                    {badge}
+                                                    {formatBadge(badge)}
                                                 </span>
                                         ))
                                     )}
@@ -198,11 +239,11 @@ function CategoryCard({
             <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
                     <h2 className="text-sm font-semibold">{title}</h2>
-                    <div className="text-xs opacity-70">{category.label}</div>
+                    <div className="text-xs opacity-70">{String(category.label)}</div>
                 </div>
 
                 <div className="text-[11px] px-2 py-1 rounded bg-gray-200 dark:bg-gray-700">
-                    Sort: {category.sort}
+                    Sort: {String(category.sort)}
                 </div>
             </div>
 
