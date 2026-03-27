@@ -1,4 +1,4 @@
-
+// layout.tsx
 
 import React from 'react';
 import { HeaderConfigProvider } from "@/contexts/HeaderConfigContext";
