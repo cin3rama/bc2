@@ -7,22 +7,62 @@ import { useWebsocket } from '@/hooks/useWebsocket';
 import type {
     ActionMonitorEnvelope,
     ActionMonitorSnapshot,
-    ActionMonitorMetricBlock,
     ActionMonitorCategory,
 } from '@/types/actionMonitorTypes';
 
+type MetricRenderable = string | number | boolean | null;
+
 type MetricEntry = {
     key: string;
-    value: string | number | boolean | null;
+    value: MetricRenderable;
 };
 
-function formatMetricValue(value: string | number | boolean | null): string {
+function flattenMetricEntries(
+    block: Record<string, unknown>,
+    parentKey?: string,
+): MetricEntry[] {
+    const entries: MetricEntry[] = [];
+
+    Object.entries(block || {}).forEach(([key, value]) => {
+        const nextKey = parentKey ? `${parentKey}.${key}` : key;
+
+        if (
+            value === null ||
+            typeof value === 'string' ||
+            typeof value === 'number' ||
+            typeof value === 'boolean'
+        ) {
+            entries.push({ key: nextKey, value });
+            return;
+        }
+
+        if (Array.isArray(value)) {
+            entries.push({ key: nextKey, value: JSON.stringify(value) });
+            return;
+        }
+
+        if (typeof value === 'object') {
+            entries.push(
+                ...flattenMetricEntries(value as Record<string, unknown>, nextKey),
+            );
+            return;
+        }
+
+        entries.push({ key: nextKey, value: String(value) });
+    });
+
+    return entries;
+}
+
+function formatMetricValue(value: MetricRenderable): string {
     if (value === null || value === undefined) return '—';
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-    if (typeof value === 'number') return Number.isFinite(value) ? value.toLocaleString() : String(value);
+
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? value.toLocaleString() : String(value);
+    }
 
     const trimmed = value.trim();
-
     if (trimmed === '') return '—';
 
     const numeric = Number(trimmed);
@@ -35,12 +75,13 @@ function formatMetricValue(value: string | number | boolean | null): string {
 
 function labelize(key: string): string {
     return key
+        .replace(/\./g, ' / ')
         .replace(/_/g, ' ')
         .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function blockEntries(block: ActionMonitorMetricBlock): MetricEntry[] {
-    return Object.entries(block || {}).map(([key, value]) => ({ key, value }));
+function blockEntries(block: Record<string, unknown>): MetricEntry[] {
+    return flattenMetricEntries(block);
 }
 
 function MetricGridCard({
@@ -48,13 +89,14 @@ function MetricGridCard({
                             block,
                         }: {
     title: string;
-    block: ActionMonitorMetricBlock;
+    block: Record<string, unknown>;
 }) {
     const entries = useMemo(() => blockEntries(block), [block]);
 
     return (
         <div className="rounded shadow bg-white dark:bg-gray-800 p-3 text-text dark:text-text-inverted">
             <h2 className="text-sm font-semibold mb-3">{title}</h2>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {entries.length === 0 ? (
                     <div className="text-xs opacity-70">No data</div>
@@ -64,7 +106,9 @@ function MetricGridCard({
                             key={entry.key}
                             className="rounded border border-gray-200 dark:border-gray-700 p-2"
                         >
-                            <div className="text-[11px] opacity-70">{labelize(entry.key)}</div>
+                            <div className="text-[11px] opacity-70">
+                                {labelize(entry.key)}
+                            </div>
                             <div className="text-sm font-semibold break-words">
                                 {formatMetricValue(entry.value)}
                             </div>
@@ -108,10 +152,15 @@ function ParticipantTable({
                         >
                             <td className="p-2">{row.rank}</td>
                             <td className="p-2">
-                                {row.account_id.slice(0, 6)}...{row.account_id.slice(-5)}
+                                {row.account_id.slice(0, 6)}...
+                                {row.account_id.slice(-5)}
                             </td>
-                            <td className="p-2">{formatMetricValue(row.total_vol)}</td>
-                            <td className="p-2">{formatMetricValue(row.total_trades)}</td>
+                            <td className="p-2">
+                                {formatMetricValue(row.total_vol)}
+                            </td>
+                            <td className="p-2">
+                                {formatMetricValue(row.total_trades)}
+                            </td>
                             <td className="p-2">
                                 <div className="flex flex-wrap gap-1">
                                     {(row.prev_rank_badges || []).length === 0 ? (
@@ -151,14 +200,21 @@ function CategoryCard({
                     <h2 className="text-sm font-semibold">{title}</h2>
                     <div className="text-xs opacity-70">{category.label}</div>
                 </div>
+
                 <div className="text-[11px] px-2 py-1 rounded bg-gray-200 dark:bg-gray-700">
                     Sort: {category.sort}
                 </div>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 mb-3">
-                <MetricGridCard title="Totals" block={category.totals} />
-                <MetricGridCard title="ROM" block={category.rom} />
+                <MetricGridCard
+                    title="Totals"
+                    block={category.totals as Record<string, unknown>}
+                />
+                <MetricGridCard
+                    title="ROM"
+                    block={category.rom as Record<string, unknown>}
+                />
             </div>
 
             <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
@@ -199,7 +255,9 @@ export default function ActionMonitorPage() {
     if (!snapshot) {
         return (
             <div className="p-4 text-text dark:text-text-inverted">
-                <div className="text-sm opacity-70">Waiting for Action Monitor snapshot...</div>
+                <div className="text-sm opacity-70">
+                    Waiting for Action Monitor snapshot...
+                </div>
             </div>
         );
     }
@@ -231,28 +289,33 @@ export default function ActionMonitorPage() {
                         <div className="opacity-70">Ticker</div>
                         <div className="font-semibold">{snapshot.meta.ticker}</div>
                     </div>
+
                     <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
                         <div className="opacity-70">Period</div>
                         <div className="font-semibold">{snapshot.meta.period}</div>
                     </div>
+
                     <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
                         <div className="opacity-70">Window Ms</div>
                         <div className="font-semibold">
                             {formatMetricValue(snapshot.meta.window_ms)}
                         </div>
                     </div>
+
                     <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
                         <div className="opacity-70">Start</div>
                         <div className="font-semibold">
                             {new Date(snapshot.meta.start_ms).toLocaleString()}
                         </div>
                     </div>
+
                     <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
                         <div className="opacity-70">Asof</div>
                         <div className="font-semibold">
                             {new Date(snapshot.meta.asof_ms).toLocaleString()}
                         </div>
                     </div>
+
                     <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
                         <div className="opacity-70">Generated</div>
                         <div className="font-semibold">
@@ -263,17 +326,41 @@ export default function ActionMonitorPage() {
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <MetricGridCard title="Price" block={snapshot.price} />
-                <MetricGridCard title="Totals" block={snapshot.totals} />
-                <MetricGridCard title="Flow" block={snapshot.flow} />
-                <MetricGridCard title="Impact" block={snapshot.impact} />
+                <MetricGridCard
+                    title="Price"
+                    block={snapshot.price as Record<string, unknown>}
+                />
+                <MetricGridCard
+                    title="Totals"
+                    block={snapshot.totals as Record<string, unknown>}
+                />
+                <MetricGridCard
+                    title="Flow"
+                    block={snapshot.flow as Record<string, unknown>}
+                />
+                <MetricGridCard
+                    title="Impact"
+                    block={snapshot.impact as Record<string, unknown>}
+                />
             </div>
 
             <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
-                <CategoryCard title="MM Buyers" category={snapshot.categories.mm_buyers} />
-                <CategoryCard title="MM Sellers" category={snapshot.categories.mm_sellers} />
-                <CategoryCard title="Accumulators" category={snapshot.categories.accumulators} />
-                <CategoryCard title="Distributors" category={snapshot.categories.distributors} />
+                <CategoryCard
+                    title="MM Buyers"
+                    category={snapshot.categories.mm_buyers}
+                />
+                <CategoryCard
+                    title="MM Sellers"
+                    category={snapshot.categories.mm_sellers}
+                />
+                <CategoryCard
+                    title="Accumulators"
+                    category={snapshot.categories.accumulators}
+                />
+                <CategoryCard
+                    title="Distributors"
+                    category={snapshot.categories.distributors}
+                />
             </div>
         </div>
     );
