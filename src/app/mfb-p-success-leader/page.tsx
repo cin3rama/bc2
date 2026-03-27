@@ -150,7 +150,7 @@ function extractLeaderboardSeed(raw: any): {
 export default function MfbPSuccessLeaderHubPage() {
     const { setConfig } = useHeaderConfig();
 
-    const [windowDays, setWindowDays] = useState<SuccessLeaderWindowDays>(30);
+    const [windowDays, setWindowDays] = useState<SuccessLeaderWindowDays>(7);
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
