@@ -3,6 +3,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Highcharts from 'highcharts';
+import HighchartsReact from 'highcharts-react-official';
 import { useWebsocket } from '@/hooks/useWebsocket';
 import type {
     ActionMonitorEnvelope,
@@ -84,32 +86,32 @@ function blockEntries(block: Record<string, unknown>): MetricEntry[] {
     return flattenMetricEntries(block);
 }
 
-function formatBadge(badge: unknown): string {
-    if (badge === null || badge === undefined) return '—';
+function formatUnknownValue(value: unknown): string {
+    if (value === null || value === undefined) return '—';
 
     if (
-        typeof badge === 'string' ||
-        typeof badge === 'number' ||
-        typeof badge === 'boolean'
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
     ) {
-        return String(badge);
+        return formatMetricValue(value);
     }
 
-    if (Array.isArray(badge)) {
-        return badge.map((item) => formatBadge(item)).join(' · ');
+    if (Array.isArray(value)) {
+        return value.map((item) => formatUnknownValue(item)).join(' · ');
     }
 
-    if (typeof badge === 'object') {
-        const obj = badge as Record<string, unknown>;
+    if (typeof value === 'object') {
+        const obj = value as Record<string, unknown>;
 
         const primary =
             obj.primary !== undefined && obj.primary !== null
-                ? String(obj.primary)
+                ? formatUnknownValue(obj.primary)
                 : '';
 
         const secondary =
             obj.secondary !== undefined && obj.secondary !== null
-                ? String(obj.secondary)
+                ? formatUnknownValue(obj.secondary)
                 : '';
 
         if (primary && secondary) return `${primary} · ${secondary}`;
@@ -117,11 +119,58 @@ function formatBadge(badge: unknown): string {
         if (secondary) return secondary;
 
         return Object.entries(obj)
-            .map(([k, v]) => `${labelize(k)}: ${String(v)}`)
+            .map(([k, v]) => `${labelize(k)}: ${formatUnknownValue(v)}`)
             .join(' · ');
     }
 
-    return String(badge);
+    return String(value);
+}
+
+function formatBadge(badge: unknown): string {
+    return formatUnknownValue(badge);
+}
+
+function buildSeriesChart(
+    title: string,
+    series: Array<[number, string | number]>,
+) {
+    return {
+        chart: {
+            type: 'line',
+            height: 250,
+            backgroundColor: 'transparent',
+        },
+        title: {
+            text: title,
+            style: {
+                fontSize: '12px',
+            },
+        },
+        xAxis: {
+            type: 'datetime',
+        },
+        yAxis: {
+            title: {
+                text: null,
+            },
+        },
+        legend: {
+            enabled: false,
+        },
+        credits: {
+            enabled: false,
+        },
+        series: [
+            {
+                type: 'line',
+                name: title,
+                data: series.map(([ts, v]) => [
+                    ts,
+                    typeof v === 'string' ? Number(v) : v,
+                ]),
+            },
+        ],
+    };
 }
 
 function MetricGridCard({
@@ -190,7 +239,7 @@ function ParticipantTable({
                             key={`${row.account_id}-${row.rank}`}
                             className="border-b border-gray-200 dark:border-gray-700"
                         >
-                            <td className="p-2">{row.rank}</td>
+                            <td className="p-2 font-semibold">{row.rank}</td>
                             <td className="p-2">
                                 {row.account_id.slice(0, 6)}...
                                 {row.account_id.slice(-5)}
@@ -210,7 +259,7 @@ function ParticipantTable({
                                         row.prev_rank_badges.map((badge, idx) => (
                                             <span
                                                 key={`${row.account_id}-badge-${idx}`}
-                                                className="px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-700"
+                                                className="px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-[11px]"
                                             >
                                                     {formatBadge(badge)}
                                                 </span>
@@ -239,11 +288,11 @@ function CategoryCard({
             <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
                     <h2 className="text-sm font-semibold">{title}</h2>
-                    <div className="text-xs opacity-70">{String(category.label)}</div>
+                    <div className="text-xs opacity-70">{formatUnknownValue(category.label)}</div>
                 </div>
 
                 <div className="text-[11px] px-2 py-1 rounded bg-gray-200 dark:bg-gray-700">
-                    Sort: {String(category.sort)}
+                    Sort: {formatUnknownValue(category.sort)}
                 </div>
             </div>
 
@@ -383,6 +432,38 @@ export default function ActionMonitorPage() {
                     title="Impact"
                     block={snapshot.impact as Record<string, unknown>}
                 />
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                <div className="rounded shadow bg-white dark:bg-gray-800 p-3">
+                    <HighchartsReact
+                        highcharts={Highcharts}
+                        options={buildSeriesChart(
+                            'Buy Volume',
+                            snapshot.series.per_minute.buy_vol,
+                        )}
+                    />
+                </div>
+
+                <div className="rounded shadow bg-white dark:bg-gray-800 p-3">
+                    <HighchartsReact
+                        highcharts={Highcharts}
+                        options={buildSeriesChart(
+                            'Sell Volume',
+                            snapshot.series.per_minute.sell_vol,
+                        )}
+                    />
+                </div>
+
+                <div className="rounded shadow bg-white dark:bg-gray-800 p-3">
+                    <HighchartsReact
+                        highcharts={Highcharts}
+                        options={buildSeriesChart(
+                            'Trade Count',
+                            snapshot.series.per_minute.trade_count,
+                        )}
+                    />
+                </div>
             </div>
 
             <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
