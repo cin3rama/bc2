@@ -135,7 +135,9 @@ function badgeToneClass(text: string): string {
         t.includes('gain') ||
         t.includes('bull') ||
         t.includes('buy') ||
-        t.includes('accum')
+        t.includes('accum') ||
+        t.includes('improved') ||
+        t.includes('higher')
     ) {
         return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
     }
@@ -146,7 +148,9 @@ function badgeToneClass(text: string): string {
         t.includes('loss') ||
         t.includes('bear') ||
         t.includes('sell') ||
-        t.includes('dist')
+        t.includes('dist') ||
+        t.includes('lower') ||
+        t.includes('declined')
     ) {
         return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
     }
@@ -155,7 +159,9 @@ function badgeToneClass(text: string): string {
         t.includes('new') ||
         t.includes('rank') ||
         t.includes('top') ||
-        t.includes('hot')
+        t.includes('hot') ||
+        t.includes('entry') ||
+        t.includes('leader')
     ) {
         return 'bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted';
     }
@@ -163,50 +169,91 @@ function badgeToneClass(text: string): string {
     return 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100';
 }
 
-function normalizeBadgeParts(
-    badge: unknown,
-): Array<{ primary: string; secondary?: string }> {
-    if (badge === null || badge === undefined) return [];
+function toBadgeLabel(value: unknown): string {
+    if (value === null || value === undefined) return '';
 
     if (
-        typeof badge === 'string' ||
-        typeof badge === 'number' ||
-        typeof badge === 'boolean'
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
     ) {
-        return [{ primary: String(badge) }];
+        return String(value);
     }
 
-    if (Array.isArray(badge)) {
-        return badge.flatMap((item) => normalizeBadgeParts(item));
+    if (Array.isArray(value)) {
+        return value
+            .map((item) => toBadgeLabel(item))
+            .filter(Boolean)
+            .join(' · ');
     }
 
-    if (typeof badge === 'object') {
-        const obj = badge as Record<string, unknown>;
+    if (typeof value === 'object') {
+        const obj = value as Record<string, unknown>;
 
-        const primary =
-            obj.primary !== undefined && obj.primary !== null
-                ? formatUnknownValue(obj.primary)
-                : '';
-
-        const secondary =
-            obj.secondary !== undefined && obj.secondary !== null
-                ? formatUnknownValue(obj.secondary)
-                : '';
-
-        if (primary || secondary) {
-            return [{ primary: primary || '—', secondary: secondary || undefined }];
+        if ('primary' in obj || 'secondary' in obj) {
+            const primary = toBadgeLabel(obj.primary);
+            const secondary = toBadgeLabel(obj.secondary);
+            return [primary, secondary].filter(Boolean).join(' · ');
         }
 
-        return [
-            {
-                primary: Object.entries(obj)
-                    .map(([k, v]) => `${labelize(k)}: ${formatUnknownValue(v)}`)
-                    .join(' · '),
-            },
-        ];
+        if ('label' in obj) {
+            const label = toBadgeLabel(obj.label);
+            const valueText = 'value' in obj ? toBadgeLabel(obj.value) : '';
+            return [label, valueText].filter(Boolean).join(' · ');
+        }
+
+        if ('text' in obj) {
+            const text = toBadgeLabel(obj.text);
+            const subtext = 'subtext' in obj ? toBadgeLabel(obj.subtext) : '';
+            return [text, subtext].filter(Boolean).join(' · ');
+        }
+
+        return Object.entries(obj)
+            .map(([k, v]) => {
+                const rendered = toBadgeLabel(v);
+                if (!rendered) return '';
+                return `${labelize(k)}: ${rendered}`;
+            })
+            .filter(Boolean)
+            .join(' · ');
     }
 
-    return [{ primary: String(badge) }];
+    return String(value);
+}
+
+function flattenBadges(value: unknown): string[] {
+    if (value === null || value === undefined) return [];
+
+    if (Array.isArray(value)) {
+        return value.flatMap((item) => flattenBadges(item));
+    }
+
+    const label = toBadgeLabel(value).trim();
+    return label ? [label] : [];
+}
+
+function BadgePills({ badges }: { badges: unknown[] | undefined }) {
+    const labels = flattenBadges(badges);
+
+    if (labels.length === 0) {
+        return <span className="opacity-50">—</span>;
+    }
+
+    return (
+        <div className="flex flex-wrap gap-1">
+            {labels.map((label, idx) => (
+                <span
+                    key={`badge-pill-${idx}-${label}`}
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${badgeToneClass(
+                        label,
+                    )}`}
+                    title={label}
+                >
+                    {label}
+                </span>
+            ))}
+        </div>
+    );
 }
 
 function buildSeriesChart(
@@ -311,37 +358,6 @@ function MetricGridCard({
     );
 }
 
-function BadgePills({ badges }: { badges: unknown[] | undefined }) {
-    if (!Array.isArray(badges) || badges.length === 0) {
-        return <span className="opacity-50">—</span>;
-    }
-
-    const parts = badges.flatMap((badge) => normalizeBadgeParts(badge));
-
-    if (parts.length === 0) {
-        return <span className="opacity-50">—</span>;
-    }
-
-    return (
-        <div className="flex flex-wrap gap-1">
-            {parts.map((part, idx) => (
-                <span
-                    key={`badge-pill-${idx}-${part.primary}-${part.secondary || ''}`}
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${badgeToneClass(
-                        `${part.primary} ${part.secondary || ''}`,
-                    )}`}
-                    title={part.secondary || part.primary}
-                >
-                    <span>{part.primary}</span>
-                    {part.secondary ? (
-                        <span className="opacity-80">· {part.secondary}</span>
-                    ) : null}
-                </span>
-            ))}
-        </div>
-    );
-}
-
 function ParticipantTable({
                               participants,
                           }: {
@@ -407,7 +423,9 @@ function CategoryCard({
             <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
                     <h2 className="text-sm font-semibold">{title}</h2>
-                    <div className="text-xs opacity-70">{formatUnknownValue(category.label)}</div>
+                    <div className="text-xs opacity-70">
+                        {formatUnknownValue(category.label)}
+                    </div>
                 </div>
 
                 <div className="text-[11px] px-2 py-1 rounded-full bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted">
@@ -439,6 +457,7 @@ export default function ActionMonitorPage() {
 
     const [snapshot, setSnapshot] = useState<ActionMonitorSnapshot | null>(null);
     const [isConnected, setIsConnected] = useState(false);
+    const [isDarkMode, setIsDarkMode] = useState(false);
 
     useEffect(() => {
         const sub = actionMonitor$.subscribe({
@@ -461,6 +480,24 @@ export default function ActionMonitorPage() {
         return () => sub.unsubscribe();
     }, [actionMonitor$]);
 
+    useEffect(() => {
+        const syncDarkMode = () => {
+            if (typeof document !== 'undefined') {
+                setIsDarkMode(document.documentElement.classList.contains('dark'));
+            }
+        };
+
+        syncDarkMode();
+
+        const observer = new MutationObserver(syncDarkMode);
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class'],
+        });
+
+        return () => observer.disconnect();
+    }, []);
+
     if (!snapshot) {
         return (
             <div className="p-4 text-text dark:text-text-inverted">
@@ -471,26 +508,20 @@ export default function ActionMonitorPage() {
         );
     }
 
+    const chartAccent = isDarkMode ? '#8B770C' : '#FFE066';
+
     return (
         <div
             className="p-4 space-y-4 text-text dark:text-text-inverted"
             style={
                 {
-                    ['--am-chart-line' as string]: 'var(--am-chart-accent)',
-                    ['--am-chart-grid' as string]: 'var(--am-chart-accent)',
-                    ['--am-chart-text' as string]: 'var(--am-chart-accent)',
-                    ['--am-chart-accent' as string]: 'var(--am-chart-accent-value)',
-                    ['--am-chart-accent-value' as string]: '#FFE066',
+                    ['--am-chart-line' as string]: chartAccent,
+                    ['--am-chart-grid' as string]: chartAccent,
+                    ['--am-chart-text' as string]: chartAccent,
                 } as React.CSSProperties
             }
         >
-            <style jsx>{`
-                :global(.dark) .action-monitor-theme {
-                    --am-chart-accent-value: #8b770c;
-                }
-            `}</style>
-
-            <div className="action-monitor-theme space-y-4">
+            <div className="space-y-4">
                 <div className="rounded shadow bg-white dark:bg-gray-800 p-4">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                         <div>
