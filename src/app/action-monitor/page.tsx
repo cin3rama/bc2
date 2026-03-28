@@ -126,8 +126,87 @@ function formatUnknownValue(value: unknown): string {
     return String(value);
 }
 
-function formatBadge(badge: unknown): string {
-    return formatUnknownValue(badge);
+function badgeToneClass(text: string): string {
+    const t = text.toLowerCase();
+
+    if (
+        t.includes('up') ||
+        t.includes('rise') ||
+        t.includes('gain') ||
+        t.includes('bull') ||
+        t.includes('buy') ||
+        t.includes('accum')
+    ) {
+        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+    }
+
+    if (
+        t.includes('down') ||
+        t.includes('fall') ||
+        t.includes('loss') ||
+        t.includes('bear') ||
+        t.includes('sell') ||
+        t.includes('dist')
+    ) {
+        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
+    }
+
+    if (
+        t.includes('new') ||
+        t.includes('rank') ||
+        t.includes('top') ||
+        t.includes('hot')
+    ) {
+        return 'bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted';
+    }
+
+    return 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100';
+}
+
+function normalizeBadgeParts(
+    badge: unknown,
+): Array<{ primary: string; secondary?: string }> {
+    if (badge === null || badge === undefined) return [];
+
+    if (
+        typeof badge === 'string' ||
+        typeof badge === 'number' ||
+        typeof badge === 'boolean'
+    ) {
+        return [{ primary: String(badge) }];
+    }
+
+    if (Array.isArray(badge)) {
+        return badge.flatMap((item) => normalizeBadgeParts(item));
+    }
+
+    if (typeof badge === 'object') {
+        const obj = badge as Record<string, unknown>;
+
+        const primary =
+            obj.primary !== undefined && obj.primary !== null
+                ? formatUnknownValue(obj.primary)
+                : '';
+
+        const secondary =
+            obj.secondary !== undefined && obj.secondary !== null
+                ? formatUnknownValue(obj.secondary)
+                : '';
+
+        if (primary || secondary) {
+            return [{ primary: primary || '—', secondary: secondary || undefined }];
+        }
+
+        return [
+            {
+                primary: Object.entries(obj)
+                    .map(([k, v]) => `${labelize(k)}: ${formatUnknownValue(v)}`)
+                    .join(' · '),
+            },
+        ];
+    }
+
+    return [{ primary: String(badge) }];
 }
 
 function buildSeriesChart(
@@ -144,15 +223,33 @@ function buildSeriesChart(
             text: title,
             style: {
                 fontSize: '12px',
+                color: 'var(--am-chart-text)',
             },
         },
         xAxis: {
             type: 'datetime',
+            lineColor: 'var(--am-chart-line)',
+            tickColor: 'var(--am-chart-line)',
+            labels: {
+                style: {
+                    color: 'var(--am-chart-text)',
+                },
+            },
+            gridLineColor: 'var(--am-chart-grid)',
         },
         yAxis: {
             title: {
                 text: null,
             },
+            gridLineColor: 'var(--am-chart-grid)',
+            labels: {
+                style: {
+                    color: 'var(--am-chart-text)',
+                },
+            },
+        },
+        tooltip: {
+            shared: true,
         },
         legend: {
             enabled: false,
@@ -164,6 +261,11 @@ function buildSeriesChart(
             {
                 type: 'line',
                 name: title,
+                color: 'var(--am-chart-line)',
+                lineWidth: 2,
+                marker: {
+                    enabled: false,
+                },
                 data: series.map(([ts, v]) => [
                     ts,
                     typeof v === 'string' ? Number(v) : v,
@@ -205,6 +307,37 @@ function MetricGridCard({
                     ))
                 )}
             </div>
+        </div>
+    );
+}
+
+function BadgePills({ badges }: { badges: unknown[] | undefined }) {
+    if (!Array.isArray(badges) || badges.length === 0) {
+        return <span className="opacity-50">—</span>;
+    }
+
+    const parts = badges.flatMap((badge) => normalizeBadgeParts(badge));
+
+    if (parts.length === 0) {
+        return <span className="opacity-50">—</span>;
+    }
+
+    return (
+        <div className="flex flex-wrap gap-1">
+            {parts.map((part, idx) => (
+                <span
+                    key={`badge-pill-${idx}-${part.primary}-${part.secondary || ''}`}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${badgeToneClass(
+                        `${part.primary} ${part.secondary || ''}`,
+                    )}`}
+                    title={part.secondary || part.primary}
+                >
+                    <span>{part.primary}</span>
+                    {part.secondary ? (
+                        <span className="opacity-80">· {part.secondary}</span>
+                    ) : null}
+                </span>
+            ))}
         </div>
     );
 }
@@ -251,21 +384,7 @@ function ParticipantTable({
                                 {formatMetricValue(row.total_trades)}
                             </td>
                             <td className="p-2">
-                                <div className="flex flex-wrap gap-1">
-                                    {!Array.isArray(row.prev_rank_badges) ||
-                                    row.prev_rank_badges.length === 0 ? (
-                                        <span className="opacity-50">—</span>
-                                    ) : (
-                                        row.prev_rank_badges.map((badge, idx) => (
-                                            <span
-                                                key={`${row.account_id}-badge-${idx}`}
-                                                className="px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-[11px]"
-                                            >
-                                                    {formatBadge(badge)}
-                                                </span>
-                                        ))
-                                    )}
-                                </div>
+                                <BadgePills badges={row.prev_rank_badges as unknown[]} />
                             </td>
                         </tr>
                     ))
@@ -291,7 +410,7 @@ function CategoryCard({
                     <div className="text-xs opacity-70">{formatUnknownValue(category.label)}</div>
                 </div>
 
-                <div className="text-[11px] px-2 py-1 rounded bg-gray-200 dark:bg-gray-700">
+                <div className="text-[11px] px-2 py-1 rounded-full bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted">
                     Sort: {formatUnknownValue(category.sort)}
                 </div>
             </div>
@@ -353,136 +472,155 @@ export default function ActionMonitorPage() {
     }
 
     return (
-        <div className="p-4 space-y-4 text-text dark:text-text-inverted">
-            <div className="rounded shadow bg-white dark:bg-gray-800 p-4">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    <div>
-                        <h1 className="text-2xl font-bold">Action Monitor</h1>
-                        <div className="text-sm opacity-70 mt-1">
-                            Live market participant dashboard
+        <div
+            className="p-4 space-y-4 text-text dark:text-text-inverted"
+            style={
+                {
+                    ['--am-chart-line' as string]: 'var(--am-chart-accent)',
+                    ['--am-chart-grid' as string]: 'var(--am-chart-accent)',
+                    ['--am-chart-text' as string]: 'var(--am-chart-accent)',
+                    ['--am-chart-accent' as string]: 'var(--am-chart-accent-value)',
+                    ['--am-chart-accent-value' as string]: '#FFE066',
+                } as React.CSSProperties
+            }
+        >
+            <style jsx>{`
+                :global(.dark) .action-monitor-theme {
+                    --am-chart-accent-value: #8b770c;
+                }
+            `}</style>
+
+            <div className="action-monitor-theme space-y-4">
+                <div className="rounded shadow bg-white dark:bg-gray-800 p-4">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div>
+                            <h1 className="text-2xl font-bold">Action Monitor</h1>
+                            <div className="text-sm opacity-70 mt-1">
+                                Live market participant dashboard
+                            </div>
+                        </div>
+
+                        <div
+                            className={`text-xs px-3 py-1 rounded w-fit ${
+                                isConnected
+                                    ? 'bg-green-500/20 text-green-500'
+                                    : 'bg-red-500/20 text-red-500'
+                            }`}
+                        >
+                            {isConnected ? 'Live' : 'Disconnected'}
                         </div>
                     </div>
 
-                    <div
-                        className={`text-xs px-3 py-1 rounded w-fit ${
-                            isConnected
-                                ? 'bg-green-500/20 text-green-500'
-                                : 'bg-red-500/20 text-red-500'
-                        }`}
-                    >
-                        {isConnected ? 'Live' : 'Disconnected'}
+                    <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-3 mt-4 text-xs">
+                        <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
+                            <div className="opacity-70">Ticker</div>
+                            <div className="font-semibold">{snapshot.meta.ticker}</div>
+                        </div>
+
+                        <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
+                            <div className="opacity-70">Period</div>
+                            <div className="font-semibold">{snapshot.meta.period}</div>
+                        </div>
+
+                        <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
+                            <div className="opacity-70">Window Ms</div>
+                            <div className="font-semibold">
+                                {formatMetricValue(snapshot.meta.window_ms)}
+                            </div>
+                        </div>
+
+                        <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
+                            <div className="opacity-70">Start</div>
+                            <div className="font-semibold">
+                                {new Date(snapshot.meta.start_ms).toLocaleString()}
+                            </div>
+                        </div>
+
+                        <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
+                            <div className="opacity-70">Asof</div>
+                            <div className="font-semibold">
+                                {new Date(snapshot.meta.asof_ms).toLocaleString()}
+                            </div>
+                        </div>
+
+                        <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
+                            <div className="opacity-70">Generated</div>
+                            <div className="font-semibold">
+                                {new Date(snapshot.meta.generated_ts_ms).toLocaleString()}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-3 mt-4 text-xs">
-                    <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
-                        <div className="opacity-70">Ticker</div>
-                        <div className="font-semibold">{snapshot.meta.ticker}</div>
-                    </div>
-
-                    <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
-                        <div className="opacity-70">Period</div>
-                        <div className="font-semibold">{snapshot.meta.period}</div>
-                    </div>
-
-                    <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
-                        <div className="opacity-70">Window Ms</div>
-                        <div className="font-semibold">
-                            {formatMetricValue(snapshot.meta.window_ms)}
-                        </div>
-                    </div>
-
-                    <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
-                        <div className="opacity-70">Start</div>
-                        <div className="font-semibold">
-                            {new Date(snapshot.meta.start_ms).toLocaleString()}
-                        </div>
-                    </div>
-
-                    <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
-                        <div className="opacity-70">Asof</div>
-                        <div className="font-semibold">
-                            {new Date(snapshot.meta.asof_ms).toLocaleString()}
-                        </div>
-                    </div>
-
-                    <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
-                        <div className="opacity-70">Generated</div>
-                        <div className="font-semibold">
-                            {new Date(snapshot.meta.generated_ts_ms).toLocaleString()}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <MetricGridCard
-                    title="Price"
-                    block={snapshot.price as Record<string, unknown>}
-                />
-                <MetricGridCard
-                    title="Totals"
-                    block={snapshot.totals as Record<string, unknown>}
-                />
-                <MetricGridCard
-                    title="Flow"
-                    block={snapshot.flow as Record<string, unknown>}
-                />
-                <MetricGridCard
-                    title="Impact"
-                    block={snapshot.impact as Record<string, unknown>}
-                />
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                <div className="rounded shadow bg-white dark:bg-gray-800 p-3">
-                    <HighchartsReact
-                        highcharts={Highcharts}
-                        options={buildSeriesChart(
-                            'Buy Volume',
-                            snapshot.series.per_minute.buy_vol,
-                        )}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    <MetricGridCard
+                        title="Price"
+                        block={snapshot.price as Record<string, unknown>}
+                    />
+                    <MetricGridCard
+                        title="Totals"
+                        block={snapshot.totals as Record<string, unknown>}
+                    />
+                    <MetricGridCard
+                        title="Flow"
+                        block={snapshot.flow as Record<string, unknown>}
+                    />
+                    <MetricGridCard
+                        title="Impact"
+                        block={snapshot.impact as Record<string, unknown>}
                     />
                 </div>
 
-                <div className="rounded shadow bg-white dark:bg-gray-800 p-3">
-                    <HighchartsReact
-                        highcharts={Highcharts}
-                        options={buildSeriesChart(
-                            'Sell Volume',
-                            snapshot.series.per_minute.sell_vol,
-                        )}
-                    />
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                    <div className="rounded shadow bg-white dark:bg-gray-800 p-3">
+                        <HighchartsReact
+                            highcharts={Highcharts}
+                            options={buildSeriesChart(
+                                'Buy Volume',
+                                snapshot.series.per_minute.buy_vol,
+                            )}
+                        />
+                    </div>
+
+                    <div className="rounded shadow bg-white dark:bg-gray-800 p-3">
+                        <HighchartsReact
+                            highcharts={Highcharts}
+                            options={buildSeriesChart(
+                                'Sell Volume',
+                                snapshot.series.per_minute.sell_vol,
+                            )}
+                        />
+                    </div>
+
+                    <div className="rounded shadow bg-white dark:bg-gray-800 p-3">
+                        <HighchartsReact
+                            highcharts={Highcharts}
+                            options={buildSeriesChart(
+                                'Trade Count',
+                                snapshot.series.per_minute.trade_count,
+                            )}
+                        />
+                    </div>
                 </div>
 
-                <div className="rounded shadow bg-white dark:bg-gray-800 p-3">
-                    <HighchartsReact
-                        highcharts={Highcharts}
-                        options={buildSeriesChart(
-                            'Trade Count',
-                            snapshot.series.per_minute.trade_count,
-                        )}
+                <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
+                    <CategoryCard
+                        title="MM Buyers"
+                        category={snapshot.categories.mm_buyers}
+                    />
+                    <CategoryCard
+                        title="MM Sellers"
+                        category={snapshot.categories.mm_sellers}
+                    />
+                    <CategoryCard
+                        title="Accumulators"
+                        category={snapshot.categories.accumulators}
+                    />
+                    <CategoryCard
+                        title="Distributors"
+                        category={snapshot.categories.distributors}
                     />
                 </div>
-            </div>
-
-            <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
-                <CategoryCard
-                    title="MM Buyers"
-                    category={snapshot.categories.mm_buyers}
-                />
-                <CategoryCard
-                    title="MM Sellers"
-                    category={snapshot.categories.mm_sellers}
-                />
-                <CategoryCard
-                    title="Accumulators"
-                    category={snapshot.categories.accumulators}
-                />
-                <CategoryCard
-                    title="Distributors"
-                    category={snapshot.categories.distributors}
-                />
             </div>
         </div>
     );
