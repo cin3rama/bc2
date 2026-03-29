@@ -1,4 +1,4 @@
-// /app/action-monitor/types.ts
+// /types/actionMonitorTypes.ts
 
 export type ActionMonitorPeriod =
     | '1min'
@@ -11,6 +11,7 @@ export type ActionMonitorPeriod =
 
 export type DecimalString = string;
 export type UnixMs = number;
+export type ChangeDirection = 'up' | 'down' | 'flat';
 
 export interface ActionMonitorEnvelope {
     type: 'update_data';
@@ -21,10 +22,10 @@ export interface ActionMonitorSnapshot {
     kind: 'mf_action_monitor_snapshot';
     version: 1;
     meta: ActionMonitorMeta;
-    price: ActionMonitorMetricBlock;
-    totals: ActionMonitorMetricBlock;
-    flow: ActionMonitorMetricBlock;
-    impact: ActionMonitorMetricBlock;
+    price: Record<string, unknown>;
+    totals?: Record<string, unknown>;
+    flow: Record<string, unknown>;
+    impact: ActionMonitorImpactBlock;
     categories: ActionMonitorCategories;
     series: ActionMonitorSeries;
 }
@@ -38,6 +39,14 @@ export interface ActionMonitorMeta {
     generated_ts_ms: UnixMs;
 }
 
+export interface ActionMonitorImpactBlock {
+    up_move_absorption?: DecimalString | number | null;
+    down_move_absorption?: DecimalString | number | null;
+    buy_vol_per_up_dollar?: DecimalString | number | null;
+    sell_vol_per_down_dollar?: DecimalString | number | null;
+    [key: string]: unknown;
+}
+
 export interface ActionMonitorCategories {
     mm_buyers: ActionMonitorCategory;
     mm_sellers: ActionMonitorCategory;
@@ -47,36 +56,38 @@ export interface ActionMonitorCategories {
 
 export interface ActionMonitorCategory {
     label: string;
-    sort: string;
-    totals: ActionMonitorMetricBlock;
+    sort: unknown;
+    totals: Record<string, unknown>;
+    rom: Record<string, unknown>;
     participants: ActionMonitorParticipant[];
-    rom: ActionMonitorMetricBlock;
 }
 
 export interface ActionMonitorParticipant {
     account_id: string;
-    total_vol: DecimalString;
-    total_trades: number;
-    rank: number;
-    prev_rank_badges: string[];
+    total_vol: DecimalString | number | null;
+    total_trades: number | null;
+    rank: number | null;
+    prev_rank_badges?: unknown[];
+    rank_change_dir?: ChangeDirection;
+    vol_change_dir?: ChangeDirection;
+    trades_change_dir?: ChangeDirection;
+    is_active_aoi?: boolean;
+    [key: string]: unknown;
 }
 
 export interface ActionMonitorSeries {
-    per_minute: ActionMonitorPerMinuteSeries;
+    per_minute?: {
+        buy_vol?: Array<[UnixMs, DecimalString]>;
+        sell_vol?: Array<[UnixMs, DecimalString]>;
+        trade_count?: Array<[UnixMs, number]>;
+    };
+    impact_1m?: ActionMonitorImpactSeries;
+    [key: string]: unknown;
 }
 
-export interface ActionMonitorPerMinuteSeries {
-    buy_vol: Array<[UnixMs, DecimalString]>;
-    sell_vol: Array<[UnixMs, DecimalString]>;
-    trade_count: Array<[UnixMs, number]>;
+export interface ActionMonitorImpactSeries {
+    up_move_absorption: Array<[UnixMs, DecimalString]>;
+    down_move_absorption: Array<[UnixMs, DecimalString]>;
+    up_vol: Array<[UnixMs, DecimalString]>;
+    down_vol: Array<[UnixMs, DecimalString]>;
 }
-
-/**
- * Flexible metric block for currently-known top-level sections whose exact
- * leaf fields are not yet fully locked in FE context. This preserves strong
- * outer typing without inventing backend fields.
- */
-export type ActionMonitorMetricBlock = Record<
-    string,
-    DecimalString | number | string | boolean | null
->;

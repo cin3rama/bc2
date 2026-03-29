@@ -2,12 +2,16 @@
 
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import Highcharts from 'highcharts';
+import HighchartsReact from 'highcharts-react-official';
 import { useWebsocket } from '@/hooks/useWebsocket';
 import type {
     ActionMonitorEnvelope,
     ActionMonitorSnapshot,
     ActionMonitorCategory,
+    ActionMonitorParticipant,
+    ChangeDirection,
 } from '@/types/actionMonitorTypes';
 
 type MetricRenderable = string | number | boolean | null;
@@ -16,6 +20,8 @@ type MetricEntry = {
     key: string;
     value: MetricRenderable;
 };
+
+type CategoryView = 'participants' | 'totals';
 
 function flattenMetricEntries(
     block: Record<string, unknown>,
@@ -66,7 +72,7 @@ function formatMetricValue(value: MetricRenderable): string {
     if (trimmed === '') return '—';
 
     const numeric = Number(trimmed);
-    if (!Number.isNaN(numeric) && trimmed !== '') {
+    if (!Number.isNaN(numeric)) {
         return numeric.toLocaleString();
     }
 
@@ -82,6 +88,74 @@ function labelize(key: string): string {
 
 function blockEntries(block: Record<string, unknown>): MetricEntry[] {
     return flattenMetricEntries(block);
+}
+
+function formatUnknownValue(value: unknown): string {
+    if (value === null || value === undefined) return '—';
+
+    if (
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
+    ) {
+        return formatMetricValue(value);
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((item) => formatUnknownValue(item)).join(' · ');
+    }
+
+    if (typeof value === 'object') {
+        const obj = value as Record<string, unknown>;
+
+        const primary =
+            obj.primary !== undefined && obj.primary !== null
+                ? formatUnknownValue(obj.primary)
+                : '';
+
+        const secondary =
+            obj.secondary !== undefined && obj.secondary !== null
+                ? formatUnknownValue(obj.secondary)
+                : '';
+
+        if (primary && secondary) return `${primary} · ${secondary}`;
+        if (primary) return primary;
+        if (secondary) return secondary;
+
+        return Object.entries(obj)
+            .map(([k, v]) => `${labelize(k)}: ${formatUnknownValue(v)}`)
+            .join(' · ');
+    }
+
+    return String(value);
+}
+
+function toNumeric(value: string | number | null | undefined): number {
+    if (value === null || value === undefined) return 0;
+    return typeof value === 'string' ? Number(value) : value;
+}
+
+function DirectionArrow({ dir }: { dir?: ChangeDirection }) {
+    if (dir === 'up') {
+        return <span className="text-green-500 mr-1">▲</span>;
+    }
+
+    if (dir === 'down') {
+        return <span className="text-red-500 mr-1">▼</span>;
+    }
+
+    return null;
+}
+
+function AOIDot({ active }: { active?: boolean }) {
+    if (!active) return null;
+
+    return (
+        <span
+            className="inline-block w-2.5 h-2.5 rounded-full bg-primary dark:bg-primary-light"
+            title="Active AOI"
+        />
+    );
 }
 
 function MetricGridCard({
@@ -156,10 +230,191 @@ function ImpactPairCard({
     );
 }
 
+function buildImpactChartOptions(
+    snapshot: ActionMonitorSnapshot,
+    chartAccent: string,
+): {
+    time: { useUTC: boolean };
+    chart: { backgroundColor: string; height: number };
+    title: { text: string; style: { color: string; fontSize: string; fontWeight: string } };
+    credits: { enabled: boolean };
+    xAxis: {
+        type: string;
+        lineColor: string;
+        tickColor: string;
+        gridLineColor: string;
+        labels: { style: { color: string } }
+    };
+    yAxis: ({
+        title: { text: string; style: { color: string } };
+        gridLineColor: string;
+        labels: { style: { color: string } }
+    } | {
+        title: { text: string; style: { color: string } };
+        gridLineColor: string;
+        labels: { style: { color: string } };
+        opposite: boolean
+    })[];
+    legend: { enabled: boolean; itemStyle: { color: string } };
+    tooltip: { shared: boolean; xDateFormat: string };
+    plotOptions: {
+        series: { animation: boolean };
+        column: { borderWidth: number; pointPadding: number; groupPadding: number };
+        line: { marker: { enabled: boolean } }
+    };
+    series: ({
+        type: string;
+        name: string;
+        data: (any | number)[][];
+        color: string;
+        yAxis: number;
+        lineWidth: number
+    } | { type: string; name: string; data: (any | number)[][]; color: string; yAxis: number; lineWidth: number } | {
+        type: string;
+        name: string;
+        data: (any | number)[][];
+        color: string;
+        yAxis: number
+    } | { type: string; name: string; data: (any | number)[][]; color: string; yAxis: number })[]
+} {
+    const impact1m = snapshot.series?.impact_1m;
+
+    const upAbsorption = (impact1m?.up_move_absorption || []).map(([ts, v]) => [
+        ts,
+        toNumeric(v),
+    ]);
+    const downAbsorption = (impact1m?.down_move_absorption || []).map(([ts, v]) => [
+        ts,
+        toNumeric(v),
+    ]);
+    const upVol = (impact1m?.up_vol || []).map(([ts, v]) => [ts, toNumeric(v)]);
+    const downVol = (impact1m?.down_vol || []).map(([ts, v]) => [ts, toNumeric(v)]);
+
+    return {
+        time: {
+            useUTC: true,
+        },
+        chart: {
+            backgroundColor: 'transparent',
+            height: 360,
+        },
+        title: {
+            text: 'Impact 1 Minute',
+            style: {
+                color: chartAccent,
+                fontSize: '14px',
+                fontWeight: '600',
+            },
+        },
+        credits: {
+            enabled: false,
+        },
+        xAxis: {
+            type: 'datetime',
+            lineColor: chartAccent,
+            tickColor: chartAccent,
+            gridLineColor: chartAccent,
+            labels: {
+                style: {
+                    color: chartAccent,
+                },
+            },
+        },
+        yAxis: [
+            {
+                title: {
+                    text: 'Absorption',
+                    style: {
+                        color: chartAccent,
+                    },
+                },
+                gridLineColor: chartAccent,
+                labels: {
+                    style: {
+                        color: chartAccent,
+                    },
+                },
+            },
+            {
+                title: {
+                    text: 'Volume',
+                    style: {
+                        color: chartAccent,
+                    },
+                },
+                gridLineColor: chartAccent,
+                labels: {
+                    style: {
+                        color: chartAccent,
+                    },
+                },
+                opposite: true,
+            },
+        ],
+        legend: {
+            enabled: true,
+            itemStyle: {
+                color: chartAccent,
+            },
+        },
+        tooltip: {
+            shared: true,
+            xDateFormat: '%Y-%m-%d %H:%M:%S UTC',
+        },
+        plotOptions: {
+            series: {
+                animation: false,
+            },
+            column: {
+                borderWidth: 0,
+                pointPadding: 0.08,
+                groupPadding: 0.12,
+            },
+            line: {
+                marker: {
+                    enabled: false,
+                },
+            },
+        },
+        series: [
+            {
+                type: 'line',
+                name: 'Up Move Absorption',
+                data: upAbsorption,
+                color: '#22c55e',
+                yAxis: 0,
+                lineWidth: 2,
+            },
+            {
+                type: 'line',
+                name: 'Down Move Absorption',
+                data: downAbsorption,
+                color: '#ef4444',
+                yAxis: 0,
+                lineWidth: 2,
+            },
+            {
+                type: 'column',
+                name: 'Up Vol',
+                data: upVol,
+                color: '#22c55e',
+                yAxis: 1,
+            },
+            {
+                type: 'column',
+                name: 'Down Vol',
+                data: downVol,
+                color: '#ef4444',
+                yAxis: 1,
+            },
+        ],
+    };
+}
+
 function ParticipantTable({
                               participants,
                           }: {
-    participants: ActionMonitorCategory['participants'];
+    participants: ActionMonitorParticipant[];
 }) {
     return (
         <div className="overflow-x-auto">
@@ -170,7 +425,7 @@ function ParticipantTable({
                     <th className="text-left p-2">Account</th>
                     <th className="text-left p-2">Volume</th>
                     <th className="text-left p-2">Trades</th>
-                    <th className="text-left p-2">Badges</th>
+                    <th className="text-left p-2">AOI</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -186,18 +441,37 @@ function ParticipantTable({
                             key={`${row.account_id}-${row.rank}`}
                             className="border-b border-gray-200 dark:border-gray-700"
                         >
-                            <td className="p-2 font-semibold">{row.rank}</td>
+                            <td className="p-2 font-semibold">
+                                <div className="inline-flex items-center">
+                                    <DirectionArrow dir={row.rank_change_dir} />
+                                    <span>{formatMetricValue(row.rank ?? null)}</span>
+                                </div>
+                            </td>
                             <td className="p-2">
                                 {row.account_id.slice(0, 6)}...
                                 {row.account_id.slice(-5)}
                             </td>
                             <td className="p-2">
-                                {formatMetricValue(row.total_vol)}
+                                <div className="inline-flex items-center">
+                                    <DirectionArrow dir={row.vol_change_dir} />
+                                    <span>
+                                            {formatMetricValue(row.total_vol as MetricRenderable)}
+                                        </span>
+                                </div>
                             </td>
                             <td className="p-2">
-                                {formatMetricValue(row.total_trades)}
+                                <div className="inline-flex items-center">
+                                    <DirectionArrow dir={row.trades_change_dir} />
+                                    <span>
+                                            {formatMetricValue(
+                                                row.total_trades as MetricRenderable,
+                                            )}
+                                        </span>
+                                </div>
                             </td>
-                            <td className="p-2">—</td>
+                            <td className="p-2">
+                                <AOIDot active={row.is_active_aoi} />
+                            </td>
                         </tr>
                     ))
                 )}
@@ -214,33 +488,68 @@ function CategoryCard({
     title: string;
     category: ActionMonitorCategory;
 }) {
+    const [view, setView] = useState<CategoryView>('participants');
+
     return (
         <div className="rounded shadow bg-white dark:bg-gray-800 p-3 text-text dark:text-text-inverted">
             <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
                     <h2 className="text-sm font-semibold">{title}</h2>
+                    <div className="text-xs opacity-70">
+                        {formatUnknownValue(category.label)}
+                    </div>
                 </div>
 
-                <div className="text-[11px] px-2 py-1 rounded-full bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted">
-                    Sort: {String(category.sort)}
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setView('participants')}
+                        className={`text-[11px] px-2 py-1 rounded-full ${
+                            view === 'participants'
+                                ? 'bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted'
+                                : 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100'
+                        }`}
+                    >
+                        Participants
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setView('totals')}
+                        className={`text-[11px] px-2 py-1 rounded-full ${
+                            view === 'totals'
+                                ? 'bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted'
+                                : 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100'
+                        }`}
+                    >
+                        Category Totals
+                    </button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 mb-3">
-                <MetricGridCard
-                    title="Totals"
-                    block={category.totals as Record<string, unknown>}
-                />
-                <MetricGridCard
-                    title="ROM"
-                    block={category.rom as Record<string, unknown>}
-                />
+            <div className="mb-3">
+                <div className="text-[11px] px-2 py-1 inline-flex rounded-full bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100">
+                    Sort: {formatUnknownValue(category.sort)}
+                </div>
             </div>
 
-            <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
-                <div className="text-sm font-semibold mb-2">Participants</div>
-                <ParticipantTable participants={category.participants} />
-            </div>
+            {view === 'participants' ? (
+                <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
+                    <div className="text-sm font-semibold mb-2">Participants</div>
+                    <ParticipantTable participants={category.participants} />
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                    <MetricGridCard
+                        title="Totals"
+                        block={category.totals as Record<string, unknown>}
+                    />
+                    <MetricGridCard
+                        title="ROM"
+                        block={category.rom as Record<string, unknown>}
+                    />
+                </div>
+            )}
         </div>
     );
 }
@@ -250,6 +559,7 @@ export default function ActionMonitorPage() {
 
     const [snapshot, setSnapshot] = useState<ActionMonitorSnapshot | null>(null);
     const [isConnected, setIsConnected] = useState(false);
+    const [isDarkMode, setIsDarkMode] = useState(false);
 
     useEffect(() => {
         const sub = actionMonitor$.subscribe({
@@ -259,10 +569,34 @@ export default function ActionMonitorPage() {
                     setIsConnected(true);
                 }
             },
+            error: () => {
+                setIsConnected(false);
+            },
+            complete: () => {
+                setIsConnected(false);
+            },
         });
 
         return () => sub.unsubscribe();
     }, [actionMonitor$]);
+
+    useEffect(() => {
+        const syncDarkMode = () => {
+            if (typeof document !== 'undefined') {
+                setIsDarkMode(document.documentElement.classList.contains('dark'));
+            }
+        };
+
+        syncDarkMode();
+
+        const observer = new MutationObserver(syncDarkMode);
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class'],
+        });
+
+        return () => observer.disconnect();
+    }, []);
 
     if (!snapshot) {
         return (
@@ -272,8 +606,18 @@ export default function ActionMonitorPage() {
         );
     }
 
+    const chartAccent = isDarkMode ? '#8B770C' : '#FFE066';
+    const chartVars: CSSProperties = {
+        ['--am-chart-line' as string]: chartAccent,
+        ['--am-chart-grid' as string]: chartAccent,
+        ['--am-chart-text' as string]: chartAccent,
+    };
+
     return (
-        <div className="p-4 space-y-4 text-text dark:text-text-inverted">
+        <div
+            className="p-4 space-y-4 text-text dark:text-text-inverted"
+            style={chartVars}
+        >
             <div className="rounded shadow bg-white dark:bg-gray-800 p-4">
                 <div className="flex justify-between">
                     <h1 className="text-xl font-bold">Action Monitor</h1>
@@ -282,7 +626,7 @@ export default function ActionMonitorPage() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3 mt-4 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4 text-xs">
                     <div>
                         <div className="opacity-70">Ticker</div>
                         <div>{snapshot.meta.ticker}</div>
@@ -326,11 +670,30 @@ export default function ActionMonitorPage() {
                 />
             </div>
 
+            <div className="rounded shadow bg-white dark:bg-gray-800 p-4">
+                <HighchartsReact
+                    highcharts={Highcharts}
+                    options={buildImpactChartOptions(snapshot, chartAccent)}
+                />
+            </div>
+
             <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
-                <CategoryCard title="MM Buyers" category={snapshot.categories.mm_buyers} />
-                <CategoryCard title="MM Sellers" category={snapshot.categories.mm_sellers} />
-                <CategoryCard title="Accumulators" category={snapshot.categories.accumulators} />
-                <CategoryCard title="Distributors" category={snapshot.categories.distributors} />
+                <CategoryCard
+                    title="MM Buyers"
+                    category={snapshot.categories.mm_buyers}
+                />
+                <CategoryCard
+                    title="MM Sellers"
+                    category={snapshot.categories.mm_sellers}
+                />
+                <CategoryCard
+                    title="Accumulators"
+                    category={snapshot.categories.accumulators}
+                />
+                <CategoryCard
+                    title="Distributors"
+                    category={snapshot.categories.distributors}
+                />
             </div>
         </div>
     );
