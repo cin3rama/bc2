@@ -1,10 +1,9 @@
 // /app/action-monitor/page.tsx
+
 'use client';
 
-import {useEffect, useMemo, useState} from 'react';
-import Highcharts from 'highcharts';
-import HighchartsReact from 'highcharts-react-official';
-import {useWebsocket} from '@/hooks/useWebsocket';
+import { useEffect, useMemo, useState } from 'react';
+import { useWebsocket } from '@/hooks/useWebsocket';
 import type {
     ActionMonitorEnvelope,
     ActionMonitorSnapshot,
@@ -33,12 +32,12 @@ function flattenMetricEntries(
             typeof value === 'number' ||
             typeof value === 'boolean'
         ) {
-            entries.push({key: nextKey, value});
+            entries.push({ key: nextKey, value });
             return;
         }
 
         if (Array.isArray(value)) {
-            entries.push({key: nextKey, value: JSON.stringify(value)});
+            entries.push({ key: nextKey, value: JSON.stringify(value) });
             return;
         }
 
@@ -49,7 +48,7 @@ function flattenMetricEntries(
             return;
         }
 
-        entries.push({key: nextKey, value: String(value)});
+        entries.push({ key: nextKey, value: String(value) });
     });
 
     return entries;
@@ -121,6 +120,44 @@ function MetricGridCard({
     );
 }
 
+function ImpactPairCard({
+                            title,
+                            leftLabel,
+                            leftValue,
+                            rightLabel,
+                            rightValue,
+                        }: {
+    title: string;
+    leftLabel: string;
+    leftValue: MetricRenderable;
+    rightLabel: string;
+    rightValue: MetricRenderable;
+}) {
+    return (
+        <div className="rounded shadow bg-white dark:bg-gray-800 p-4 text-text dark:text-text-inverted">
+            <div className="flex items-center justify-between gap-3 mb-4">
+                <h2 className="text-base font-semibold">{title}</h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded border border-gray-200 dark:border-gray-700 p-3">
+                    <div className="text-xs opacity-70 mb-1">{leftLabel}</div>
+                    <div className="text-xl font-bold">
+                        {formatMetricValue(leftValue)}
+                    </div>
+                </div>
+
+                <div className="rounded border border-gray-200 dark:border-gray-700 p-3">
+                    <div className="text-xs opacity-70 mb-1">{rightLabel}</div>
+                    <div className="text-xl font-bold">
+                        {formatMetricValue(rightValue)}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function ParticipantTable({
                               participants,
                           }: {
@@ -186,13 +223,11 @@ function CategoryCard({
                     <h2 className="text-sm font-semibold">{title}</h2>
                 </div>
 
-                <div
-                    className="text-[11px] px-2 py-1 rounded-full bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted">
+                <div className="text-[11px] px-2 py-1 rounded-full bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted">
                     Sort: {String(category.sort)}
                 </div>
             </div>
 
-            {/* KEEP totals/rom for now (will move later) */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 mb-3">
                 <MetricGridCard
                     title="Totals"
@@ -206,18 +241,17 @@ function CategoryCard({
 
             <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
                 <div className="text-sm font-semibold mb-2">Participants</div>
-                <ParticipantTable participants={category.participants}/>
+                <ParticipantTable participants={category.participants} />
             </div>
         </div>
     );
 }
 
 export default function ActionMonitorPage() {
-    const {actionMonitor$} = useWebsocket();
+    const { actionMonitor$ } = useWebsocket();
 
     const [snapshot, setSnapshot] = useState<ActionMonitorSnapshot | null>(null);
     const [isConnected, setIsConnected] = useState(false);
-    const [isDarkMode, setIsDarkMode] = useState(false);
 
     useEffect(() => {
         const sub = actionMonitor$.subscribe({
@@ -232,24 +266,6 @@ export default function ActionMonitorPage() {
         return () => sub.unsubscribe();
     }, [actionMonitor$]);
 
-    useEffect(() => {
-        const syncDarkMode = () => {
-            if (typeof document !== 'undefined') {
-                setIsDarkMode(document.documentElement.classList.contains('dark'));
-            }
-        };
-
-        syncDarkMode();
-
-        const observer = new MutationObserver(syncDarkMode);
-        observer.observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ['class'],
-        });
-
-        return () => observer.disconnect();
-    }, []);
-
     if (!snapshot) {
         return (
             <div className="p-4 text-text dark:text-text-inverted">
@@ -258,20 +274,8 @@ export default function ActionMonitorPage() {
         );
     }
 
-    const chartAccent = isDarkMode ? '#8B770C' : '#FFE066';
-
     return (
-        <div
-            className="p-4 space-y-4 text-text dark:text-text-inverted"
-            style={
-                {
-                    ['--am-chart-line' as string]: chartAccent,
-                    ['--am-chart-grid' as string]: chartAccent,
-                    ['--am-chart-text' as string]: chartAccent,
-                } as React.CSSProperties
-            }
-        >
-            {/* HEADER */}
+        <div className="p-4 space-y-4 text-text dark:text-text-inverted">
             <div className="rounded shadow bg-white dark:bg-gray-800 p-4">
                 <div className="flex justify-between">
                     <h1 className="text-xl font-bold">Action Monitor</h1>
@@ -280,7 +284,6 @@ export default function ActionMonitorPage() {
                     </div>
                 </div>
 
-                {/* META ROW */}
                 <div className="grid grid-cols-3 gap-3 mt-4 text-xs">
                     <div>
                         <div className="opacity-70">Ticker</div>
@@ -291,36 +294,40 @@ export default function ActionMonitorPage() {
                         <div>{snapshot.meta.period}</div>
                     </div>
                     <div>
-                        <div className="opacity-70">Window</div>
-                        <div>{snapshot.meta.window_ms}</div>
+                        <div className="opacity-70">Window Ms</div>
+                        <div>{formatMetricValue(snapshot.meta.window_ms)}</div>
                     </div>
                 </div>
             </div>
 
-            {/* PRICE ROW */}
             <MetricGridCard
                 title="Price"
                 block={snapshot.price as Record<string, unknown>}
             />
 
-            {/* FLOW + IMPACT ONLY */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <MetricGridCard
-                    title="Flow"
-                    block={snapshot.flow as Record<string, unknown>}
+                <ImpactPairCard
+                    title="Upward Impact"
+                    leftLabel="Up Move Absorption"
+                    leftValue={snapshot.impact?.up_move_absorption as MetricRenderable}
+                    rightLabel="Buy Vol Per Up Dollar"
+                    rightValue={snapshot.impact?.buy_vol_per_up_dollar as MetricRenderable}
                 />
-                <MetricGridCard
-                    title="Impact"
-                    block={snapshot.impact as Record<string, unknown>}
+
+                <ImpactPairCard
+                    title="Downward Impact"
+                    leftLabel="Down Move Absorption"
+                    leftValue={snapshot.impact?.down_move_absorption as MetricRenderable}
+                    rightLabel="Sell Vol Per Down Dollar"
+                    rightValue={snapshot.impact?.sell_vol_per_down_dollar as MetricRenderable}
                 />
             </div>
 
-            {/* CATEGORIES */}
             <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
-                <CategoryCard title="MM Buyers" category={snapshot.categories.mm_buyers}/>
-                <CategoryCard title="MM Sellers" category={snapshot.categories.mm_sellers}/>
-                <CategoryCard title="Accumulators" category={snapshot.categories.accumulators}/>
-                <CategoryCard title="Distributors" category={snapshot.categories.distributors}/>
+                <CategoryCard title="MM Buyers" category={snapshot.categories.mm_buyers} />
+                <CategoryCard title="MM Sellers" category={snapshot.categories.mm_sellers} />
+                <CategoryCard title="Accumulators" category={snapshot.categories.accumulators} />
+                <CategoryCard title="Distributors" category={snapshot.categories.distributors} />
             </div>
         </div>
     );
