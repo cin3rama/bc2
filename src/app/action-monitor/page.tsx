@@ -1,11 +1,10 @@
 // /app/action-monitor/page.tsx
-
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
-import { useWebsocket } from '@/hooks/useWebsocket';
+import {useWebsocket} from '@/hooks/useWebsocket';
 import type {
     ActionMonitorEnvelope,
     ActionMonitorSnapshot,
@@ -34,12 +33,12 @@ function flattenMetricEntries(
             typeof value === 'number' ||
             typeof value === 'boolean'
         ) {
-            entries.push({ key: nextKey, value });
+            entries.push({key: nextKey, value});
             return;
         }
 
         if (Array.isArray(value)) {
-            entries.push({ key: nextKey, value: JSON.stringify(value) });
+            entries.push({key: nextKey, value: JSON.stringify(value)});
             return;
         }
 
@@ -50,7 +49,7 @@ function flattenMetricEntries(
             return;
         }
 
-        entries.push({ key: nextKey, value: String(value) });
+        entries.push({key: nextKey, value: String(value)});
     });
 
     return entries;
@@ -84,242 +83,6 @@ function labelize(key: string): string {
 
 function blockEntries(block: Record<string, unknown>): MetricEntry[] {
     return flattenMetricEntries(block);
-}
-
-function formatUnknownValue(value: unknown): string {
-    if (value === null || value === undefined) return '—';
-
-    if (
-        typeof value === 'string' ||
-        typeof value === 'number' ||
-        typeof value === 'boolean'
-    ) {
-        return formatMetricValue(value);
-    }
-
-    if (Array.isArray(value)) {
-        return value.map((item) => formatUnknownValue(item)).join(' · ');
-    }
-
-    if (typeof value === 'object') {
-        const obj = value as Record<string, unknown>;
-
-        const primary =
-            obj.primary !== undefined && obj.primary !== null
-                ? formatUnknownValue(obj.primary)
-                : '';
-
-        const secondary =
-            obj.secondary !== undefined && obj.secondary !== null
-                ? formatUnknownValue(obj.secondary)
-                : '';
-
-        if (primary && secondary) return `${primary} · ${secondary}`;
-        if (primary) return primary;
-        if (secondary) return secondary;
-
-        return Object.entries(obj)
-            .map(([k, v]) => `${labelize(k)}: ${formatUnknownValue(v)}`)
-            .join(' · ');
-    }
-
-    return String(value);
-}
-
-function badgeToneClass(text: string): string {
-    const t = text.toLowerCase();
-
-    if (
-        t.includes('up') ||
-        t.includes('rise') ||
-        t.includes('gain') ||
-        t.includes('bull') ||
-        t.includes('buy') ||
-        t.includes('accum') ||
-        t.includes('improved') ||
-        t.includes('higher')
-    ) {
-        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
-    }
-
-    if (
-        t.includes('down') ||
-        t.includes('fall') ||
-        t.includes('loss') ||
-        t.includes('bear') ||
-        t.includes('sell') ||
-        t.includes('dist') ||
-        t.includes('lower') ||
-        t.includes('declined')
-    ) {
-        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
-    }
-
-    if (
-        t.includes('new') ||
-        t.includes('rank') ||
-        t.includes('top') ||
-        t.includes('hot') ||
-        t.includes('entry') ||
-        t.includes('leader')
-    ) {
-        return 'bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted';
-    }
-
-    return 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100';
-}
-
-function toBadgeLabel(value: unknown): string {
-    if (value === null || value === undefined) return '';
-
-    if (
-        typeof value === 'string' ||
-        typeof value === 'number' ||
-        typeof value === 'boolean'
-    ) {
-        return String(value);
-    }
-
-    if (Array.isArray(value)) {
-        return value
-            .map((item) => toBadgeLabel(item))
-            .filter(Boolean)
-            .join(' · ');
-    }
-
-    if (typeof value === 'object') {
-        const obj = value as Record<string, unknown>;
-
-        if ('primary' in obj || 'secondary' in obj) {
-            const primary = toBadgeLabel(obj.primary);
-            const secondary = toBadgeLabel(obj.secondary);
-            return [primary, secondary].filter(Boolean).join(' · ');
-        }
-
-        if ('label' in obj) {
-            const label = toBadgeLabel(obj.label);
-            const valueText = 'value' in obj ? toBadgeLabel(obj.value) : '';
-            return [label, valueText].filter(Boolean).join(' · ');
-        }
-
-        if ('text' in obj) {
-            const text = toBadgeLabel(obj.text);
-            const subtext = 'subtext' in obj ? toBadgeLabel(obj.subtext) : '';
-            return [text, subtext].filter(Boolean).join(' · ');
-        }
-
-        return Object.entries(obj)
-            .map(([k, v]) => {
-                const rendered = toBadgeLabel(v);
-                if (!rendered) return '';
-                return `${labelize(k)}: ${rendered}`;
-            })
-            .filter(Boolean)
-            .join(' · ');
-    }
-
-    return String(value);
-}
-
-function flattenBadges(value: unknown): string[] {
-    if (value === null || value === undefined) return [];
-
-    if (Array.isArray(value)) {
-        return value.flatMap((item) => flattenBadges(item));
-    }
-
-    const label = toBadgeLabel(value).trim();
-    return label ? [label] : [];
-}
-
-function BadgePills({ badges }: { badges: unknown[] | undefined }) {
-    const labels = flattenBadges(badges);
-
-    if (labels.length === 0) {
-        return <span className="opacity-50">—</span>;
-    }
-
-    return (
-        <div className="flex flex-wrap gap-1">
-            {labels.map((label, idx) => (
-                <span
-                    key={`badge-pill-${idx}-${label}`}
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${badgeToneClass(
-                        label,
-                    )}`}
-                    title={label}
-                >
-                    {label}
-                </span>
-            ))}
-        </div>
-    );
-}
-
-function buildSeriesChart(
-    title: string,
-    series: Array<[number, string | number]>,
-) {
-    return {
-        chart: {
-            type: 'line',
-            height: 250,
-            backgroundColor: 'transparent',
-        },
-        title: {
-            text: title,
-            style: {
-                fontSize: '12px',
-                color: 'var(--am-chart-text)',
-            },
-        },
-        xAxis: {
-            type: 'datetime',
-            lineColor: 'var(--am-chart-line)',
-            tickColor: 'var(--am-chart-line)',
-            labels: {
-                style: {
-                    color: 'var(--am-chart-text)',
-                },
-            },
-            gridLineColor: 'var(--am-chart-grid)',
-        },
-        yAxis: {
-            title: {
-                text: null,
-            },
-            gridLineColor: 'var(--am-chart-grid)',
-            labels: {
-                style: {
-                    color: 'var(--am-chart-text)',
-                },
-            },
-        },
-        tooltip: {
-            shared: true,
-        },
-        legend: {
-            enabled: false,
-        },
-        credits: {
-            enabled: false,
-        },
-        series: [
-            {
-                type: 'line',
-                name: title,
-                color: 'var(--am-chart-line)',
-                lineWidth: 2,
-                marker: {
-                    enabled: false,
-                },
-                data: series.map(([ts, v]) => [
-                    ts,
-                    typeof v === 'string' ? Number(v) : v,
-                ]),
-            },
-        ],
-    };
 }
 
 function MetricGridCard({
@@ -399,9 +162,7 @@ function ParticipantTable({
                             <td className="p-2">
                                 {formatMetricValue(row.total_trades)}
                             </td>
-                            <td className="p-2">
-                                <BadgePills badges={row.prev_rank_badges as unknown[]} />
-                            </td>
+                            <td className="p-2">—</td>
                         </tr>
                     ))
                 )}
@@ -423,16 +184,15 @@ function CategoryCard({
             <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
                     <h2 className="text-sm font-semibold">{title}</h2>
-                    <div className="text-xs opacity-70">
-                        {formatUnknownValue(category.label)}
-                    </div>
                 </div>
 
-                <div className="text-[11px] px-2 py-1 rounded-full bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted">
-                    Sort: {formatUnknownValue(category.sort)}
+                <div
+                    className="text-[11px] px-2 py-1 rounded-full bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted">
+                    Sort: {String(category.sort)}
                 </div>
             </div>
 
+            {/* KEEP totals/rom for now (will move later) */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 mb-3">
                 <MetricGridCard
                     title="Totals"
@@ -446,14 +206,14 @@ function CategoryCard({
 
             <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
                 <div className="text-sm font-semibold mb-2">Participants</div>
-                <ParticipantTable participants={category.participants} />
+                <ParticipantTable participants={category.participants}/>
             </div>
         </div>
     );
 }
 
 export default function ActionMonitorPage() {
-    const { actionMonitor$ } = useWebsocket();
+    const {actionMonitor$} = useWebsocket();
 
     const [snapshot, setSnapshot] = useState<ActionMonitorSnapshot | null>(null);
     const [isConnected, setIsConnected] = useState(false);
@@ -466,14 +226,6 @@ export default function ActionMonitorPage() {
                     setSnapshot(msg.payload);
                     setIsConnected(true);
                 }
-            },
-            error: (err) => {
-                console.error('[ActionMonitor] WS error', err);
-                setIsConnected(false);
-            },
-            complete: () => {
-                console.warn('[ActionMonitor] WS completed');
-                setIsConnected(false);
             },
         });
 
@@ -501,9 +253,7 @@ export default function ActionMonitorPage() {
     if (!snapshot) {
         return (
             <div className="p-4 text-text dark:text-text-inverted">
-                <div className="text-sm opacity-70">
-                    Waiting for Action Monitor snapshot...
-                </div>
+                Waiting for Action Monitor snapshot...
             </div>
         );
     }
@@ -521,137 +271,56 @@ export default function ActionMonitorPage() {
                 } as React.CSSProperties
             }
         >
-            <div className="space-y-4">
-                <div className="rounded shadow bg-white dark:bg-gray-800 p-4">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        <div>
-                            <h1 className="text-2xl font-bold">Action Monitor</h1>
-                            <div className="text-sm opacity-70 mt-1">
-                                Live market participant dashboard
-                            </div>
-                        </div>
-
-                        <div
-                            className={`text-xs px-3 py-1 rounded w-fit ${
-                                isConnected
-                                    ? 'bg-green-500/20 text-green-500'
-                                    : 'bg-red-500/20 text-red-500'
-                            }`}
-                        >
-                            {isConnected ? 'Live' : 'Disconnected'}
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-3 mt-4 text-xs">
-                        <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
-                            <div className="opacity-70">Ticker</div>
-                            <div className="font-semibold">{snapshot.meta.ticker}</div>
-                        </div>
-
-                        <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
-                            <div className="opacity-70">Period</div>
-                            <div className="font-semibold">{snapshot.meta.period}</div>
-                        </div>
-
-                        <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
-                            <div className="opacity-70">Window Ms</div>
-                            <div className="font-semibold">
-                                {formatMetricValue(snapshot.meta.window_ms)}
-                            </div>
-                        </div>
-
-                        <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
-                            <div className="opacity-70">Start</div>
-                            <div className="font-semibold">
-                                {new Date(snapshot.meta.start_ms).toLocaleString()}
-                            </div>
-                        </div>
-
-                        <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
-                            <div className="opacity-70">Asof</div>
-                            <div className="font-semibold">
-                                {new Date(snapshot.meta.asof_ms).toLocaleString()}
-                            </div>
-                        </div>
-
-                        <div className="rounded border border-gray-200 dark:border-gray-700 p-2">
-                            <div className="opacity-70">Generated</div>
-                            <div className="font-semibold">
-                                {new Date(snapshot.meta.generated_ts_ms).toLocaleString()}
-                            </div>
-                        </div>
+            {/* HEADER */}
+            <div className="rounded shadow bg-white dark:bg-gray-800 p-4">
+                <div className="flex justify-between">
+                    <h1 className="text-xl font-bold">Action Monitor</h1>
+                    <div className="text-xs">
+                        {isConnected ? 'Live' : 'Disconnected'}
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                    <MetricGridCard
-                        title="Price"
-                        block={snapshot.price as Record<string, unknown>}
-                    />
-                    <MetricGridCard
-                        title="Totals"
-                        block={snapshot.totals as Record<string, unknown>}
-                    />
-                    <MetricGridCard
-                        title="Flow"
-                        block={snapshot.flow as Record<string, unknown>}
-                    />
-                    <MetricGridCard
-                        title="Impact"
-                        block={snapshot.impact as Record<string, unknown>}
-                    />
-                </div>
-
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                    <div className="rounded shadow bg-white dark:bg-gray-800 p-3">
-                        <HighchartsReact
-                            highcharts={Highcharts}
-                            options={buildSeriesChart(
-                                'Buy Volume',
-                                snapshot.series.per_minute.buy_vol,
-                            )}
-                        />
+                {/* META ROW */}
+                <div className="grid grid-cols-3 gap-3 mt-4 text-xs">
+                    <div>
+                        <div className="opacity-70">Ticker</div>
+                        <div>{snapshot.meta.ticker}</div>
                     </div>
-
-                    <div className="rounded shadow bg-white dark:bg-gray-800 p-3">
-                        <HighchartsReact
-                            highcharts={Highcharts}
-                            options={buildSeriesChart(
-                                'Sell Volume',
-                                snapshot.series.per_minute.sell_vol,
-                            )}
-                        />
+                    <div>
+                        <div className="opacity-70">Period</div>
+                        <div>{snapshot.meta.period}</div>
                     </div>
-
-                    <div className="rounded shadow bg-white dark:bg-gray-800 p-3">
-                        <HighchartsReact
-                            highcharts={Highcharts}
-                            options={buildSeriesChart(
-                                'Trade Count',
-                                snapshot.series.per_minute.trade_count,
-                            )}
-                        />
+                    <div>
+                        <div className="opacity-70">Window</div>
+                        <div>{snapshot.meta.window_ms}</div>
                     </div>
                 </div>
+            </div>
 
-                <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
-                    <CategoryCard
-                        title="MM Buyers"
-                        category={snapshot.categories.mm_buyers}
-                    />
-                    <CategoryCard
-                        title="MM Sellers"
-                        category={snapshot.categories.mm_sellers}
-                    />
-                    <CategoryCard
-                        title="Accumulators"
-                        category={snapshot.categories.accumulators}
-                    />
-                    <CategoryCard
-                        title="Distributors"
-                        category={snapshot.categories.distributors}
-                    />
-                </div>
+            {/* PRICE ROW */}
+            <MetricGridCard
+                title="Price"
+                block={snapshot.price as Record<string, unknown>}
+            />
+
+            {/* FLOW + IMPACT ONLY */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <MetricGridCard
+                    title="Flow"
+                    block={snapshot.flow as Record<string, unknown>}
+                />
+                <MetricGridCard
+                    title="Impact"
+                    block={snapshot.impact as Record<string, unknown>}
+                />
+            </div>
+
+            {/* CATEGORIES */}
+            <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
+                <CategoryCard title="MM Buyers" category={snapshot.categories.mm_buyers}/>
+                <CategoryCard title="MM Sellers" category={snapshot.categories.mm_sellers}/>
+                <CategoryCard title="Accumulators" category={snapshot.categories.accumulators}/>
+                <CategoryCard title="Distributors" category={snapshot.categories.distributors}/>
             </div>
         </div>
     );
