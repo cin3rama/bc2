@@ -135,9 +135,7 @@ function ImpactPairCard({
 }) {
     return (
         <div className="rounded shadow bg-white dark:bg-gray-800 p-4 text-text dark:text-text-inverted">
-            <div className="flex items-center justify-between gap-3 mb-4">
-                <h2 className="text-base font-semibold">{title}</h2>
-            </div>
+            <h2 className="text-base font-semibold mb-4">{title}</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="rounded border border-gray-200 dark:border-gray-700 p-3">
@@ -303,6 +301,11 @@ export default function ActionMonitorPage() {
             <MetricGridCard
                 title="Price"
                 block={snapshot.price as Record<string, unknown>}
+            />
+
+            <MetricGridCard
+                title="Flow"
+                block={snapshot.flow as Record<string, unknown>}
             />
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
