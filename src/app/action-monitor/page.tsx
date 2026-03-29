@@ -60,12 +60,20 @@ function flattenMetricEntries(
     return entries;
 }
 
+function roundToTwo(value: number): number {
+    return Math.round(value * 100) / 100;
+}
+
 function formatMetricValue(value: MetricRenderable): string {
     if (value === null || value === undefined) return '—';
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
 
     if (typeof value === 'number') {
-        return Number.isFinite(value) ? value.toLocaleString() : String(value);
+        if (!Number.isFinite(value)) return String(value);
+        return roundToTwo(value).toLocaleString(undefined, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+        });
     }
 
     const trimmed = value.trim();
@@ -73,7 +81,10 @@ function formatMetricValue(value: MetricRenderable): string {
 
     const numeric = Number(trimmed);
     if (!Number.isNaN(numeric)) {
-        return numeric.toLocaleString();
+        return roundToTwo(numeric).toLocaleString(undefined, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+        });
     }
 
     return value;
@@ -132,7 +143,8 @@ function formatUnknownValue(value: unknown): string {
 
 function toNumeric(value: string | number | null | undefined): number {
     if (value === null || value === undefined) return 0;
-    return typeof value === 'string' ? Number(value) : value;
+    const numeric = typeof value === 'string' ? Number(value) : value;
+    return Number.isFinite(numeric) ? roundToTwo(numeric) : 0;
 }
 
 function DirectionArrow({ dir }: { dir?: ChangeDirection }) {
@@ -194,6 +206,35 @@ function MetricGridCard({
     );
 }
 
+function MetricRowSection({
+                              title,
+                              entries,
+                              columnsClassName,
+                          }: {
+    title: string;
+    entries: Array<{ label: string; value: MetricRenderable }>;
+    columnsClassName: string;
+}) {
+    return (
+        <div className="rounded shadow bg-white dark:bg-gray-800 p-4 text-text dark:text-text-inverted">
+            <h2 className="text-base font-semibold mb-4">{title}</h2>
+            <div className={`grid gap-3 ${columnsClassName}`}>
+                {entries.map((entry) => (
+                    <div
+                        key={entry.label}
+                        className="rounded border border-gray-200 dark:border-gray-700 p-3"
+                    >
+                        <div className="text-xs opacity-70 mb-1">{entry.label}</div>
+                        <div className="text-xl font-bold">
+                            {formatMetricValue(entry.value)}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 function ImpactPairCard({
                             title,
                             leftLabel,
@@ -233,50 +274,7 @@ function ImpactPairCard({
 function buildImpactChartOptions(
     snapshot: ActionMonitorSnapshot,
     chartAccent: string,
-): {
-    time: { useUTC: boolean };
-    chart: { backgroundColor: string; height: number };
-    title: { text: string; style: { color: string; fontSize: string; fontWeight: string } };
-    credits: { enabled: boolean };
-    xAxis: {
-        type: string;
-        lineColor: string;
-        tickColor: string;
-        gridLineColor: string;
-        labels: { style: { color: string } }
-    };
-    yAxis: ({
-        title: { text: string; style: { color: string } };
-        gridLineColor: string;
-        labels: { style: { color: string } }
-    } | {
-        title: { text: string; style: { color: string } };
-        gridLineColor: string;
-        labels: { style: { color: string } };
-        opposite: boolean
-    })[];
-    legend: { enabled: boolean; itemStyle: { color: string } };
-    tooltip: { shared: boolean; xDateFormat: string };
-    plotOptions: {
-        series: { animation: boolean };
-        column: { borderWidth: number; pointPadding: number; groupPadding: number };
-        line: { marker: { enabled: boolean } }
-    };
-    series: ({
-        type: string;
-        name: string;
-        data: (any | number)[][];
-        color: string;
-        yAxis: number;
-        lineWidth: number
-    } | { type: string; name: string; data: (any | number)[][]; color: string; yAxis: number; lineWidth: number } | {
-        type: string;
-        name: string;
-        data: (any | number)[][];
-        color: string;
-        yAxis: number
-    } | { type: string; name: string; data: (any | number)[][]; color: string; yAxis: number })[]
-} {
+): Highcharts.Options {
     const impact1m = snapshot.series?.impact_1m;
 
     const upAbsorption = (impact1m?.up_move_absorption || []).map(([ts, v]) => [
@@ -291,13 +289,11 @@ function buildImpactChartOptions(
     const downVol = (impact1m?.down_vol || []).map(([ts, v]) => [ts, toNumeric(v)]);
 
     return {
-        time: {
-            useUTC: true,
-        },
         chart: {
             backgroundColor: 'transparent',
             height: 360,
         },
+        time: { timezone: 'UTC' },
         title: {
             text: 'Impact 1 Minute',
             style: {
@@ -613,6 +609,22 @@ export default function ActionMonitorPage() {
         ['--am-chart-text' as string]: chartAccent,
     };
 
+    const priceEntries = blockEntries(
+        snapshot.price as Record<string, unknown>,
+    ).map((entry) => ({
+        label: labelize(entry.key),
+        value: entry.value,
+    }));
+
+    const flowEntries = blockEntries(
+        snapshot.flow as Record<string, unknown>,
+    )
+        .slice(0, 4)
+        .map((entry) => ({
+            label: labelize(entry.key),
+            value: entry.value,
+        }));
+
     return (
         <div
             className="p-4 space-y-4 text-text dark:text-text-inverted"
@@ -642,14 +654,10 @@ export default function ActionMonitorPage() {
                 </div>
             </div>
 
-            <MetricGridCard
+            <MetricRowSection
                 title="Price"
-                block={snapshot.price as Record<string, unknown>}
-            />
-
-            <MetricGridCard
-                title="Flow"
-                block={snapshot.flow as Record<string, unknown>}
+                entries={priceEntries}
+                columnsClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6"
             />
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -670,6 +678,12 @@ export default function ActionMonitorPage() {
                 />
             </div>
 
+            <MetricRowSection
+                title="Flow"
+                entries={flowEntries}
+                columnsClassName="grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"
+            />
+
             <div className="rounded shadow bg-white dark:bg-gray-800 p-4">
                 <HighchartsReact
                     highcharts={Highcharts}
@@ -677,7 +691,7 @@ export default function ActionMonitorPage() {
                 />
             </div>
 
-            <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 <CategoryCard
                     title="MM Buyers"
                     category={snapshot.categories.mm_buyers}
