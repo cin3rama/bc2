@@ -65,20 +65,18 @@ export default function Header() {
                             A3therflow
                         </h1>
                         <h2 className="text-xs font-light text-text dark:text-text-inverted">
-                            Market Behavior Concentration Participants
+                            Market Action - Actors - Analytics
                         </h2>
                     </div>
                 </div>
 
                 {/* Global Navigation Links for larger screens */}
                 <nav className="hidden md:flex space-x-5 text-black dark:text-text-inverted">
-                    <Link href="/" className="nav-link">Home</Link>
-                    <Link href="/order-flow" className="nav-link">Order Flow</Link>
                     <Link href="/trends" className="nav-link">Trend Analysis</Link>
                     <Link href="/marketflow" className="nav-link">Marketflow</Link>
+                    <Link href="/action-monitor" className="nav-link">Market Action</Link>
+                    <Link href="/mfb-p" className="nav-link">Market Actors</Link>
                     <Link href="/marketflow-analytics" className="nav-link">Market Analytics</Link>
-                    <Link href="/marketflow-behavior" className="nav-link">Market Behavior</Link>
-                    <Link href="/mfb-p" className="nav-link">Market Participants</Link>
                 </nav>
 
                 {/* Right-side controls */}

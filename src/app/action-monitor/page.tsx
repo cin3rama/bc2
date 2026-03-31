@@ -210,22 +210,34 @@ function MetricRowSection({
                               title,
                               entries,
                               columnsClassName,
+                              compact = false,
                           }: {
     title: string;
     entries: Array<{ label: string; value: MetricRenderable }>;
     columnsClassName: string;
+    compact?: boolean;
 }) {
     return (
-        <div className="rounded shadow bg-white dark:bg-gray-800 p-4 text-text dark:text-text-inverted">
-            <h2 className="text-base font-semibold mb-4">{title}</h2>
-            <div className={`grid gap-3 ${columnsClassName}`}>
+        <div
+            className={`rounded shadow bg-white dark:bg-gray-800 text-text dark:text-text-inverted ${
+                compact ? 'p-3' : 'p-4'
+            }`}
+        >
+            <h2 className={`${compact ? 'text-sm' : 'text-base'} font-semibold mb-3`}>
+                {title}
+            </h2>
+            <div className={`grid gap-2 ${columnsClassName}`}>
                 {entries.map((entry) => (
                     <div
                         key={entry.label}
-                        className="rounded border border-gray-200 dark:border-gray-700 p-3"
+                        className={`rounded border border-gray-200 dark:border-gray-700 ${
+                            compact ? 'p-2 min-h-[68px]' : 'p-3'
+                        }`}
                     >
-                        <div className="text-xs opacity-70 mb-1">{entry.label}</div>
-                        <div className="text-xl font-bold">
+                        <div className={`${compact ? 'text-[11px]' : 'text-xs'} opacity-70 mb-1`}>
+                            {entry.label}
+                        </div>
+                        <div className={`${compact ? 'text-base' : 'text-xl'} font-bold`}>
                             {formatMetricValue(entry.value)}
                         </div>
                     </div>
@@ -311,6 +323,7 @@ function buildImpactChartOptions(
             tickColor: chartAccent,
             gridLineColor: chartAccent,
             labels: {
+                format: '{value:%H:%M}',
                 style: {
                     color: chartAccent,
                 },
@@ -412,6 +425,22 @@ function ParticipantTable({
                           }: {
     participants: ActionMonitorParticipant[];
 }) {
+    const [copiedAccountId, setCopiedAccountId] = useState<string | null>(null);
+
+    const handleCopyAccountId = async (accountId: string) => {
+        try {
+            await navigator.clipboard.writeText(accountId);
+            setCopiedAccountId(accountId);
+            window.setTimeout(() => {
+                setCopiedAccountId((current) =>
+                    current === accountId ? null : current,
+                );
+            }, 1200);
+        } catch (error) {
+            console.error('[ActionMonitor] Failed to copy account_id', error);
+        }
+    };
+
     return (
         <div className="overflow-x-auto">
             <table className="w-full border-collapse text-xs">
@@ -444,8 +473,22 @@ function ParticipantTable({
                                 </div>
                             </td>
                             <td className="p-2">
-                                {row.account_id.slice(0, 6)}...
-                                {row.account_id.slice(-5)}
+                                <button
+                                    type="button"
+                                    onClick={() => handleCopyAccountId(row.account_id)}
+                                    className="inline-flex items-center gap-2 text-left hover:underline focus:outline-none focus:ring-1 focus:ring-primary rounded-sm"
+                                    title={row.account_id}
+                                >
+                                        <span>
+                                            {row.account_id.slice(0, 6)}...
+                                            {row.account_id.slice(-5)}
+                                        </span>
+                                    {copiedAccountId === row.account_id ? (
+                                        <span className="text-[10px] text-green-500 font-semibold">
+                                                Copied
+                                            </span>
+                                    ) : null}
+                                </button>
                             </td>
                             <td className="p-2">
                                 <div className="inline-flex items-center">
@@ -633,7 +676,11 @@ export default function ActionMonitorPage() {
             <div className="rounded shadow bg-white dark:bg-gray-800 p-4">
                 <div className="flex justify-between">
                     <h1 className="text-xl font-bold">Action Monitor</h1>
-                    <div className="text-xs">
+                    <div
+                        className={`text-sm font-bold ${
+                            isConnected ? 'text-green-500' : 'text-red-500'
+                        }`}
+                    >
                         {isConnected ? 'Live' : 'Disconnected'}
                     </div>
                 </div>
@@ -658,6 +705,7 @@ export default function ActionMonitorPage() {
                 title="Price"
                 entries={priceEntries}
                 columnsClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6"
+                compact={true}
             />
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
