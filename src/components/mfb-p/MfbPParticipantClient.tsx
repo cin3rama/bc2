@@ -167,10 +167,10 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 260, zoomType: "x" },
             title: { text: undefined },
-            xAxis: { type: "datetime", title: { text: "Time (UTC)" } },
+            xAxis: { type: "datetime", labels: {format: '{value:%H:%M}'}, title: { text: "Time (UTC)" } },
             yAxis: { title: { text: "Equity (USD)" } },
             legend: { enabled: false },
-            tooltip: { shared: false, valueDecimals: 2 },
+            tooltip: { shared: false, xDateFormat: '%Y-%m-%d %H:%M:%S UTC', valueDecimals: 2 },
             series: [{ type: "line", name: "Equity", data: equitySeries }],
         }
         : null;
@@ -179,10 +179,10 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
-            xAxis: { type: "datetime", title: { text: "Time (UTC)" } },
+            xAxis: { type: "datetime", labels: {format: '{value:%H:%M}'}, title: { text: "Time (UTC)" } },
             yAxis: { title: { text: "Gross Leverage" } },
             legend: { enabled: false },
-            tooltip: { shared: false, valueDecimals: 2 },
+            tooltip: { shared: false, xDateFormat: '%Y-%m-%d %H:%M:%S UTC', valueDecimals: 2 },
             series: [{ type: "line", name: "Gross Leverage", data: leverageSeries }],
         }
         : null;
@@ -191,10 +191,10 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
-            xAxis: { type: "datetime", title: { text: "Time (UTC)" } },
+            xAxis: { type: "datetime", labels: {format: '{value:%H:%M}'}, title: { text: "Time (UTC)" } },
             yAxis: { title: { text: "Margin Utilization (%)" } },
             legend: { enabled: false },
-            tooltip: { shared: false, valueDecimals: 2 },
+            tooltip: { shared: false, xDateFormat: '%Y-%m-%d %H:%M:%S UTC', valueDecimals: 2 },
             series: [{ type: "line", name: "Margin Utilization", data: marginUtilSeries }],
         }
         : null;
@@ -203,13 +203,13 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
-            xAxis: { type: "datetime", title: { text: "Time (UTC)" } },
+            xAxis: { type: "datetime", labels: {format: '{value:%H:%M}'}, title: { text: "Time (UTC)" } },
             yAxis: {
                 title: { text: "Position Size" },
                 plotLines: [{ value: 0, width: 1, color: "rgba(128,128,128,0.35)" }],
             },
             legend: { enabled: false },
-            tooltip: { shared: false, valueDecimals: 2 },
+            tooltip: { shared: false, xDateFormat: '%Y-%m-%d %H:%M:%S UTC', valueDecimals: 2 },
             series: [{ type: "line", name: "Position Size", data: positionSizeSeries, connectNulls: false }],
 
         }
@@ -219,10 +219,10 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
-            xAxis: { type: "datetime", title: { text: "Time (UTC)" } },
+            xAxis: { type: "datetime", labels: {format: '{value:%H:%M}'}, title: { text: "Time (UTC)" } },
             yAxis: { title: { text: "Trades / minute" } },
             legend: { enabled: false },
-            tooltip: { shared: false, valueDecimals: 0 },
+            tooltip: { shared: false, xDateFormat: '%Y-%m-%d %H:%M:%S UTC', valueDecimals: 0 },
             series: [{ type: "column", name: "Trade Count", data: tradeCountSeries }],
         }
         : null;
@@ -234,7 +234,7 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
             xAxis: { type: "datetime", title: { text: "Time (UTC)" } },
             yAxis: { title: { text: "Net Signed Volume" } },
             legend: { enabled: false },
-            tooltip: { shared: false, valueDecimals: 2 },
+            tooltip: { shared: false, xDateFormat: '%Y-%m-%d %H:%M:%S UTC', valueDecimals: 2 },
             series: [{ type: "column", name: "Net Signed Volume", data: signedVolSeries }],
         }
         : null;

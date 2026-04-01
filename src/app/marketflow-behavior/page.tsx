@@ -530,6 +530,9 @@ export default function MarketflowBehaviorPage() {
             },
             xAxis: {
                 type: 'datetime',
+                labels: {
+                    format: '{value:%H:%M}',
+                }
             },
             yAxis: {
                 title: { text: 'Inventory Flow' },
