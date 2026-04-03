@@ -159,15 +159,80 @@ function DirectionArrow({ dir }: { dir?: ChangeDirection }) {
     return null;
 }
 
-function AOIDot({ active }: { active?: boolean }) {
-    if (!active) return null;
+function getAOISizeClass(equityUsd: unknown): string {
+    const numeric =
+        typeof equityUsd === 'string'
+            ? Number(equityUsd)
+            : typeof equityUsd === 'number'
+                ? equityUsd
+                : NaN;
 
-    return (
-        <span
-            className="inline-block w-2.5 h-2.5 rounded-full bg-primary dark:bg-primary-light"
-            title="Active AOI"
-        />
-    );
+    if (!Number.isNaN(numeric) && numeric > 10_000_000) return 'w-4 h-4';
+    if (!Number.isNaN(numeric) && numeric >= 1_000_000) return 'w-3 h-3';
+    return 'w-2.5 h-2.5';
+}
+
+function getAOITitle(aoiType: unknown, equityUsd: unknown): string {
+    const rawType =
+        typeof aoiType === 'string' && aoiType.trim() !== ''
+            ? aoiType.trim()
+            : 'fallback';
+    const equityText = formatUnknownValue(equityUsd);
+    return `${rawType} · ${equityText}`;
+}
+
+function AOITypeSymbol({
+                           isActiveAoi,
+                           aoiType,
+                           equityUsd,
+                       }: {
+    isActiveAoi?: boolean;
+    aoiType: unknown;
+    equityUsd: unknown;
+}) {
+    if (
+        !isActiveAoi &&
+        (aoiType === null || aoiType === undefined) &&
+        (equityUsd === null || equityUsd === undefined)
+    ) {
+        return null;
+    }
+
+    const rawType =
+        typeof aoiType === 'string' ? aoiType.trim().toLowerCase() : null;
+    const sizeClass = getAOISizeClass(equityUsd);
+    const title = getAOITitle(aoiType, equityUsd);
+
+    let className = `inline-block rounded-full border border-gray-500 ${sizeClass}`;
+    let style: CSSProperties | undefined;
+
+    switch (rawType) {
+        case 'mm_bot':
+            className += ' bg-yellow-400 border-yellow-500';
+            break;
+        case 'position_trader':
+            className += ' bg-violet-500 border-violet-600';
+            break;
+        case 'success_leader':
+            className += ' bg-green-500 border-green-600';
+            break;
+        case 'active_basis_bot':
+            className += ' border-gray-500';
+            style = {
+                background:
+                    'linear-gradient(90deg, #ffffff 0%, #ffffff 50%, #000000 50%, #000000 100%)',
+            };
+            break;
+        case 'archived':
+        case 'position':
+            className += ' bg-black border-black';
+            break;
+        default:
+            className += ' bg-black border-black';
+            break;
+    }
+
+    return <span className={className} style={style} title={title} />;
 }
 
 function MetricGridCard({
@@ -450,7 +515,7 @@ function ParticipantTable({
                     <th className="text-left p-2">Account</th>
                     <th className="text-left p-2">Volume</th>
                     <th className="text-left p-2">Trades</th>
-                    <th className="text-left p-2">AOI</th>
+                    <th className="text-left p-2">AOI Type</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -509,7 +574,11 @@ function ParticipantTable({
                                 </div>
                             </td>
                             <td className="p-2">
-                                <AOIDot active={row.is_active_aoi} />
+                                <AOITypeSymbol
+                                    isActiveAoi={row.is_active_aoi}
+                                    aoiType={row.aoi_type}
+                                    equityUsd={row.equity_usd}
+                                />
                             </td>
                         </tr>
                     ))
