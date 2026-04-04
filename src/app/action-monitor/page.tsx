@@ -235,6 +235,65 @@ function AOITypeSymbol({
     return <span className={className} style={style} title={title} />;
 }
 
+function AOITypeLegend() {
+    return (
+        <div className="flex justify-center">
+            <div className="rounded shadow bg-white dark:bg-gray-800 px-4 py-3 text-text dark:text-text-inverted">
+                <div className="text-sm font-semibold text-center mb-3">
+                    AOI Type Legend
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3 text-xs">
+                    <div className="inline-flex items-center gap-2">
+                        <AOITypeSymbol
+                            isActiveAoi={true}
+                            aoiType="mm_bot"
+                            equityUsd="1000000"
+                        />
+                        <span>mm_bot</span>
+                    </div>
+
+                    <div className="inline-flex items-center gap-2">
+                        <AOITypeSymbol
+                            isActiveAoi={true}
+                            aoiType="position_trader"
+                            equityUsd="1000000"
+                        />
+                        <span>position_trader</span>
+                    </div>
+
+                    <div className="inline-flex items-center gap-2">
+                        <AOITypeSymbol
+                            isActiveAoi={true}
+                            aoiType="success_leader"
+                            equityUsd="1000000"
+                        />
+                        <span>success_leader</span>
+                    </div>
+
+                    <div className="inline-flex items-center gap-2">
+                        <AOITypeSymbol
+                            isActiveAoi={true}
+                            aoiType="active_basis_bot"
+                            equityUsd="1000000"
+                        />
+                        <span>active_basis_bot</span>
+                    </div>
+
+                    <div className="inline-flex items-center gap-2">
+                        <AOITypeSymbol
+                            isActiveAoi={true}
+                            aoiType="archived"
+                            equityUsd="1000000"
+                        />
+                        <span>archived / fallback</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function MetricGridCard({
                             title,
                             block,
@@ -808,23 +867,27 @@ export default function ActionMonitorPage() {
                 />
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <CategoryCard
-                    title="MM Buyers"
-                    category={snapshot.categories.mm_buyers}
-                />
-                <CategoryCard
-                    title="MM Sellers"
-                    category={snapshot.categories.mm_sellers}
-                />
-                <CategoryCard
-                    title="Accumulators"
-                    category={snapshot.categories.accumulators}
-                />
-                <CategoryCard
-                    title="Distributors"
-                    category={snapshot.categories.distributors}
-                />
+            <div className="space-y-4">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    <CategoryCard
+                        title="MM Buyers"
+                        category={snapshot.categories.mm_buyers}
+                    />
+                    <CategoryCard
+                        title="MM Sellers"
+                        category={snapshot.categories.mm_sellers}
+                    />
+                    <CategoryCard
+                        title="Accumulators"
+                        category={snapshot.categories.accumulators}
+                    />
+                    <CategoryCard
+                        title="Distributors"
+                        category={snapshot.categories.distributors}
+                    />
+                </div>
+
+                <AOITypeLegend />
             </div>
         </div>
     );
