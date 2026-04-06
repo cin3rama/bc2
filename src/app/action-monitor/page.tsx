@@ -2,6 +2,7 @@
 
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
@@ -549,22 +550,6 @@ function ParticipantTable({
                           }: {
     participants: ActionMonitorParticipant[];
 }) {
-    const [copiedAccountId, setCopiedAccountId] = useState<string | null>(null);
-
-    const handleCopyAccountId = async (accountId: string) => {
-        try {
-            await navigator.clipboard.writeText(accountId);
-            setCopiedAccountId(accountId);
-            window.setTimeout(() => {
-                setCopiedAccountId((current) =>
-                    current === accountId ? null : current,
-                );
-            }, 1200);
-        } catch (error) {
-            console.error('[ActionMonitor] Failed to copy account_id', error);
-        }
-    };
-
     return (
         <div className="overflow-x-auto">
             <table className="w-full border-collapse text-xs">
@@ -585,62 +570,72 @@ function ParticipantTable({
                         </td>
                     </tr>
                 ) : (
-                    participants.map((row) => (
-                        <tr
-                            key={`${row.account_id}-${row.rank}`}
-                            className="border-b border-gray-200 dark:border-gray-700"
-                        >
-                            <td className="p-2 font-semibold">
-                                <div className="inline-flex items-center">
-                                    <DirectionArrow dir={row.rank_change_dir} />
-                                    <span>{formatMetricValue(row.rank ?? null)}</span>
-                                </div>
-                            </td>
-                            <td className="p-2">
-                                <button
-                                    type="button"
-                                    onClick={() => handleCopyAccountId(row.account_id)}
-                                    className="inline-flex items-center gap-2 text-left hover:underline focus:outline-none focus:ring-1 focus:ring-primary rounded-sm"
-                                    title={row.account_id}
-                                >
+                    participants.map((row) => {
+                        const aoiId =
+                            typeof (row as ActionMonitorParticipant & { aoi_id?: number | null }).aoi_id ===
+                            'number'
+                                ? (row as ActionMonitorParticipant & { aoi_id?: number | null }).aoi_id
+                                : null;
+
+                        const accountLabel = (
+                            <span className="select-text">
+                                    {row.account_id.slice(0, 6)}...
+                                {row.account_id.slice(-5)}
+                                </span>
+                        );
+
+                        return (
+                            <tr
+                                key={`${row.account_id}-${row.rank}`}
+                                className="border-b border-gray-200 dark:border-gray-700"
+                            >
+                                <td className="p-2 font-semibold">
+                                    <div className="inline-flex items-center">
+                                        <DirectionArrow dir={row.rank_change_dir} />
+                                        <span>{formatMetricValue(row.rank ?? null)}</span>
+                                    </div>
+                                </td>
+                                <td className="p-2">
+                                    {row.is_active_aoi && aoiId !== null ? (
+                                        <Link
+                                            href={`/mfb-p/lens/?aoiId=${aoiId}`}
+                                            className="inline-flex items-center text-left hover:underline focus:outline-none focus:ring-1 focus:ring-primary rounded-sm"
+                                            title={row.account_id}
+                                        >
+                                            {accountLabel}
+                                        </Link>
+                                    ) : (
+                                        <span title={row.account_id}>{accountLabel}</span>
+                                    )}
+                                </td>
+                                <td className="p-2">
+                                    <div className="inline-flex items-center">
+                                        <DirectionArrow dir={row.vol_change_dir} />
                                         <span>
-                                            {row.account_id.slice(0, 6)}...
-                                            {row.account_id.slice(-5)}
-                                        </span>
-                                    {copiedAccountId === row.account_id ? (
-                                        <span className="text-[10px] text-green-500 font-semibold">
-                                                Copied
+                                                {formatMetricValue(row.total_vol as MetricRenderable)}
                                             </span>
-                                    ) : null}
-                                </button>
-                            </td>
-                            <td className="p-2">
-                                <div className="inline-flex items-center">
-                                    <DirectionArrow dir={row.vol_change_dir} />
-                                    <span>
-                                            {formatMetricValue(row.total_vol as MetricRenderable)}
-                                        </span>
-                                </div>
-                            </td>
-                            <td className="p-2">
-                                <div className="inline-flex items-center">
-                                    <DirectionArrow dir={row.trades_change_dir} />
-                                    <span>
-                                            {formatMetricValue(
-                                                row.total_trades as MetricRenderable,
-                                            )}
-                                        </span>
-                                </div>
-                            </td>
-                            <td className="p-2">
-                                <AOITypeSymbol
-                                    isActiveAoi={row.is_active_aoi}
-                                    aoiType={row.aoi_type}
-                                    equityUsd={row.equity_usd}
-                                />
-                            </td>
-                        </tr>
-                    ))
+                                    </div>
+                                </td>
+                                <td className="p-2">
+                                    <div className="inline-flex items-center">
+                                        <DirectionArrow dir={row.trades_change_dir} />
+                                        <span>
+                                                {formatMetricValue(
+                                                    row.total_trades as MetricRenderable,
+                                                )}
+                                            </span>
+                                    </div>
+                                </td>
+                                <td className="p-2">
+                                    <AOITypeSymbol
+                                        isActiveAoi={row.is_active_aoi}
+                                        aoiType={row.aoi_type}
+                                        equityUsd={row.equity_usd}
+                                    />
+                                </td>
+                            </tr>
+                        );
+                    })
                 )}
                 </tbody>
             </table>
