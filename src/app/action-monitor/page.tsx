@@ -577,13 +577,6 @@ function ParticipantTable({
                                 ? (row as ActionMonitorParticipant & { aoi_id?: number | null }).aoi_id
                                 : null;
 
-                        const accountLabel = (
-                            <span className="select-text">
-                                    {row.account_id.slice(0, 6)}...
-                                {row.account_id.slice(-5)}
-                                </span>
-                        );
-
                         return (
                             <tr
                                 key={`${row.account_id}-${row.rank}`}
@@ -595,19 +588,28 @@ function ParticipantTable({
                                         <span>{formatMetricValue(row.rank ?? null)}</span>
                                     </div>
                                 </td>
+
                                 <td className="p-2">
                                     {row.is_active_aoi && aoiId !== null ? (
-                                        <Link
+                                        <a
                                             href={`/mfb-p/lens/?aoiId=${aoiId}`}
-                                            className="inline-flex items-center text-left hover:underline focus:outline-none focus:ring-1 focus:ring-primary rounded-sm"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-left hover:underline focus:outline-none focus:ring-1 focus:ring-primary rounded-sm select-text break-all"
                                             title={row.account_id}
                                         >
-                                            {accountLabel}
-                                        </Link>
+                                            {row.account_id}
+                                        </a>
                                     ) : (
-                                        <span title={row.account_id}>{accountLabel}</span>
+                                        <span
+                                            className="select-text break-all"
+                                            title={row.account_id}
+                                        >
+                                                {row.account_id}
+                                            </span>
                                     )}
                                 </td>
+
                                 <td className="p-2">
                                     <div className="inline-flex items-center">
                                         <DirectionArrow dir={row.vol_change_dir} />
@@ -616,6 +618,7 @@ function ParticipantTable({
                                             </span>
                                     </div>
                                 </td>
+
                                 <td className="p-2">
                                     <div className="inline-flex items-center">
                                         <DirectionArrow dir={row.trades_change_dir} />
@@ -626,6 +629,7 @@ function ParticipantTable({
                                             </span>
                                     </div>
                                 </td>
+
                                 <td className="p-2">
                                     <AOITypeSymbol
                                         isActiveAoi={row.is_active_aoi}
