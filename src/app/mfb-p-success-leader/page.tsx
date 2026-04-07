@@ -1,12 +1,12 @@
 // app/mfb-p-success-leader/page.tsx
 "use client"; // MUST be the first non-empty line
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {useCallback, useEffect, useMemo, useState} from "react";
 import Link from "next/link";
 
-import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { API_BASE } from "@/lib/env";
+import {useHeaderConfig} from "@/contexts/HeaderConfigContext";
+import {Card, CardHeader, CardTitle, CardContent} from "@/components/ui/Card";
+import {API_BASE} from "@/lib/env";
 
 import type {
     DecimalLike,
@@ -56,7 +56,7 @@ function formatPctGrowth(pctGrowth: DecimalLike | null | undefined): string {
     // DO NOT invent — display raw as percent-like if > 1 else *100.
     const displayPct = Math.abs(n) > 1 ? n : n * 100;
     return (
-        displayPct.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
+        displayPct.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) +
         "%"
     );
 }
@@ -120,13 +120,13 @@ function extractLeaderboardSeed(raw: any): {
     // Envelope
     if (raw && typeof raw === "object" && raw.type === "update_data" && raw.payload) {
         if (isSuccessLeaderLeaderboardSnapshotV1(raw.payload)) {
-            return { leaderboard: raw.payload, minimal: null };
+            return {leaderboard: raw.payload, minimal: null};
         }
     }
 
     // Raw payload
     if (isSuccessLeaderLeaderboardSnapshotV1(raw)) {
-        return { leaderboard: raw, minimal: null };
+        return {leaderboard: raw, minimal: null};
     }
 
     // Minimal legacy-ish
@@ -144,11 +144,11 @@ function extractLeaderboardSeed(raw: any): {
         };
     }
 
-    return { leaderboard: null, minimal: null };
+    return {leaderboard: null, minimal: null};
 }
 
 export default function MfbPSuccessLeaderHubPage() {
-    const { setConfig } = useHeaderConfig();
+    const {setConfig} = useHeaderConfig();
 
     const [windowDays, setWindowDays] = useState<SuccessLeaderWindowDays>(7);
 
@@ -163,7 +163,7 @@ export default function MfbPSuccessLeaderHubPage() {
     } | null>(null);
 
     useEffect(() => {
-        setConfig({ showTicker: true, showPeriod: false });
+        setConfig({showTicker: true, showPeriod: false});
     }, [setConfig]);
 
     const fetchSeed = useCallback(async () => {
@@ -249,7 +249,8 @@ export default function MfbPSuccessLeaderHubPage() {
                             MFB_P — Success Leaderboard
                         </h1>
                         <p className="mt-1 text-xs md:text-sm text-gray-600 dark:text-gray-300">
-                            Top accounts by <span className="font-semibold">pct_growth</span> over the selected window. Times are UTC.
+                            Top accounts by <span className="font-semibold">pct_growth</span> over the selected window.
+                            Times are UTC.
                         </p>
                     </div>
 
@@ -307,7 +308,8 @@ export default function MfbPSuccessLeaderHubPage() {
                             </div>
                         ) : !hasLeaders ? (
                             <div className="space-y-2">
-                                <p className="text-sm text-gray-500 dark:text-gray-400">No leaders returned for this window.</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">No leaders returned for this
+                                    window.</p>
                                 <p className="text-xs text-gray-500 dark:text-gray-400">
                                     asof_day_ms={String(effectiveAsofDayMs)} • window_days={String(effectiveWindowDays)}
                                 </p>
@@ -352,7 +354,8 @@ export default function MfbPSuccessLeaderHubPage() {
                                                 </td>
 
                                                 <td className="py-2 px-2 align-top">
-                                                    <span className="font-mono text-[11px]">…{accountTail5(row.account_id)}</span>
+                                                    <span
+                                                        className="font-mono text-[11px]">…{accountTail5(row.account_id)}</span>
                                                 </td>
 
                                                 <td className={`py-2 px-2 align-top font-semibold ${growthClass(row.pct_growth)}`}>
@@ -365,10 +368,12 @@ export default function MfbPSuccessLeaderHubPage() {
 
                                                 <td className="py-2 px-2 align-top">
                                                     <div className="flex flex-wrap gap-2">
-                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${conf.cls}`}>
+                              <span
+                                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${conf.cls}`}>
                                 {conf.label}
                               </span>
-                                                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${fund.cls}`}>
+                                                        <span
+                                                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${fund.cls}`}>
                                 {fund.label}
                               </span>
                                                     </div>
@@ -390,7 +395,8 @@ export default function MfbPSuccessLeaderHubPage() {
 
                                 <div className="mt-3 text-[11px] text-gray-500 dark:text-gray-400">
                                     <span className="font-semibold">Window:</span> {effectiveWindowDays}d •{" "}
-                                    <span className="font-semibold">As-of (UTC):</span> {formatUtcMs(effectiveAsofDayMs)} •{" "}
+                                    <span
+                                        className="font-semibold">As-of (UTC):</span> {formatUtcMs(effectiveAsofDayMs)} •{" "}
                                     <span className="font-semibold">Leaders:</span> {leaders.length}
                                 </div>
                             </div>
