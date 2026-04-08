@@ -1,16 +1,16 @@
 // /app/mfb-p-success-leader/lens/LensClient.tsx
 "use client";
 
-import React, {useCallback, useEffect, useMemo, useState} from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {useSearchParams} from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 
-import {useHeaderConfig} from "@/contexts/HeaderConfigContext";
-import {Card, CardHeader, CardTitle, CardContent} from "@/components/ui/Card";
-import {API_BASE} from "@/lib/env";
+import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { API_BASE } from "@/lib/env";
 
 import type {
     DecimalLike,
@@ -18,7 +18,7 @@ import type {
     SuccessLeaderWindowDays,
     WsUpdateDataEnvelope,
 } from "@/types/mfb_p_success_leader";
-import {SUCCESS_LEADER_SNAPSHOT_KIND} from "@/types/mfb_p_success_leader";
+import { SUCCESS_LEADER_SNAPSHOT_KIND } from "@/types/mfb_p_success_leader";
 
 const WINDOWS: SuccessLeaderWindowDays[] = [7, 30, 60];
 
@@ -90,7 +90,7 @@ function formatPctForCards(pctGrowth: DecimalLike | null | undefined): string {
     if (n == null) return "—";
     const displayPct = Math.abs(n) > 1 ? n : n * 100;
     return (
-        displayPct.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) +
+        displayPct.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
         "%"
     );
 }
@@ -176,11 +176,11 @@ function isStrictV2Snapshot(x: any): x is SuccessLeaderAccountSnapshotV2 {
 }
 
 export default function LensClient() {
-    const {setConfig} = useHeaderConfig();
+    const { setConfig } = useHeaderConfig();
     const sp = useSearchParams();
 
     useEffect(() => {
-        setConfig({showTicker: true, showPeriod: false});
+        setConfig({ showTicker: true, showPeriod: false });
     }, [setConfig]);
 
     const accountId = sp.get("account_id") ?? "";
@@ -310,6 +310,20 @@ export default function LensClient() {
         fetchTokenArray();
     }, [accountId, fetchTokenArray]);
 
+    const visibleTokenArray = useMemo(() => {
+        return [...tokenArray]
+            .filter((row) => {
+                const positionValue = parseDecimalLike(row.position_value);
+                if (positionValue == null) return false;
+                return Math.abs(positionValue) >= 100;
+            })
+            .sort((a, b) => {
+                const aAbs = Math.abs(parseDecimalLike(a.position_value) ?? 0);
+                const bAbs = Math.abs(parseDecimalLike(b.position_value) ?? 0);
+                return bAbs - aAbs;
+            });
+    }, [tokenArray]);
+
     if (!accountId?.startsWith("0x")) {
         return (
             <div className="p-4 text-sm text-red-600 dark:text-red-400">
@@ -341,11 +355,11 @@ export default function LensClient() {
         });
 
         return {
-            chart: {height: 260, zoomType: "x"},
-            title: {text: undefined},
-            xAxis: {type: "datetime", title: {text: "Day (UTC)"}},
+            chart: { height: 260, zoomType: "x" },
+            title: { text: undefined },
+            xAxis: { type: "datetime", title: { text: "Day (UTC)" } },
             yAxis: {
-                title: {text: "ROI (%)"},
+                title: { text: "ROI (%)" },
                 labels: {
                     formatter: function (this: any) {
                         const v = typeof this.value === "number" ? this.value : Number(this.value);
@@ -354,10 +368,10 @@ export default function LensClient() {
                     },
                 },
             },
-            legend: {enabled: false},
+            legend: { enabled: false },
             plotOptions: {
                 series: {
-                    marker: {enabled: false},
+                    marker: { enabled: false },
                     lineWidth: 2,
                 },
             },
@@ -510,12 +524,10 @@ export default function LensClient() {
                                     const fund = fundingBadge(snap.cashflow_cumulative);
                                     return (
                                         <div className="flex flex-wrap gap-2">
-                                            <span
-                                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${conf.cls}`}>
+                                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${conf.cls}`}>
                                                 {conf.label}
                                             </span>
-                                            <span
-                                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${fund.cls}`}>
+                                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${fund.cls}`}>
                                                 {fund.label}
                                             </span>
                                         </div>
@@ -539,46 +551,56 @@ export default function LensClient() {
                                     <p className="text-sm text-red-600 dark:text-red-400">
                                         {tokenArrayError}
                                     </p>
-                                ) : tokenArray.length === 0 ? (
+                                ) : visibleTokenArray.length === 0 ? (
                                     <p className="text-sm text-gray-500 dark:text-gray-400">
                                         No active token positions
                                     </p>
                                 ) : (
-                                    <div className="overflow-x-auto">
-                                        <table className="min-w-full text-xs md:text-sm">
-                                            <thead>
-                                            <tr className="border-b border-gray-200 dark:border-gray-800">
-                                                <th className="py-2 pr-4 text-left font-semibold">Token</th>
-                                                <th className="py-2 px-2 text-left font-semibold">Side</th>
-                                                <th className="py-2 pl-2 text-left font-semibold">Size</th>
-                                            </tr>
-                                            </thead>
-                                            <tbody>
-                                            {tokenArray.map((row, idx) => {
-                                                const sideLower = row.side.toLowerCase();
-                                                const sideClass =
-                                                    sideLower === "long"
-                                                        ? "text-green-600 dark:text-green-400"
-                                                        : sideLower === "short"
-                                                            ? "text-red-600 dark:text-red-400"
-                                                            : "text-gray-800 dark:text-gray-200";
+                                    <>
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full text-xs md:text-sm">
+                                                <thead>
+                                                <tr className="border-b border-gray-200 dark:border-gray-800">
+                                                    <th className="py-2 pr-4 text-left font-semibold">Token</th>
+                                                    <th className="py-2 px-2 text-left font-semibold">Side</th>
+                                                    <th className="py-2 px-2 text-left font-semibold">Size</th>
+                                                    <th className="py-2 pl-2 text-left font-semibold">$Vol</th>
+                                                </tr>
+                                                </thead>
+                                                <tbody>
+                                                {visibleTokenArray.map((row, idx) => {
+                                                    const sideLower = row.side.toLowerCase();
+                                                    const sideClass =
+                                                        sideLower === "long"
+                                                            ? "text-green-600 dark:text-green-400"
+                                                            : sideLower === "short"
+                                                                ? "text-red-600 dark:text-red-400"
+                                                                : "text-gray-800 dark:text-gray-200";
 
-                                                return (
-                                                    <tr
-                                                        key={`${row.token}-${row.side}-${idx}`}
-                                                        className="border-b border-gray-100 dark:border-gray-800"
-                                                    >
-                                                        <td className="py-2 pr-4">{row.token}</td>
-                                                        <td className={`py-2 px-2 font-semibold ${sideClass}`}>
-                                                            {row.side}
-                                                        </td>
-                                                        <td className="py-2 pl-2">{row.szi}</td>
-                                                    </tr>
-                                                );
-                                            })}
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                                    return (
+                                                        <tr
+                                                            key={`${row.token}-${row.side}-${idx}`}
+                                                            className="border-b border-gray-100 dark:border-gray-800"
+                                                        >
+                                                            <td className="py-2 pr-4">{row.token}</td>
+                                                            <td className={`py-2 px-2 font-semibold ${sideClass}`}>
+                                                                {row.side}
+                                                            </td>
+                                                            <td className="py-2 px-2">{row.szi}</td>
+                                                            <td className="py-2 pl-2">
+                                                                {formatNumber(row.position_value)}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                                            Small positions under $100 hidden
+                                        </div>
+                                    </>
                                 )}
                             </CardContent>
                         </Card>
@@ -594,7 +616,7 @@ export default function LensClient() {
                                     <p className="text-sm text-gray-500 dark:text-gray-400">No ROI data available.</p>
                                 ) : roiChartOptions ? (
                                     <>
-                                        <HighchartsReact highcharts={Highcharts} options={roiChartOptions}/>
+                                        <HighchartsReact highcharts={Highcharts} options={roiChartOptions} />
                                         <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
                                             Daily cumulative ROI (%) • UTC day boundaries
                                         </div>
@@ -614,17 +636,14 @@ export default function LensClient() {
                             <CardContent>
                                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 text-sm">
                                     <div>
-                                        <div
-                                            className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Identity
-                                        </div>
+                                        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Identity</div>
                                         <div className="mt-1">
                                             <span className="font-semibold">Account:</span>{" "}
                                             <span className="font-mono text-[11px]">{snap.account_id}</span>
                                         </div>
                                         <div>
                                             <span className="font-semibold">As-of (UTC):</span>{" "}
-                                            <span
-                                                className="font-mono text-[11px]">{formatUtcMs(snap.asof_day_ms)}</span>
+                                            <span className="font-mono text-[11px]">{formatUtcMs(snap.asof_day_ms)}</span>
                                         </div>
                                         <div>
                                             <span className="font-semibold">Window:</span> {snap.window_days}d
@@ -633,27 +652,20 @@ export default function LensClient() {
                                     </div>
 
                                     <div>
-                                        <div
-                                            className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Equity
-                                        </div>
+                                        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Equity</div>
                                         <div className="mt-1">equity_start: {formatNumber(snap.equity_start)}</div>
                                         <div>equity_end: {formatNumber(snap.equity_end)}</div>
                                     </div>
 
                                     <div>
-                                        <div
-                                            className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Value
-                                            / Cashflow
-                                        </div>
+                                        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Value / Cashflow</div>
                                         <div className="mt-1">value_start: {formatNumber(snap.value_start)}</div>
                                         <div>value_end: {formatNumber(snap.value_end)}</div>
                                         <div>cashflow_cumulative: {formatNumber(snap.cashflow_cumulative)}</div>
                                     </div>
 
                                     <div>
-                                        <div
-                                            className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Return
-                                        </div>
+                                        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Return</div>
                                         <div className={`mt-1 font-semibold ${growthClass(snap.pct_growth)}`}>
                                             pct_growth: {formatPctForCards(snap.pct_growth)}
                                         </div>
@@ -661,12 +673,9 @@ export default function LensClient() {
                                     </div>
 
                                     <div className="md:col-span-2 xl:col-span-2">
-                                        <div
-                                            className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Meta
-                                        </div>
+                                        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Meta</div>
                                         <div className="mt-1">
-                                            run_id: <span
-                                            className="font-mono text-[11px]">{snap.meta?.run_id ?? "—"}</span>
+                                            run_id: <span className="font-mono text-[11px]">{snap.meta?.run_id ?? "—"}</span>
                                         </div>
                                     </div>
                                 </div>
