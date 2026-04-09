@@ -150,13 +150,18 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         eventLimit: 20,
     });
 
+    //@ts-ignore
+    const aoi = detail.aoi;
+
     const fetchTokenArray = useCallback(async () => {
+        if (!aoi?.account_id) return;
+
         try {
             setTokenArrayLoading(true);
             setTokenArrayError(null);
             setTokenArray([]);
 
-            const url = `${API_BASE}/api/mfb-p/token-array/?aoi_id=${encodeURIComponent(String(aoiId))}`;
+            const url = `${API_BASE}/api/mfb-p/token-array/?account_id=${encodeURIComponent(String(aoi.account_id))}`;
             const res = await fetch(url);
 
             if (!res.ok) {
@@ -177,7 +182,7 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         } finally {
             setTokenArrayLoading(false);
         }
-    }, [aoiId]);
+    }, [aoi.account_id]);
 
     useEffect(() => {
         setPortfolioView("portfolio");
@@ -233,7 +238,6 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         );
     }
 
-    const aoi = detail.aoi;
     const meta = detail.meta ?? {};
     const window = meta.window ?? null;
 
