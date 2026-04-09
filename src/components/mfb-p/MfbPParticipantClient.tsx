@@ -1,7 +1,7 @@
-// components/mfb-p/MfbPParticipantClient.tsx
+// /components/mfb-p/MfbPParticipantClient.tsx
 "use client";
 
-import React, { useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 
@@ -10,10 +10,47 @@ import { useTickerPeriod } from "@/contexts/TickerPeriodContext";
 import LoadingIndicator from "@/components/LoadingIndicator";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { useMfbParticipant } from "@/hooks/useMfbParticipant";
+import { API_BASE } from "@/lib/env";
 import type { MfbPStateRow, MfbPFlowRow } from "@/types/mfb_p";
 
 interface MfbPParticipantClientProps {
     aoiId: number;
+}
+
+type PortfolioPanelView = "portfolio" | "tokenArray";
+
+type AoiTokenArrayRow = {
+    token: string;
+    side: string;
+    szi: string;
+    position_value?: string;
+    entry_px?: string;
+    unrealized_pnl?: string;
+    leverage_value?: string;
+    leverage_type?: string;
+    funding_all_time?: string;
+    funding_since_open?: string;
+    funding_since_change?: string;
+};
+
+type AoiTokenArrayResponse = {
+    token_array: AoiTokenArrayRow[];
+};
+
+function isAoiTokenArrayResponse(x: any): x is AoiTokenArrayResponse {
+    return (
+        !!x &&
+        typeof x === "object" &&
+        Array.isArray(x.token_array) &&
+        x.token_array.every(
+            (row: any) =>
+                row &&
+                typeof row === "object" &&
+                typeof row.token === "string" &&
+                typeof row.side === "string" &&
+                typeof row.szi === "string"
+        )
+    );
 }
 
 function formatMs(ms: number | undefined): string {
@@ -56,7 +93,6 @@ function coerceCanonPeriod(raw: any): CanonPeriod {
 }
 
 function lookbackMinutesForPeriod(period: CanonPeriod): number {
-    // ✅ FINAL fixed mapping (v1.1 canonical)
     switch (period) {
         case "15min":
             return 15;
@@ -85,14 +121,18 @@ function parseNumOrNull(val: any): number | null {
 }
 
 function readPositionSize(row: any): number | null {
-    // supports both snake_case and camelCase in case WS normalization differs
     return parseNumOrNull(row?.position_size ?? row?.positionSize);
 }
-
 
 export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientProps) {
     const { setConfig } = useHeaderConfig();
     const { ticker, period: rawPeriod } = useTickerPeriod() as any;
+
+    const [portfolioView, setPortfolioView] = useState<PortfolioPanelView>("portfolio");
+    const [tokenArray, setTokenArray] = useState<AoiTokenArrayRow[]>([]);
+    const [tokenArrayLoading, setTokenArrayLoading] = useState(false);
+    const [tokenArrayError, setTokenArrayError] = useState<string | null>(null);
+    const [hasFetchedTokenArray, setHasFetchedTokenArray] = useState(false);
 
     useEffect(() => {
         setConfig({ showTicker: true, showPeriod: true });
@@ -109,6 +149,63 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         lookbackMinutes,
         eventLimit: 20,
     });
+
+    const fetchTokenArray = useCallback(async () => {
+        try {
+            setTokenArrayLoading(true);
+            setTokenArrayError(null);
+            setTokenArray([]);
+
+            const url = `${API_BASE}/api/mfb-p/token-array/?aoi_id=${encodeURIComponent(String(aoiId))}`;
+            const res = await fetch(url);
+
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status} fetching AOI token array`);
+            }
+
+            const raw = await res.json();
+
+            if (!isAoiTokenArrayResponse(raw)) {
+                throw new Error("AOI token array response did not match expected contract");
+            }
+
+            setTokenArray(raw.token_array);
+            setHasFetchedTokenArray(true);
+        } catch (e: any) {
+            setTokenArrayError(e?.message ?? "Failed to load token array");
+            setHasFetchedTokenArray(true);
+        } finally {
+            setTokenArrayLoading(false);
+        }
+    }, [aoiId]);
+
+    useEffect(() => {
+        setPortfolioView("portfolio");
+        setTokenArray([]);
+        setTokenArrayError(null);
+        setTokenArrayLoading(false);
+        setHasFetchedTokenArray(false);
+    }, [aoiId]);
+
+    useEffect(() => {
+        if (portfolioView !== "tokenArray") return;
+        if (hasFetchedTokenArray) return;
+        fetchTokenArray();
+    }, [portfolioView, hasFetchedTokenArray, fetchTokenArray]);
+
+    const visibleTokenArray = useMemo(() => {
+        return [...tokenArray]
+            .filter((row) => {
+                const positionValue = parseNumOrNull(row.position_value);
+                if (positionValue == null) return false;
+                return Math.abs(positionValue) >= 100;
+            })
+            .sort((a, b) => {
+                const aAbs = Math.abs(parseNumOrNull(a.position_value) ?? 0);
+                const bAbs = Math.abs(parseNumOrNull(b.position_value) ?? 0);
+                return bAbs - aAbs;
+            });
+    }, [tokenArray]);
 
     if (loading && !detail) {
         return <LoadingIndicator message="Loading participant data..." />;
@@ -149,11 +246,9 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
     const latestState = stateRows.length ? stateRows[stateRows.length - 1] : null;
     const latestFlow = flowRows.length ? flowRows[flowRows.length - 1] : null;
 
-    // --- Charts (merged: HTTP seed + WS append) ---
     const equitySeries = stateRows.map((r) => [r.ts_minute_ms, parseNum(r.equity_usd, 0)]);
     const leverageSeries = stateRows.map((r) => [r.ts_minute_ms, parseNum(r.gross_leverage, 0)]);
     const marginUtilSeries = stateRows.map((r) => [r.ts_minute_ms, parseNum(r.margin_utilization, 0) * 100]);
-    // const positionSizeSeries = stateRows.map((r) => [r.ts_minute_ms, parseNum(r.position_size, 0)]);
     const positionSizeSeries = stateRows.map((r) => [r.ts_minute_ms, readPositionSize(r)]);
 
     const tradeCountSeries = flowRows.map((r) => [r.ts_minute_ms, parseNum(r.trade_count_total, 0)]);
@@ -167,10 +262,10 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 260, zoomType: "x" },
             title: { text: undefined },
-            xAxis: { type: "datetime", labels: {format: '{value:%H:%M}'}, title: { text: "Time (UTC)" } },
+            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
             yAxis: { title: { text: "Equity (USD)" } },
             legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: '%Y-%m-%d %H:%M:%S UTC', valueDecimals: 2 },
+            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
             series: [{ type: "line", name: "Equity", data: equitySeries }],
         }
         : null;
@@ -179,10 +274,10 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
-            xAxis: { type: "datetime", labels: {format: '{value:%H:%M}'}, title: { text: "Time (UTC)" } },
+            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
             yAxis: { title: { text: "Gross Leverage" } },
             legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: '%Y-%m-%d %H:%M:%S UTC', valueDecimals: 2 },
+            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
             series: [{ type: "line", name: "Gross Leverage", data: leverageSeries }],
         }
         : null;
@@ -191,10 +286,10 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
-            xAxis: { type: "datetime", labels: {format: '{value:%H:%M}'}, title: { text: "Time (UTC)" } },
+            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
             yAxis: { title: { text: "Margin Utilization (%)" } },
             legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: '%Y-%m-%d %H:%M:%S UTC', valueDecimals: 2 },
+            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
             series: [{ type: "line", name: "Margin Utilization", data: marginUtilSeries }],
         }
         : null;
@@ -203,15 +298,14 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
-            xAxis: { type: "datetime", labels: {format: '{value:%H:%M}'}, title: { text: "Time (UTC)" } },
+            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
             yAxis: {
                 title: { text: "Position Size" },
                 plotLines: [{ value: 0, width: 1, color: "rgba(128,128,128,0.35)" }],
             },
             legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: '%Y-%m-%d %H:%M:%S UTC', valueDecimals: 2 },
+            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
             series: [{ type: "line", name: "Position Size", data: positionSizeSeries, connectNulls: false }],
-
         }
         : null;
 
@@ -219,10 +313,10 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
-            xAxis: { type: "datetime", labels: {format: '{value:%H:%M}'}, title: { text: "Time (UTC)" } },
+            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
             yAxis: { title: { text: "Trades / minute" } },
             legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: '%Y-%m-%d %H:%M:%S UTC', valueDecimals: 0 },
+            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 0 },
             series: [{ type: "column", name: "Trade Count", data: tradeCountSeries }],
         }
         : null;
@@ -234,7 +328,7 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
             xAxis: { type: "datetime", title: { text: "Time (UTC)" } },
             yAxis: { title: { text: "Net Signed Volume" } },
             legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: '%Y-%m-%d %H:%M:%S UTC', valueDecimals: 2 },
+            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
             series: [{ type: "column", name: "Net Signed Volume", data: signedVolSeries }],
         }
         : null;
@@ -310,43 +404,123 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
 
                 <Card className="md:col-span-1 xl:col-span-2">
                     <CardHeader>
-                        <CardTitle>
-                            Portfolio Snapshot{" "}
-                            {latestState?.ts_minute_ms ? (
-                                <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
-                  last point {formatMs(latestState.ts_minute_ms)}
-                </span>
-                            ) : null}
-                        </CardTitle>
+                        <div className="flex items-center justify-between gap-3">
+                            <CardTitle>
+                                Portfolio Snapshot{" "}
+                                {latestState?.ts_minute_ms ? (
+                                    <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+                                        last point {formatMs(latestState.ts_minute_ms)}
+                                    </span>
+                                ) : null}
+                            </CardTitle>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setPortfolioView("portfolio")}
+                                    className={`text-[11px] px-2 py-1 rounded-full ${
+                                        portfolioView === "portfolio"
+                                            ? "bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted"
+                                            : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
+                                    }`}
+                                >
+                                    Portfolio Snapshot
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setPortfolioView("tokenArray")}
+                                    className={`text-[11px] px-2 py-1 rounded-full ${
+                                        portfolioView === "tokenArray"
+                                            ? "bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted"
+                                            : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
+                                    }`}
+                                >
+                                    Token Array
+                                </button>
+                            </div>
+                        </div>
                     </CardHeader>
                     <CardContent>
-                        {latestState ? (
-                            <div className="grid gap-3 md:grid-cols-3 text-sm">
-                                <div className="space-y-1">
-                                    <div className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400">Balance</div>
-                                    <div>Equity: {formatNumber(latestState.equity_usd)}</div>
-                                    <div className={upnlClass}>Unrealized PnL: {formatNumber(latestState.unrealized_pnl)}</div>
-                                    <div>Withdrawable: {formatNumber(latestState.withdrawable_usd)}</div>
-                                </div>
+                        {portfolioView === "portfolio" ? (
+                            latestState ? (
+                                <div className="grid gap-3 md:grid-cols-3 text-sm">
+                                    <div className="space-y-1">
+                                        <div className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400">Balance</div>
+                                        <div>Equity: {formatNumber(latestState.equity_usd)}</div>
+                                        <div className={upnlClass}>Unrealized PnL: {formatNumber(latestState.unrealized_pnl)}</div>
+                                        <div>Withdrawable: {formatNumber(latestState.withdrawable_usd)}</div>
+                                    </div>
 
-                                <div className="space-y-1">
-                                    <div className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400">Margin</div>
-                                    <div>Gross Notional: {formatNumber(latestState.gross_notional_usd)}</div>
-                                    <div>Margin Used: {formatNumber(latestState.margin_used_usd)}</div>
-                                    <div>Maint. Margin: {formatNumber(latestState.maintenance_margin_usd)}</div>
-                                </div>
+                                    <div className="space-y-1">
+                                        <div className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400">Margin</div>
+                                        <div>Gross Notional: {formatNumber(latestState.gross_notional_usd)}</div>
+                                        <div>Margin Used: {formatNumber(latestState.margin_used_usd)}</div>
+                                        <div>Maint. Margin: {formatNumber(latestState.maintenance_margin_usd)}</div>
+                                    </div>
 
-                                <div className="space-y-1">
-                                    <div className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400">Risk</div>
-                                    <div>Gross Leverage: {formatNumber(latestState.gross_leverage)}</div>
-                                    <div>Margin Utilization: {formatPercent(latestState.margin_utilization)}</div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                                        is_gap_filled: {String(Boolean(latestState.is_gap_filled))}
+                                    <div className="space-y-1">
+                                        <div className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400">Risk</div>
+                                        <div>Gross Leverage: {formatNumber(latestState.gross_leverage)}</div>
+                                        <div>Margin Utilization: {formatPercent(latestState.margin_utilization)}</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                            is_gap_filled: {String(Boolean(latestState.is_gap_filled))}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <p className="text-sm text-gray-500 dark:text-gray-400">No state data in window.</p>
+                            )
+                        ) : tokenArrayLoading ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Loading token array…</p>
+                        ) : tokenArrayError ? (
+                            <p className="text-sm text-red-600 dark:text-red-400">{tokenArrayError}</p>
+                        ) : visibleTokenArray.length === 0 ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">No active token positions</p>
                         ) : (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">No state data in window.</p>
+                            <>
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full text-xs md:text-sm">
+                                        <thead>
+                                        <tr className="border-b border-gray-200 dark:border-gray-800">
+                                            <th className="py-2 pr-4 text-left font-semibold">Token</th>
+                                            <th className="py-2 px-2 text-left font-semibold">Side</th>
+                                            <th className="py-2 px-2 text-left font-semibold">Size</th>
+                                            <th className="py-2 pl-2 text-left font-semibold">$Vol</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        {visibleTokenArray.map((row, idx) => {
+                                            const sideLower = row.side.toLowerCase();
+                                            const sideClass =
+                                                sideLower === "long"
+                                                    ? "text-green-600 dark:text-green-400"
+                                                    : sideLower === "short"
+                                                        ? "text-red-600 dark:text-red-400"
+                                                        : "text-gray-800 dark:text-gray-200";
+
+                                            return (
+                                                <tr
+                                                    key={`${row.token}-${row.side}-${idx}`}
+                                                    className="border-b border-gray-100 dark:border-gray-800"
+                                                >
+                                                    <td className="py-2 pr-4">{row.token}</td>
+                                                    <td className={`py-2 px-2 font-semibold ${sideClass}`}>
+                                                        {row.side}
+                                                    </td>
+                                                    <td className="py-2 px-2">{row.szi}</td>
+                                                    <td className="py-2 pl-2">{formatNumber(row.position_value)}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                                    Small positions under $100 hidden
+                                </div>
+                            </>
                         )}
                     </CardContent>
                 </Card>
@@ -397,8 +571,8 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
                             Flow — densified zeros are normal
                             {latestFlow?.ts_minute_ms ? (
                                 <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
-                  last point {formatMs(latestFlow.ts_minute_ms)}
-                </span>
+                                    last point {formatMs(latestFlow.ts_minute_ms)}
+                                </span>
                             ) : null}
                         </CardTitle>
                     </CardHeader>
