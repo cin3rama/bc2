@@ -71,14 +71,22 @@ function formatNumber(val: number | string | null | undefined): string {
     if (val == null) return "-";
     const num = typeof val === "string" ? Number(val) : val;
     if (!Number.isFinite(num)) return "-";
-    return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return num.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
 }
 
 function formatPercent(val: number | string | null | undefined): string {
     if (val == null) return "-";
     const num = typeof val === "string" ? Number(val) : val;
     if (!Number.isFinite(num)) return "-";
-    return (num * 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%";
+    return (
+        (num * 100).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }) + "%"
+    );
 }
 
 const CANON_PERIODS = ["15min", "1h", "4h", "1d", "1w"] as const;
@@ -150,18 +158,19 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         eventLimit: 20,
     });
 
-    //@ts-ignore
-    const aoi = detail.aoi;
+    const aoiAccountId = detail?.aoi?.account_id ?? null;
 
     const fetchTokenArray = useCallback(async () => {
-        if (!aoi?.account_id) return;
+        if (!aoiAccountId) return;
 
         try {
             setTokenArrayLoading(true);
             setTokenArrayError(null);
             setTokenArray([]);
 
-            const url = `${API_BASE}/api/mfb-p/token-array/?account_id=${encodeURIComponent(String(aoi.account_id))}`;
+            const url = `${API_BASE}/api/mfb-p/token-array/?account_id=${encodeURIComponent(
+                String(aoiAccountId)
+            )}`;
             const res = await fetch(url);
 
             if (!res.ok) {
@@ -182,7 +191,7 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         } finally {
             setTokenArrayLoading(false);
         }
-    }, [aoi.account_id]);
+    }, [aoiAccountId]);
 
     useEffect(() => {
         setPortfolioView("portfolio");
@@ -220,8 +229,12 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         return (
             <div className="p-4">
                 <Card>
-                    <CardHeader><CardTitle>Unable to load AOI</CardTitle></CardHeader>
-                    <CardContent><p className="text-sm text-red-600 dark:text-red-400">{error}</p></CardContent>
+                    <CardHeader>
+                        <CardTitle>Unable to load AOI</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                    </CardContent>
                 </Card>
             </div>
         );
@@ -231,13 +244,20 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         return (
             <div className="p-4">
                 <Card>
-                    <CardHeader><CardTitle>No AOI data found</CardTitle></CardHeader>
-                    <CardContent><p className="text-sm">No participant data is available for AOI ID {aoiId} and ticker {ticker}.</p></CardContent>
+                    <CardHeader>
+                        <CardTitle>No AOI data found</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm">
+                            No participant data is available for AOI ID {aoiId} and ticker {ticker}.
+                        </p>
+                    </CardContent>
                 </Card>
             </div>
         );
     }
 
+    const aoi = detail.aoi;
     const meta = detail.meta ?? {};
     const window = meta.window ?? null;
 
@@ -398,7 +418,9 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
                             <div><span className="font-semibold">Type: </span><span>{aoi.aoi_type ?? "—"}</span></div>
                             <div><span className="font-semibold">Type: </span><span>{aoi.account_id ?? "—"}</span></div>
                             <div><span className="font-semibold">Entry reason: </span><span>{aoi.entry_reason ?? "—"}</span></div>
-                            {aoi.notes ? (<div><span className="font-semibold">Notes: </span><span>{aoi.notes}</span></div>) : null}
+                            {aoi.notes ? (
+                                <div><span className="font-semibold">Notes: </span><span>{aoi.notes}</span></div>
+                            ) : null}
                             {aoi.first_seen_ts_ms ? (
                                 <div><span className="font-semibold">First seen: </span><span className="text-xs">{formatMs(aoi.first_seen_ts_ms)}</span></div>
                             ) : null}
