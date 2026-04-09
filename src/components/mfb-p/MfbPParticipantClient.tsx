@@ -168,7 +168,7 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
             setTokenArrayError(null);
             setTokenArray([]);
 
-            const url = `${API_BASE}/api/mfb-p/token-array/?account_id=${encodeURIComponent(
+            const url = `${API_BASE}/api/mfb-p-success-leader/token-array/?account_id=${encodeURIComponent(
                 String(aoiAccountId)
             )}`;
             const res = await fetch(url);
