@@ -25,14 +25,20 @@ type CategoryView = 'participants' | 'totals';
 
 type PositionDisplayValue = string | number | null | undefined;
 
+type PositionTotalObject = {
+    value: PositionDisplayValue;
+    position_change_dir?: ChangeDirection | null;
+};
+
 type ParticipantWithPosition = ActionMonitorParticipant & {
     aoi_id?: number | null;
     position_size?: string | number | null;
+    position_change_dir?: ChangeDirection | null;
 };
 
 type CategoryTotalsWithPosition = Record<string, unknown> & {
-    by_aoi_type_position?: Record<string, string | number | null | undefined>;
-    net_position_total?: string | number | null;
+    by_aoi_type_position?: Record<string, PositionTotalObject | null | undefined>;
+    net_position_total?: PositionTotalObject | null;
 };
 
 const AOI_POSITION_TYPE_ORDER = [
@@ -204,7 +210,7 @@ function getSignedValueClass(value: PositionDisplayValue): string {
     return 'text-text dark:text-text-inverted';
 }
 
-function DirectionArrow({ dir }: { dir?: ChangeDirection }) {
+function DirectionArrow({ dir }: { dir?: ChangeDirection | null }) {
     if (dir === 'up') {
         return <span className="text-green-500 mr-1">▲</span>;
     }
@@ -698,13 +704,18 @@ function ParticipantTable({
 
                                 <td className="p-2 text-right">
                                     {isMissingValue(positionValue) ? null : (
-                                        <span
-                                            className={`tabular-nums ${getSignedValueClass(
-                                                positionValue,
-                                            )}`}
-                                        >
+                                        <div className="inline-flex w-full items-center justify-end">
+                                            <DirectionArrow
+                                                dir={participant.position_change_dir ?? undefined}
+                                            />
+                                            <span
+                                                className={`tabular-nums ${getSignedValueClass(
+                                                    positionValue,
+                                                )}`}
+                                            >
                                                 {formatMetricValue(positionValue as MetricRenderable)}
                                             </span>
+                                        </div>
                                     )}
                                 </td>
                             </tr>
@@ -750,6 +761,7 @@ function CategoryTotalsCard({
     );
 
     const residualEntries = blockEntries(residualTotals);
+    const netPositionTotal = totalsRecord.net_position_total;
 
     return (
         <div className="rounded shadow bg-white dark:bg-gray-800 p-3 text-text dark:text-text-inverted">
@@ -762,42 +774,56 @@ function CategoryTotalsCard({
                     </div>
 
                     {orderedPositionKeys.length === 0 &&
-                    isMissingValue(totalsRecord.net_position_total) ? (
+                    isMissingValue(netPositionTotal?.value) ? (
                         <div className="text-xs opacity-70">No data</div>
                     ) : (
                         <div className="space-y-2">
-                            {orderedPositionKeys.map((key) => (
-                                <div
-                                    key={key}
-                                    className="flex items-center justify-between gap-3"
-                                >
-                                    <span className="text-xs opacity-80">{key}</span>
-                                    <span
-                                        className={`text-sm font-semibold tabular-nums text-right ${getSignedValueClass(
-                                            byAoiTypePosition[key],
-                                        )}`}
-                                    >
-                                        {formatMetricValue(
-                                            byAoiTypePosition[key] as MetricRenderable,
-                                        )}
-                                    </span>
-                                </div>
-                            ))}
+                            {orderedPositionKeys.map((key) => {
+                                const entry = byAoiTypePosition[key];
+                                const entryValue = entry?.value;
+                                const entryDir = entry?.position_change_dir ?? undefined;
 
-                            {!isMissingValue(totalsRecord.net_position_total) && (
+                                return (
+                                    <div
+                                        key={key}
+                                        className="flex items-center justify-between gap-3"
+                                    >
+                                        <span className="text-xs opacity-80">{key}</span>
+                                        <div className="inline-flex items-center justify-end">
+                                            <DirectionArrow dir={entryDir} />
+                                            <span
+                                                className={`text-sm font-semibold tabular-nums text-right ${getSignedValueClass(
+                                                    entryValue,
+                                                )}`}
+                                            >
+                                                {formatMetricValue(
+                                                    entryValue as MetricRenderable,
+                                                )}
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+
+                            {!isMissingValue(netPositionTotal?.value) && (
                                 <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
                                     <span className="text-xs font-semibold">
                                         Overall Net Raw Position
                                     </span>
-                                    <span
-                                        className={`text-sm font-bold tabular-nums text-right ${getSignedValueClass(
-                                            totalsRecord.net_position_total,
-                                        )}`}
-                                    >
-                                        {formatMetricValue(
-                                            totalsRecord.net_position_total as MetricRenderable,
-                                        )}
-                                    </span>
+                                    <div className="inline-flex items-center justify-end">
+                                        <DirectionArrow
+                                            dir={netPositionTotal?.position_change_dir ?? undefined}
+                                        />
+                                        <span
+                                            className={`text-sm font-bold tabular-nums text-right ${getSignedValueClass(
+                                                netPositionTotal?.value,
+                                            )}`}
+                                        >
+                                            {formatMetricValue(
+                                                netPositionTotal?.value as MetricRenderable,
+                                            )}
+                                        </span>
+                                    </div>
                                 </div>
                             )}
                         </div>

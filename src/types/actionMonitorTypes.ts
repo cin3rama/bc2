@@ -18,6 +18,11 @@ export interface ActionMonitorEnvelope {
     payload: ActionMonitorSnapshot;
 }
 
+export type ActionMonitorPositionTotal = {
+    value: string | null;
+    position_change_dir: ChangeDirection;
+};
+
 export interface ActionMonitorSnapshot {
     kind: 'mf_action_monitor_snapshot';
     version: 1;
@@ -60,6 +65,11 @@ export interface ActionMonitorCategory {
     totals: Record<string, unknown>;
     rom: Record<string, unknown>;
     participants: ActionMonitorParticipant[];
+    by_aoi_type_position?: Record<
+        string,
+        ActionMonitorPositionTotal | null | undefined
+    >;
+    net_position_total?: ActionMonitorPositionTotal | null;
 }
 
 export interface ActionMonitorParticipant {
@@ -72,6 +82,8 @@ export interface ActionMonitorParticipant {
     vol_change_dir?: ChangeDirection;
     trades_change_dir?: ChangeDirection;
     is_active_aoi?: boolean;
+    position_size?: string | null;
+    position_change_dir?: ChangeDirection;
     [key: string]: unknown;
 }
 
