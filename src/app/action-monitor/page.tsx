@@ -2,7 +2,6 @@
 
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
@@ -23,6 +22,26 @@ type MetricEntry = {
 };
 
 type CategoryView = 'participants' | 'totals';
+
+type PositionDisplayValue = string | number | null | undefined;
+
+type ParticipantWithPosition = ActionMonitorParticipant & {
+    aoi_id?: number | null;
+    position_size?: string | number | null;
+};
+
+type CategoryTotalsWithPosition = Record<string, unknown> & {
+    by_aoi_type_position?: Record<string, string | number | null | undefined>;
+    net_position_total?: string | number | null;
+};
+
+const AOI_POSITION_TYPE_ORDER = [
+    'mm_bot',
+    'position_trader',
+    'success_leader',
+    'active_basis_bot',
+    'other',
+] as const;
 
 function flattenMetricEntries(
     block: Record<string, unknown>,
@@ -146,6 +165,43 @@ function toNumeric(value: string | number | null | undefined): number {
     if (value === null || value === undefined) return 0;
     const numeric = typeof value === 'string' ? Number(value) : value;
     return Number.isFinite(numeric) ? roundToTwo(numeric) : 0;
+}
+
+function isMissingValue(value: PositionDisplayValue): boolean {
+    return (
+        value === null ||
+        value === undefined ||
+        (typeof value === 'string' && value.trim() === '')
+    );
+}
+
+function toNullableNumeric(value: PositionDisplayValue): number | null {
+    if (isMissingValue(value)) return null;
+
+    const numeric =
+        typeof value === 'string'
+            ? Number(value)
+            : value ?? null;
+
+    return numeric !== null && Number.isFinite(numeric) ? numeric : null;
+}
+
+function getSignedValueClass(value: PositionDisplayValue): string {
+    const numeric = toNullableNumeric(value);
+
+    if (numeric === null) {
+        return 'text-text dark:text-text-inverted';
+    }
+
+    if (numeric > 0) {
+        return 'text-green-600 dark:text-green-400';
+    }
+
+    if (numeric < 0) {
+        return 'text-red-600 dark:text-red-400';
+    }
+
+    return 'text-text dark:text-text-inverted';
 }
 
 function DirectionArrow({ dir }: { dir?: ChangeDirection }) {
@@ -560,22 +616,24 @@ function ParticipantTable({
                     <th className="text-left p-2">Volume</th>
                     <th className="text-left p-2">Trades</th>
                     <th className="text-left p-2">AOI Type</th>
+                    <th className="text-right p-2">Raw Pos</th>
                 </tr>
                 </thead>
                 <tbody>
                 {participants.length === 0 ? (
                     <tr>
-                        <td colSpan={5} className="p-2 opacity-70">
+                        <td colSpan={6} className="p-2 opacity-70">
                             No participants
                         </td>
                     </tr>
                 ) : (
                     participants.map((row) => {
+                        const participant = row as ParticipantWithPosition;
                         const aoiId =
-                            typeof (row as ActionMonitorParticipant & { aoi_id?: number | null }).aoi_id ===
-                            'number'
-                                ? (row as ActionMonitorParticipant & { aoi_id?: number | null }).aoi_id
-                                : null;
+                            typeof participant.aoi_id === 'number' ? participant.aoi_id : null;
+                        const positionValue = row.is_active_aoi
+                            ? participant.position_size
+                            : null;
 
                         return (
                             <tr
@@ -637,12 +695,133 @@ function ParticipantTable({
                                         equityUsd={row.equity_usd}
                                     />
                                 </td>
+
+                                <td className="p-2 text-right">
+                                    {isMissingValue(positionValue) ? null : (
+                                        <span
+                                            className={`tabular-nums ${getSignedValueClass(
+                                                positionValue,
+                                            )}`}
+                                        >
+                                                {formatMetricValue(positionValue as MetricRenderable)}
+                                            </span>
+                                    )}
+                                </td>
                             </tr>
                         );
                     })
                 )}
                 </tbody>
             </table>
+        </div>
+    );
+}
+
+function CategoryTotalsCard({
+                                totals,
+                            }: {
+    totals: Record<string, unknown> | null | undefined;
+}) {
+    const totalsRecord: CategoryTotalsWithPosition =
+        totals && typeof totals === 'object'
+            ? (totals as CategoryTotalsWithPosition)
+            : {};
+
+    const byAoiTypePosition =
+        totalsRecord.by_aoi_type_position &&
+        typeof totalsRecord.by_aoi_type_position === 'object' &&
+        !Array.isArray(totalsRecord.by_aoi_type_position)
+            ? totalsRecord.by_aoi_type_position
+            : {};
+
+    const orderedPositionKeys = [
+        ...AOI_POSITION_TYPE_ORDER.filter((key) =>
+            Object.prototype.hasOwnProperty.call(byAoiTypePosition, key),
+        ),
+        ...Object.keys(byAoiTypePosition).filter(
+            (key) => !AOI_POSITION_TYPE_ORDER.includes(key as (typeof AOI_POSITION_TYPE_ORDER)[number]),
+        ),
+    ];
+
+    const residualTotals = Object.fromEntries(
+        Object.entries(totalsRecord).filter(
+            ([key]) => key !== 'by_aoi_type_position' && key !== 'net_position_total',
+        ),
+    );
+
+    const residualEntries = blockEntries(residualTotals);
+
+    return (
+        <div className="rounded shadow bg-white dark:bg-gray-800 p-3 text-text dark:text-text-inverted">
+            <h2 className="text-sm font-semibold mb-3">Totals</h2>
+
+            <div className="space-y-3">
+                <div className="rounded border border-gray-200 dark:border-gray-700 p-3">
+                    <div className="text-[11px] opacity-70 mb-2">
+                        Net Raw Position By AOI Type
+                    </div>
+
+                    {orderedPositionKeys.length === 0 &&
+                    isMissingValue(totalsRecord.net_position_total) ? (
+                        <div className="text-xs opacity-70">No data</div>
+                    ) : (
+                        <div className="space-y-2">
+                            {orderedPositionKeys.map((key) => (
+                                <div
+                                    key={key}
+                                    className="flex items-center justify-between gap-3"
+                                >
+                                    <span className="text-xs opacity-80">{key}</span>
+                                    <span
+                                        className={`text-sm font-semibold tabular-nums text-right ${getSignedValueClass(
+                                            byAoiTypePosition[key],
+                                        )}`}
+                                    >
+                                        {formatMetricValue(
+                                            byAoiTypePosition[key] as MetricRenderable,
+                                        )}
+                                    </span>
+                                </div>
+                            ))}
+
+                            {!isMissingValue(totalsRecord.net_position_total) && (
+                                <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
+                                    <span className="text-xs font-semibold">
+                                        Overall Net Raw Position
+                                    </span>
+                                    <span
+                                        className={`text-sm font-bold tabular-nums text-right ${getSignedValueClass(
+                                            totalsRecord.net_position_total,
+                                        )}`}
+                                    >
+                                        {formatMetricValue(
+                                            totalsRecord.net_position_total as MetricRenderable,
+                                        )}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {residualEntries.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {residualEntries.map((entry) => (
+                            <div
+                                key={entry.key}
+                                className="rounded border border-gray-200 dark:border-gray-700 p-2"
+                            >
+                                <div className="text-[11px] opacity-70">
+                                    {labelize(entry.key)}
+                                </div>
+                                <div className="text-sm font-semibold break-words">
+                                    {formatMetricValue(entry.value)}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
@@ -706,9 +885,8 @@ function CategoryCard({
                 </div>
             ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                    <MetricGridCard
-                        title="Totals"
-                        block={category.totals as Record<string, unknown>}
+                    <CategoryTotalsCard
+                        totals={category.totals as Record<string, unknown>}
                     />
                     <MetricGridCard
                         title="ROM"
