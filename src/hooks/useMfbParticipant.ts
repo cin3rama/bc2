@@ -1,20 +1,19 @@
-// hooks/useMfbParticipant.ts
+// /hooks/useMfbParticipant.ts
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { filter } from "rxjs";
 import type {
     MfbPAoiDetail,
-    MfbPSnapshot,
     MfbPEventsBlock,
     MfbPEvent,
-    MfbPStateRow,
     MfbPFlowRow,
     MfbPWindow,
+    MfbPAoiHistoryPeriod,
 } from "@/types/mfb_p";
 
 import { useMfbPWebsocket } from "@/hooks/useMfbPWebsocket";
-import {API_BASE} from '@/lib/env';
+import { API_BASE } from "@/lib/env";
 
 export type MfbPMode = "aoi" | "ticker";
 
@@ -25,6 +24,7 @@ interface UseMfbParticipantOptions {
     period: string; // canonical period string
     lookbackMinutes: number;
     eventLimit?: number;
+    historyPeriod?: MfbPAoiHistoryPeriod;
 }
 
 interface UseMfbParticipantResult {
@@ -146,6 +146,7 @@ export function useMfbParticipant({
                                       period,
                                       lookbackMinutes,
                                       eventLimit = 20,
+                                      historyPeriod,
                                   }: UseMfbParticipantOptions): UseMfbParticipantResult {
     const [detail, setDetail] = useState<MfbPAoiDetail | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
@@ -154,7 +155,7 @@ export function useMfbParticipant({
     // Dedicated MFB_P AOI websocket (canonical)
     // hooks/useMfbParticipant.ts (inside the hook body)
 
-// ... inside useMfbParticipant(...)
+    // ... inside useMfbParticipant(...)
     const depsKey = `${mode}|${aoiId ?? ""}|${ticker}|${period}|${lookbackMinutes}`;
 
     const { snapshot$ } = useMfbPWebsocket(
@@ -194,8 +195,6 @@ export function useMfbParticipant({
         };
     }
 
-
-
     // HTTP Seed (canonical history)
     useEffect(() => {
         let cancelled = false;
@@ -218,12 +217,13 @@ export function useMfbParticipant({
                 if (mode === "aoi" && aoiId != null) {
                     params.append("aoi_id", String(aoiId));
                 }
-                // delete base below after testing
-                // const base =
-                //     process.env.NEXT_PUBLIC_WS_BASE?.replace(/\/$/, "") ??
-                //     ""; // empty => same-origin
+
+                if (historyPeriod) {
+                    params.append("history_period", historyPeriod);
+                }
+
                 const url = `${API_BASE}/api/mfb-p/aoi-detail/?${params.toString()}`;
-                console.log('BASE: ', process.env.NEXT_PUBLIC_WS_BASE, 'URL: ',  url);
+                console.log("BASE: ", process.env.NEXT_PUBLIC_WS_BASE, "URL: ", url);
 
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`HTTP ${res.status} when fetching AOI detail`);
@@ -233,12 +233,20 @@ export function useMfbParticipant({
 
                 const normalizedEvents = normalizeEventsBlock(raw.events);
 
-                const stateRows = Array.isArray(raw?.series?.state) ? sortByTsAsc(raw.series.state) : [];
-                const flowRows = Array.isArray(raw?.series?.flow) ? sortByTsAsc(raw.series.flow) : [];
+                const stateRows = Array.isArray(raw?.series?.state)
+                    ? sortByTsAsc(raw.series.state)
+                    : [];
+                const flowRows = Array.isArray(raw?.series?.flow)
+                    ? sortByTsAsc(raw.series.flow)
+                    : [];
+                const historyStateRows = Array.isArray(raw?.history_state)
+                    ? sortByTsAsc(raw.history_state)
+                    : [];
 
                 const normalized: MfbPAoiDetail = {
                     ...raw,
                     events: normalizedEvents,
+                    history_state: historyStateRows,
                     series: {
                         state: stateRows,
                         flow: flowRows,
@@ -262,7 +270,7 @@ export function useMfbParticipant({
         return () => {
             cancelled = true;
         };
-    }, [mode, aoiId, ticker, lookbackMinutes, eventLimit]);
+    }, [mode, aoiId, ticker, lookbackMinutes, eventLimit, historyPeriod]);
 
     // WS Live Append (single newest minute point; window-trim)
     useEffect(() => {
@@ -371,14 +379,12 @@ export function useMfbParticipant({
                         latestTs: payload?.state?.latest?.ts_minute_ms,
                         seriesLen: payload?.state?.series?.length,
                     });
-
                 },
                 error: (err) => console.error("[MFB_P][WS] error", err),
             });
 
         return () => sub.unsubscribe();
-    }, [snapshot$, mode, aoiId, ticker, period]); // ✅ no `detail` dependency
-
+    }, [snapshot$, mode, aoiId, ticker, period, lookbackMinutes]); // ✅ no `detail` dependency
 
     const effectiveLoading = useMemo(() => loading && !detail, [loading, detail]);
 

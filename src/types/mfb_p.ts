@@ -79,6 +79,8 @@ export interface MfbPFlowRow {
 
 export type MfbPEventSeverity = "info" | "warning" | "error" | string;
 
+export type MfbPAoiHistoryPeriod = "15min" | "1h" | "4h" | "1d";
+
 export interface MfbPEventPayload {
     [key: string]: any;
 }
@@ -133,6 +135,8 @@ export interface MfbPAoiDetail {
     events: MfbPEventsBlock;
 
     meta: MfbPAoiDetailMeta;
+
+    history_state?: MfbPStateRow[];
 }
 
 /* ---------- WS Snapshot (often block-shaped) ---------- */
