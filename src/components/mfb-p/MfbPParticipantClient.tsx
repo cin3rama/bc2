@@ -11,7 +11,11 @@ import LoadingIndicator from "@/components/LoadingIndicator";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { useMfbParticipant } from "@/hooks/useMfbParticipant";
 import { API_BASE } from "@/lib/env";
-import type { MfbPStateRow, MfbPFlowRow } from "@/types/mfb_p";
+import type {
+    MfbPStateRow,
+    MfbPFlowRow,
+    MfbPAoiHistoryPeriod,
+} from "@/types/mfb_p";
 
 interface MfbPParticipantClientProps {
     aoiId: number;
@@ -36,6 +40,13 @@ type AoiTokenArrayRow = {
 type AoiTokenArrayResponse = {
     token_array: AoiTokenArrayRow[];
 };
+
+const AOI_HISTORY_PERIODS: readonly MfbPAoiHistoryPeriod[] = [
+    "15min",
+    "1h",
+    "4h",
+    "1d",
+];
 
 function isAoiTokenArrayResponse(x: any): x is AoiTokenArrayResponse {
     return (
@@ -118,6 +129,20 @@ function lookbackMinutesForPeriod(period: CanonPeriod): number {
     }
 }
 
+function historyXAxisLabelFormat(period: MfbPAoiHistoryPeriod): string {
+    switch (period) {
+        case "15min":
+        case "1h":
+            return "{value:%H:%M}";
+        case "4h":
+            return "{value:%m-%d %H:%M}";
+        case "1d":
+            return "{value:%Y-%m-%d}";
+        default:
+            return "{value:%H:%M}";
+    }
+}
+
 function parseNum(val: any, fallback = 0): number {
     const n = typeof val === "string" ? Number(val) : Number(val);
     return Number.isFinite(n) ? n : fallback;
@@ -137,6 +162,8 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
     const { ticker, period: rawPeriod } = useTickerPeriod() as any;
 
     const [portfolioView, setPortfolioView] = useState<PortfolioPanelView>("portfolio");
+    const [historyPeriod, setHistoryPeriod] =
+        useState<MfbPAoiHistoryPeriod>("15min");
     const [tokenArray, setTokenArray] = useState<AoiTokenArrayRow[]>([]);
     const [tokenArrayLoading, setTokenArrayLoading] = useState(false);
     const [tokenArrayError, setTokenArrayError] = useState<string | null>(null);
@@ -148,6 +175,10 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
 
     const period = useMemo(() => coerceCanonPeriod(rawPeriod), [rawPeriod]);
     const lookbackMinutes = useMemo(() => lookbackMinutesForPeriod(period), [period]);
+    const historyXAxisFormat = useMemo(
+        () => historyXAxisLabelFormat(historyPeriod),
+        [historyPeriod]
+    );
 
     const { detail, loading, error } = useMfbParticipant({
         mode: "aoi",
@@ -156,6 +187,7 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         period,
         lookbackMinutes,
         eventLimit: 20,
+        historyPeriod,
     });
 
     const aoiAccountId = detail?.aoi?.account_id ?? null;
@@ -264,16 +296,35 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
     const healthState = meta?.series_health?.state ?? null;
     const healthFlow = meta?.series_health?.flow ?? null;
 
-    const stateRows: MfbPStateRow[] = Array.isArray(detail.series?.state) ? detail.series.state : [];
-    const flowRows: MfbPFlowRow[] = Array.isArray(detail.series?.flow) ? detail.series.flow : [];
+    const stateRows: MfbPStateRow[] = Array.isArray(detail.series?.state)
+        ? detail.series.state
+        : [];
+    const historyStateRows: MfbPStateRow[] = Array.isArray(detail.history_state)
+        ? detail.history_state
+        : [];
+    const flowRows: MfbPFlowRow[] = Array.isArray(detail.series?.flow)
+        ? detail.series.flow
+        : [];
 
     const latestState = stateRows.length ? stateRows[stateRows.length - 1] : null;
     const latestFlow = flowRows.length ? flowRows[flowRows.length - 1] : null;
 
-    const equitySeries = stateRows.map((r) => [r.ts_minute_ms, parseNum(r.equity_usd, 0)]);
-    const leverageSeries = stateRows.map((r) => [r.ts_minute_ms, parseNum(r.gross_leverage, 0)]);
-    const marginUtilSeries = stateRows.map((r) => [r.ts_minute_ms, parseNum(r.margin_utilization, 0) * 100]);
-    const positionSizeSeries = stateRows.map((r) => [r.ts_minute_ms, readPositionSize(r)]);
+    const equitySeries = historyStateRows.map((r) => [
+        r.ts_minute_ms,
+        parseNum(r.equity_usd, 0),
+    ]);
+    const leverageSeries = historyStateRows.map((r) => [
+        r.ts_minute_ms,
+        parseNum(r.gross_leverage, 0),
+    ]);
+    const marginUtilSeries = historyStateRows.map((r) => [
+        r.ts_minute_ms,
+        parseNum(r.margin_utilization, 0) * 100,
+    ]);
+    const positionSizeSeries = historyStateRows.map((r) => [
+        r.ts_minute_ms,
+        readPositionSize(r),
+    ]);
 
     const tradeCountSeries = flowRows.map((r) => [r.ts_minute_ms, parseNum(r.trade_count_total, 0)]);
     const signedVolSeries = flowRows.map((r) => [r.ts_minute_ms, parseNum(r.net_signed_volume, 0)]);
@@ -286,7 +337,11 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 260, zoomType: "x" },
             title: { text: undefined },
-            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
+            xAxis: {
+                type: "datetime",
+                labels: { format: historyXAxisFormat },
+                title: { text: "Time (UTC)" },
+            },
             yAxis: { title: { text: "Equity (USD)" } },
             legend: { enabled: false },
             tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
@@ -298,7 +353,11 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
-            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
+            xAxis: {
+                type: "datetime",
+                labels: { format: historyXAxisFormat },
+                title: { text: "Time (UTC)" },
+            },
             yAxis: { title: { text: "Gross Leverage" } },
             legend: { enabled: false },
             tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
@@ -310,7 +369,11 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
-            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
+            xAxis: {
+                type: "datetime",
+                labels: { format: historyXAxisFormat },
+                title: { text: "Time (UTC)" },
+            },
             yAxis: { title: { text: "Margin Utilization (%)" } },
             legend: { enabled: false },
             tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
@@ -322,14 +385,25 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
-            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
+            xAxis: {
+                type: "datetime",
+                labels: { format: historyXAxisFormat },
+                title: { text: "Time (UTC)" },
+            },
             yAxis: {
                 title: { text: "Position Size" },
                 plotLines: [{ value: 0, width: 1, color: "rgba(128,128,128,0.35)" }],
             },
             legend: { enabled: false },
             tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
-            series: [{ type: "line", name: "Position Size", data: positionSizeSeries, connectNulls: false }],
+            series: [
+                {
+                    type: "line",
+                    name: "Position Size",
+                    data: positionSizeSeries,
+                    connectNulls: false,
+                },
+            ],
         }
         : null;
 
@@ -337,7 +411,11 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
-            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
+            xAxis: {
+                type: "datetime",
+                labels: { format: "{value:%H:%M}" },
+                title: { text: "Time (UTC)" },
+            },
             yAxis: { title: { text: "Trades / minute" } },
             legend: { enabled: false },
             tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 0 },
@@ -554,14 +632,43 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
 
             <section>
                 <Card>
-                    <CardHeader><CardTitle>State — {ticker}</CardTitle></CardHeader>
+                    <CardHeader>
+                        <div className="flex items-center justify-between gap-3">
+                            <CardTitle>State History — {ticker}</CardTitle>
+
+                            <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                    AOI History
+                                </span>
+
+                                <div className="flex items-center gap-2">
+                                    {AOI_HISTORY_PERIODS.map((option) => (
+                                        <button
+                                            key={option}
+                                            type="button"
+                                            onClick={() => setHistoryPeriod(option)}
+                                            className={`text-[11px] px-2 py-1 rounded-full ${
+                                                historyPeriod === option
+                                                    ? "bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted"
+                                                    : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
+                                            }`}
+                                        >
+                                            {option}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </CardHeader>
                     <CardContent>
                         {equityOptions ? (
                             <div className="mb-4">
                                 <HighchartsReact highcharts={Highcharts} options={equityOptions} />
                             </div>
                         ) : (
-                            <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">No equity series in window.</p>
+                            <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+                                No history_state series for the selected AOI history period.
+                            </p>
                         )}
 
                         <div className="grid gap-4 md:grid-cols-2">
@@ -583,7 +690,7 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
                             {positionSizeOptions ? (
                                 <HighchartsReact highcharts={Highcharts} options={positionSizeOptions} />
                             ) : (
-                                <p className="text-xs text-gray-500 dark:text-gray-400">No position series in window.</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">No position series in history_state.</p>
                             )}
                         </div>
                     </CardContent>
