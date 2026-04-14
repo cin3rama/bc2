@@ -22,6 +22,7 @@ interface MfbPParticipantClientProps {
 }
 
 type PortfolioPanelView = "portfolio" | "tokenArray";
+type StatePanelView = "current" | "history";
 
 type AoiTokenArrayRow = {
     token: string;
@@ -162,6 +163,7 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
     const { ticker, period: rawPeriod } = useTickerPeriod() as any;
 
     const [portfolioView, setPortfolioView] = useState<PortfolioPanelView>("portfolio");
+    const [stateView, setStateView] = useState<StatePanelView>("current");
     const [historyPeriod, setHistoryPeriod] =
         useState<MfbPAoiHistoryPeriod>("15min");
     const [tokenArray, setTokenArray] = useState<AoiTokenArrayRow[]>([]);
@@ -172,6 +174,11 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
     useEffect(() => {
         setConfig({ showTicker: true, showPeriod: true });
     }, [setConfig]);
+
+    useEffect(() => {
+        setStateView("current");
+        setHistoryPeriod("15min");
+    }, [aoiId, ticker]);
 
     const period = useMemo(() => coerceCanonPeriod(rawPeriod), [rawPeriod]);
     const lookbackMinutes = useMemo(() => lookbackMinutesForPeriod(period), [period]);
@@ -309,22 +316,15 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
     const latestState = stateRows.length ? stateRows[stateRows.length - 1] : null;
     const latestFlow = flowRows.length ? flowRows[flowRows.length - 1] : null;
 
-    const equitySeries = historyStateRows.map((r) => [
-        r.ts_minute_ms,
-        parseNum(r.equity_usd, 0),
-    ]);
-    const leverageSeries = historyStateRows.map((r) => [
-        r.ts_minute_ms,
-        parseNum(r.gross_leverage, 0),
-    ]);
-    const marginUtilSeries = historyStateRows.map((r) => [
-        r.ts_minute_ms,
-        parseNum(r.margin_utilization, 0) * 100,
-    ]);
-    const positionSizeSeries = historyStateRows.map((r) => [
-        r.ts_minute_ms,
-        readPositionSize(r),
-    ]);
+    const currentEquitySeries = stateRows.map((r) => [r.ts_minute_ms, parseNum(r.equity_usd, 0)]);
+    const currentLeverageSeries = stateRows.map((r) => [r.ts_minute_ms, parseNum(r.gross_leverage, 0)]);
+    const currentMarginUtilSeries = stateRows.map((r) => [r.ts_minute_ms, parseNum(r.margin_utilization, 0) * 100]);
+    const currentPositionSizeSeries = stateRows.map((r) => [r.ts_minute_ms, readPositionSize(r)]);
+
+    const historyEquitySeries = historyStateRows.map((r) => [r.ts_minute_ms, parseNum(r.equity_usd, 0)]);
+    const historyLeverageSeries = historyStateRows.map((r) => [r.ts_minute_ms, parseNum(r.gross_leverage, 0)]);
+    const historyMarginUtilSeries = historyStateRows.map((r) => [r.ts_minute_ms, parseNum(r.margin_utilization, 0) * 100]);
+    const historyPositionSizeSeries = historyStateRows.map((r) => [r.ts_minute_ms, readPositionSize(r)]);
 
     const tradeCountSeries = flowRows.map((r) => [r.ts_minute_ms, parseNum(r.trade_count_total, 0)]);
     const signedVolSeries = flowRows.map((r) => [r.ts_minute_ms, parseNum(r.net_signed_volume, 0)]);
@@ -333,7 +333,58 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
     const maxAbsSignedVol = signedVolSeries.reduce((m, [, v]) => Math.max(m, Math.abs(Number(v) || 0)), 0);
     const flowAllZero = maxTradeCount === 0 && maxAbsSignedVol === 0;
 
-    const equityOptions = equitySeries.length
+    const currentEquityOptions = currentEquitySeries.length
+        ? {
+            chart: { height: 260, zoomType: "x" },
+            title: { text: undefined },
+            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
+            yAxis: { title: { text: "Equity (USD)" } },
+            legend: { enabled: false },
+            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
+            series: [{ type: "line", name: "Equity", data: currentEquitySeries }],
+        }
+        : null;
+
+    const currentLeverageOptions = currentLeverageSeries.length
+        ? {
+            chart: { height: 220, zoomType: "x" },
+            title: { text: undefined },
+            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
+            yAxis: { title: { text: "Gross Leverage" } },
+            legend: { enabled: false },
+            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
+            series: [{ type: "line", name: "Gross Leverage", data: currentLeverageSeries }],
+        }
+        : null;
+
+    const currentMarginUtilOptions = currentMarginUtilSeries.length
+        ? {
+            chart: { height: 220, zoomType: "x" },
+            title: { text: undefined },
+            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
+            yAxis: { title: { text: "Margin Utilization (%)" } },
+            legend: { enabled: false },
+            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
+            series: [{ type: "line", name: "Margin Utilization", data: currentMarginUtilSeries }],
+        }
+        : null;
+
+    const currentPositionSizeOptions = currentPositionSizeSeries.length
+        ? {
+            chart: { height: 220, zoomType: "x" },
+            title: { text: undefined },
+            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
+            yAxis: {
+                title: { text: "Position Size" },
+                plotLines: [{ value: 0, width: 1, color: "rgba(128,128,128,0.35)" }],
+            },
+            legend: { enabled: false },
+            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
+            series: [{ type: "line", name: "Position Size", data: currentPositionSizeSeries, connectNulls: false }],
+        }
+        : null;
+
+    const historyEquityOptions = historyEquitySeries.length
         ? {
             chart: { height: 260, zoomType: "x" },
             title: { text: undefined },
@@ -345,11 +396,11 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
             yAxis: { title: { text: "Equity (USD)" } },
             legend: { enabled: false },
             tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
-            series: [{ type: "line", name: "Equity", data: equitySeries }],
+            series: [{ type: "line", name: "Equity", data: historyEquitySeries }],
         }
         : null;
 
-    const leverageOptions = leverageSeries.length
+    const historyLeverageOptions = historyLeverageSeries.length
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
@@ -361,11 +412,11 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
             yAxis: { title: { text: "Gross Leverage" } },
             legend: { enabled: false },
             tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
-            series: [{ type: "line", name: "Gross Leverage", data: leverageSeries }],
+            series: [{ type: "line", name: "Gross Leverage", data: historyLeverageSeries }],
         }
         : null;
 
-    const marginUtilOptions = marginUtilSeries.length
+    const historyMarginUtilOptions = historyMarginUtilSeries.length
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
@@ -377,11 +428,11 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
             yAxis: { title: { text: "Margin Utilization (%)" } },
             legend: { enabled: false },
             tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
-            series: [{ type: "line", name: "Margin Utilization", data: marginUtilSeries }],
+            series: [{ type: "line", name: "Margin Utilization", data: historyMarginUtilSeries }],
         }
         : null;
 
-    const positionSizeOptions = positionSizeSeries.length
+    const historyPositionSizeOptions = historyPositionSizeSeries.length
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
@@ -396,14 +447,7 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
             },
             legend: { enabled: false },
             tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
-            series: [
-                {
-                    type: "line",
-                    name: "Position Size",
-                    data: positionSizeSeries,
-                    connectNulls: false,
-                },
-            ],
+            series: [{ type: "line", name: "Position Size", data: historyPositionSizeSeries, connectNulls: false }],
         }
         : null;
 
@@ -411,11 +455,7 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         ? {
             chart: { height: 220, zoomType: "x" },
             title: { text: undefined },
-            xAxis: {
-                type: "datetime",
-                labels: { format: "{value:%H:%M}" },
-                title: { text: "Time (UTC)" },
-            },
+            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
             yAxis: { title: { text: "Trades / minute" } },
             legend: { enabled: false },
             tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 0 },
@@ -634,65 +674,129 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
                 <Card>
                     <CardHeader>
                         <div className="flex items-center justify-between gap-3">
-                            <CardTitle>State History — {ticker}</CardTitle>
+                            <CardTitle>State — {ticker}</CardTitle>
 
                             <div className="flex items-center gap-2">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                    AOI History
-                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setStateView("current")}
+                                    className={`text-[11px] px-2 py-1 rounded-full ${
+                                        stateView === "current"
+                                            ? "bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted"
+                                            : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
+                                    }`}
+                                >
+                                    Current State
+                                </button>
 
-                                <div className="flex items-center gap-2">
-                                    {AOI_HISTORY_PERIODS.map((option) => (
-                                        <button
-                                            key={option}
-                                            type="button"
-                                            onClick={() => setHistoryPeriod(option)}
-                                            className={`text-[11px] px-2 py-1 rounded-full ${
-                                                historyPeriod === option
-                                                    ? "bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted"
-                                                    : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
-                                            }`}
-                                        >
-                                            {option}
-                                        </button>
-                                    ))}
-                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setStateView("history")}
+                                    className={`text-[11px] px-2 py-1 rounded-full ${
+                                        stateView === "history"
+                                            ? "bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted"
+                                            : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
+                                    }`}
+                                >
+                                    History
+                                </button>
                             </div>
                         </div>
                     </CardHeader>
+
                     <CardContent>
-                        {equityOptions ? (
-                            <div className="mb-4">
-                                <HighchartsReact highcharts={Highcharts} options={equityOptions} />
-                            </div>
+                        {stateView === "current" ? (
+                            <>
+                                {currentEquityOptions ? (
+                                    <div className="mb-4">
+                                        <HighchartsReact highcharts={Highcharts} options={currentEquityOptions} />
+                                    </div>
+                                ) : (
+                                    <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">No equity series in window.</p>
+                                )}
+
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    {currentLeverageOptions ? (
+                                        <HighchartsReact highcharts={Highcharts} options={currentLeverageOptions} />
+                                    ) : (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">No leverage series.</p>
+                                    )}
+
+                                    {currentMarginUtilOptions ? (
+                                        <HighchartsReact highcharts={Highcharts} options={currentMarginUtilOptions} />
+                                    ) : (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">No margin utilization series.</p>
+                                    )}
+                                </div>
+
+                                <div className="mt-4">
+                                    <div className="mb-2 text-sm font-semibold">Position Size (critical)</div>
+                                    {currentPositionSizeOptions ? (
+                                        <HighchartsReact highcharts={Highcharts} options={currentPositionSizeOptions} />
+                                    ) : (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">No position series in window.</p>
+                                    )}
+                                </div>
+                            </>
                         ) : (
-                            <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
-                                No history_state series for the selected AOI history period.
-                            </p>
+                            <>
+                                <div className="mb-4 flex items-center gap-2">
+                                    <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                        AOI History
+                                    </span>
+
+                                    <div className="flex items-center gap-2">
+                                        {AOI_HISTORY_PERIODS.map((option) => (
+                                            <button
+                                                key={option}
+                                                type="button"
+                                                onClick={() => setHistoryPeriod(option)}
+                                                className={`text-[11px] px-2 py-1 rounded-full ${
+                                                    historyPeriod === option
+                                                        ? "bg-primary-light text-black dark:bg-primary-dark dark:text-text-inverted"
+                                                        : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
+                                                }`}
+                                            >
+                                                {option}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {historyEquityOptions ? (
+                                    <div className="mb-4">
+                                        <HighchartsReact highcharts={Highcharts} options={historyEquityOptions} />
+                                    </div>
+                                ) : (
+                                    <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+                                        No history_state series for the selected AOI history period.
+                                    </p>
+                                )}
+
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    {historyLeverageOptions ? (
+                                        <HighchartsReact highcharts={Highcharts} options={historyLeverageOptions} />
+                                    ) : (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">No leverage series.</p>
+                                    )}
+
+                                    {historyMarginUtilOptions ? (
+                                        <HighchartsReact highcharts={Highcharts} options={historyMarginUtilOptions} />
+                                    ) : (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">No margin utilization series.</p>
+                                    )}
+                                </div>
+
+                                <div className="mt-4">
+                                    <div className="mb-2 text-sm font-semibold">Position Size (critical)</div>
+                                    {historyPositionSizeOptions ? (
+                                        <HighchartsReact highcharts={Highcharts} options={historyPositionSizeOptions} />
+                                    ) : (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">No position series in history_state.</p>
+                                    )}
+                                </div>
+                            </>
                         )}
-
-                        <div className="grid gap-4 md:grid-cols-2">
-                            {leverageOptions ? (
-                                <HighchartsReact highcharts={Highcharts} options={leverageOptions} />
-                            ) : (
-                                <p className="text-xs text-gray-500 dark:text-gray-400">No leverage series.</p>
-                            )}
-
-                            {marginUtilOptions ? (
-                                <HighchartsReact highcharts={Highcharts} options={marginUtilOptions} />
-                            ) : (
-                                <p className="text-xs text-gray-500 dark:text-gray-400">No margin utilization series.</p>
-                            )}
-                        </div>
-
-                        <div className="mt-4">
-                            <div className="mb-2 text-sm font-semibold">Position Size (critical)</div>
-                            {positionSizeOptions ? (
-                                <HighchartsReact highcharts={Highcharts} options={positionSizeOptions} />
-                            ) : (
-                                <p className="text-xs text-gray-500 dark:text-gray-400">No position series in history_state.</p>
-                            )}
-                        </div>
                     </CardContent>
                 </Card>
             </section>
