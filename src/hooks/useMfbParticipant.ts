@@ -7,6 +7,7 @@ import type {
     MfbPAoiDetail,
     MfbPEventsBlock,
     MfbPEvent,
+    MfbPStateRow,
     MfbPFlowRow,
     MfbPWindow,
     MfbPAoiHistoryPeriod,
@@ -70,15 +71,6 @@ function last<T>(arr: T[] | null | undefined): T | null {
     return arr[arr.length - 1] ?? null;
 }
 
-function coerceLatestFromBlock<T extends { ts_minute_ms: number }>(
-    block: any,
-): T | null {
-    if (!block) return null;
-    if (block.latest) return block.latest as T;
-    const s = block.series as T[] | undefined;
-    return last(s);
-}
-
 function makeSyntheticZeroFlow(ts_minute_ms: number, ticker?: string): MfbPFlowRow {
     return {
         ts_minute_ms,
@@ -115,7 +107,7 @@ function inferWindowFallback(lookbackMinutes: number): MfbPWindow {
 
 function dedupeByTs<T extends { ts_minute_ms: number }>(rows: T[]): T[] {
     const m = new Map<number, T>();
-    for (const r of rows) m.set(r.ts_minute_ms, r); // keep last occurrence
+    for (const r of rows) m.set(r.ts_minute_ms, r);
     return Array.from(m.values()).sort((a, b) => a.ts_minute_ms - b.ts_minute_ms);
 }
 
@@ -126,17 +118,64 @@ function upsertByTs<T extends { ts_minute_ms: number }>(rows: T[], point: T): T[
     const lastTs = out[lastIdx].ts_minute_ms;
 
     if (point.ts_minute_ms === lastTs) {
-        out[lastIdx] = point; // ✅ replace
+        out[lastIdx] = point;
         return out;
     }
     if (point.ts_minute_ms > lastTs) {
-        out.push(point); // ✅ append
+        out.push(point);
         return out;
     }
 
-    // out-of-order correction: insert + dedupe
     out.push(point);
     return dedupeByTs(out);
+}
+
+function normalizeStateRows(raw: unknown): MfbPStateRow[] {
+    if (!Array.isArray(raw)) return [];
+
+    const mapped = raw
+        .map((row: any) => {
+            const ts =
+                typeof row?.ts_minute_ms === "number"
+                    ? row.ts_minute_ms
+                    : typeof row?.ts_ms === "number"
+                        ? row.ts_ms
+                        : null;
+
+            if (ts === null) return null;
+
+            return {
+                ...row,
+                ts_minute_ms: ts,
+            } as MfbPStateRow;
+        })
+        .filter((row): row is MfbPStateRow => row !== null);
+
+    return sortByTsAsc(mapped);
+}
+
+function normalizeFlowRows(raw: unknown): MfbPFlowRow[] {
+    if (!Array.isArray(raw)) return [];
+
+    const mapped = raw
+        .map((row: any) => {
+            const ts =
+                typeof row?.ts_minute_ms === "number"
+                    ? row.ts_minute_ms
+                    : typeof row?.ts_ms === "number"
+                        ? row.ts_ms
+                        : null;
+
+            if (ts === null) return null;
+
+            return {
+                ...row,
+                ts_minute_ms: ts,
+            } as MfbPFlowRow;
+        })
+        .filter((row): row is MfbPFlowRow => row !== null);
+
+    return sortByTsAsc(mapped);
 }
 
 export function useMfbParticipant({
@@ -152,10 +191,6 @@ export function useMfbParticipant({
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Dedicated MFB_P AOI websocket (canonical)
-    // hooks/useMfbParticipant.ts (inside the hook body)
-
-    // ... inside useMfbParticipant(...)
     const depsKey = `${mode}|${aoiId ?? ""}|${ticker}|${period}|${lookbackMinutes}`;
 
     const { snapshot$ } = useMfbPWebsocket(
@@ -168,34 +203,28 @@ export function useMfbParticipant({
         depsKey
     );
 
-    function canonicalizeWindow(
-        input: any,
-        lookbackMinutes: number
-    ) {
+    function canonicalizeWindow(input: any, lookbackMinutesValue: number) {
         if (!input) return null;
 
         const end = typeof input.end_ts_ms === "number" ? input.end_ts_ms : null;
         const start = typeof input.start_ts_ms === "number" ? input.start_ts_ms : null;
 
-        // Prefer an explicit end, otherwise fall back to start+lookback
         const endTs =
             end ??
-            (start != null ? start + lookbackMinutes * 60_000 : null);
+            (start != null ? start + lookbackMinutesValue * 60_000 : null);
 
         if (endTs == null) return null;
 
-        const startTs = endTs - lookbackMinutes * 60_000;
+        const startTs = endTs - lookbackMinutesValue * 60_000;
 
         return {
             start_ts_ms: startTs,
             end_ts_ms: endTs,
-            lookback_minutes: lookbackMinutes,
-            // IMPORTANT: prevent the 120-point cap from ever being applied
-            max_points: lookbackMinutes, // 1 point per minute in v1.1
+            lookback_minutes: lookbackMinutesValue,
+            max_points: lookbackMinutesValue,
         };
     }
 
-    // HTTP Seed (canonical history)
     useEffect(() => {
         let cancelled = false;
 
@@ -211,7 +240,7 @@ export function useMfbParticipant({
                 const params = new URLSearchParams({
                     ticker,
                     lookback_minutes: String(lookbackMinutes),
-                    limit: String(eventLimit), // ✅ canonical
+                    limit: String(eventLimit),
                 });
 
                 if (mode === "aoi" && aoiId != null) {
@@ -233,15 +262,24 @@ export function useMfbParticipant({
 
                 const normalizedEvents = normalizeEventsBlock(raw.events);
 
-                const stateRows = Array.isArray(raw?.series?.state)
-                    ? sortByTsAsc(raw.series.state)
-                    : [];
-                const flowRows = Array.isArray(raw?.series?.flow)
-                    ? sortByTsAsc(raw.series.flow)
-                    : [];
-                const historyStateRows = Array.isArray(raw?.history_state)
-                    ? sortByTsAsc(raw.history_state)
-                    : [];
+                // Canonicalize the live payload shape:
+                // - minute_state -> detail.series.state
+                // - minute_flow  -> detail.series.flow
+                // - history_state.series -> detail.history_state
+                // Also preserve backward compatibility with older shapes.
+                const stateRows = normalizeStateRows(
+                    raw?.series?.state ?? raw?.minute_state
+                );
+
+                const flowRows = normalizeFlowRows(
+                    raw?.series?.flow ?? raw?.minute_flow
+                );
+
+                const historyStateRows = normalizeStateRows(
+                    Array.isArray(raw?.history_state)
+                        ? raw.history_state
+                        : raw?.history_state?.series
+                );
 
                 const normalized: MfbPAoiDetail = {
                     ...raw,
@@ -253,7 +291,6 @@ export function useMfbParticipant({
                     },
                     meta: {
                         ...(raw.meta ?? {}),
-                        // ensure we always have *some* window to trim against
                         window: raw?.meta?.window ?? inferWindowFallback(lookbackMinutes),
                     },
                 };
@@ -272,7 +309,6 @@ export function useMfbParticipant({
         };
     }, [mode, aoiId, ticker, lookbackMinutes, eventLimit, historyPeriod]);
 
-    // WS Live Append (single newest minute point; window-trim)
     useEffect(() => {
         if (mode === "aoi" && typeof aoiId !== "number") return;
 
@@ -285,7 +321,6 @@ export function useMfbParticipant({
 
                     if (mode === "aoi" && p?.aoi?.id !== aoiId) return false;
 
-                    // ✅ Hard-drop mismatches to avoid cross-ticker/period contamination
                     if (p?.ticker && p.ticker !== ticker) {
                         console.warn("[MFB_P][WS] ticker mismatch (dropping)", { ws: p.ticker, fe: ticker });
                         return false;
@@ -316,21 +351,17 @@ export function useMfbParticipant({
                         }
                         const nextWindow = canonicalizeWindow(rawWindow, lookbackMinutes);
 
-                        // ✅ STATE: merge WS into prev (never shrink history)
                         const prevState = prev.series.state ?? [];
                         let nextState = prevState;
 
                         if (Array.isArray(payload?.state?.series) && payload.state.series.length) {
-                            // Union-by-ts: WS points overwrite older points with same ts after dedupe
                             nextState = dedupeByTs([...prevState, ...payload.state.series]);
                         }
 
                         if (payload?.state?.latest) {
-                            // Latest is authoritative for its timestamp
                             nextState = upsertByTs(nextState, payload.state.latest);
                         }
 
-                        // ✅ FLOW: merge WS into prev (never shrink history)
                         const prevFlow = prev.series.flow ?? [];
                         let nextFlow = prevFlow;
 
@@ -342,7 +373,6 @@ export function useMfbParticipant({
                             nextFlow = upsertByTs(nextFlow, payload.flow.latest);
                         }
 
-                        // optional: if flow is missing but state advanced, add a synthetic 0 bar
                         if (!payload?.flow?.latest && (!Array.isArray(payload?.flow?.series) || !payload.flow.series.length)) {
                             const lastStateTs = nextState.length ? nextState[nextState.length - 1].ts_minute_ms : null;
                             const lastFlowTs = nextFlow.length ? nextFlow[nextFlow.length - 1].ts_minute_ms : null;
@@ -351,27 +381,25 @@ export function useMfbParticipant({
                             }
                         }
 
-                        // ✅ Trim to window if present
                         nextState = trimByWindow(nextState, nextWindow);
                         nextFlow = trimByWindow(nextFlow, nextWindow);
 
-                        // ✅ Safety cap: ensure we never exceed expected 1-minute resolution points
                         if (nextState.length > lookbackMinutes) nextState = nextState.slice(-lookbackMinutes);
                         if (nextFlow.length > lookbackMinutes) nextFlow = nextFlow.slice(-lookbackMinutes);
 
-                        // ✅ Events: accept array or block
-                        const nextEvents = payload.events !== undefined
-                            ? normalizeEventsBlock(payload.events)
-                            : prev.events;
+                        const nextEvents =
+                            payload.events !== undefined
+                                ? normalizeEventsBlock(payload.events)
+                                : prev.events;
 
                         return {
                             ...prev,
-                            // ✅ do NOT let WS mutate the displayed ticker/period identity
                             meta: { ...(prev.meta ?? {}), window: nextWindow ?? prev.meta?.window },
                             series: { state: nextState, flow: nextFlow },
                             events: nextEvents,
                         };
                     });
+
                     console.log("[MFB_P][WS] applying", {
                         aoi: payload?.aoi?.id,
                         wsTicker: payload?.ticker,
@@ -384,7 +412,7 @@ export function useMfbParticipant({
             });
 
         return () => sub.unsubscribe();
-    }, [snapshot$, mode, aoiId, ticker, period, lookbackMinutes]); // ✅ no `detail` dependency
+    }, [snapshot$, mode, aoiId, ticker, period, lookbackMinutes]);
 
     const effectiveLoading = useMemo(() => loading && !detail, [loading, detail]);
 
