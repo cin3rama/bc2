@@ -11,6 +11,7 @@ import type {
     ActionMonitorSnapshot,
     ActionMonitorCategory,
     ActionMonitorParticipant,
+    ActionMonitorMmBotPositionMonitor,
     ChangeDirection,
 } from '@/types/actionMonitorTypes';
 
@@ -208,6 +209,12 @@ function getSignedValueClass(value: PositionDisplayValue): string {
     }
 
     return 'text-text dark:text-text-inverted';
+}
+
+function directionFromSignedValue(value: PositionDisplayValue): ChangeDirection | undefined {
+    const numeric = toNullableNumeric(value);
+    if (numeric === null || numeric === 0) return undefined;
+    return numeric > 0 ? 'up' : 'down';
 }
 
 function DirectionArrow({ dir }: { dir?: ChangeDirection | null }) {
@@ -607,6 +614,198 @@ function buildImpactChartOptions(
     };
 }
 
+function buildMmBotPositionDeltaChartOptions(
+    monitor: ActionMonitorMmBotPositionMonitor,
+    chartAccent: string,
+): Highcharts.Options {
+    const data = (monitor.series_1m_delta || []).map(([ts, value]) => [
+        ts,
+        toNumeric(value),
+    ]);
+
+    return {
+        chart: {
+            backgroundColor: 'transparent',
+            height: 300,
+        },
+        time: { timezone: 'UTC' },
+        title: {
+            text: 'MM Bot Cohort Position Δ (1m)',
+            style: {
+                color: chartAccent,
+                fontSize: '14px',
+                fontWeight: '600',
+            },
+        },
+        credits: {
+            enabled: false,
+        },
+        xAxis: {
+            type: 'datetime',
+            lineColor: chartAccent,
+            tickColor: chartAccent,
+            gridLineColor: chartAccent,
+            labels: {
+                format: '{value:%H:%M}',
+                style: {
+                    color: chartAccent,
+                },
+            },
+        },
+        yAxis: {
+            title: {
+                text: 'Δ Position Size',
+                style: {
+                    color: chartAccent,
+                },
+            },
+            gridLineColor: chartAccent,
+            labels: {
+                style: {
+                    color: chartAccent,
+                },
+            },
+            plotLines: [
+                {
+                    value: 0,
+                    width: 1,
+                    color: chartAccent,
+                    zIndex: 3,
+                },
+            ],
+        },
+        legend: {
+            enabled: false,
+        },
+        tooltip: {
+            shared: false,
+            xDateFormat: '%Y-%m-%d %H:%M:%S UTC',
+            pointFormat: '<span style="font-weight:600">Δ:</span> {point.y:,.2f}',
+        },
+        plotOptions: {
+            series: {
+                animation: false,
+            },
+            column: {
+                borderWidth: 0,
+                pointPadding: 0.08,
+                groupPadding: 0.12,
+                threshold: 0,
+                color: '#22c55e',
+                negativeColor: '#ef4444',
+            },
+        },
+        series: [
+            {
+                type: 'column',
+                name: '1m Δ',
+                data,
+            },
+        ],
+    };
+}
+
+function SignedValueWithArrow({
+                                  value,
+                                  showArrow = false,
+                                  fontClassName = 'text-base font-bold',
+                              }: {
+    value: PositionDisplayValue;
+    showArrow?: boolean;
+    fontClassName?: string;
+}) {
+    const dir = showArrow ? directionFromSignedValue(value) : undefined;
+
+    return (
+        <div className="inline-flex items-center justify-end">
+            <DirectionArrow dir={dir} />
+            <span className={`tabular-nums ${fontClassName} ${getSignedValueClass(value)}`}>
+                {formatMetricValue(value as MetricRenderable)}
+            </span>
+        </div>
+    );
+}
+
+function MmBotPositionMonitorCard({
+                                      monitor,
+                                      chartAccent,
+                                  }: {
+    monitor?: ActionMonitorMmBotPositionMonitor | null;
+    chartAccent: string;
+}) {
+    if (!monitor) {
+        return (
+            <div className="rounded shadow bg-white dark:bg-gray-800 p-4 text-text dark:text-text-inverted">
+                <div className="text-base font-semibold mb-2">
+                    MM Bot Cohort Position Monitor
+                </div>
+                <div className="text-sm opacity-70">
+                    No monitor data available for the selected ticker.
+                </div>
+            </div>
+        );
+    }
+
+    const summaryItems = [
+        {
+            label: 'Current Total',
+            value: monitor.current_net_position_size,
+            showArrow: false,
+        },
+        {
+            label: '15s Change',
+            value: monitor.delta_15s,
+            showArrow: true,
+        },
+        {
+            label: '1m Change',
+            value: monitor.delta_1m,
+            showArrow: true,
+        },
+        {
+            label: '5m Change',
+            value: monitor.delta_5m,
+            showArrow: true,
+        },
+    ];
+
+    return (
+        <div className="rounded shadow bg-white dark:bg-gray-800 p-4 text-text dark:text-text-inverted">
+            <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                    <h2 className="text-base font-semibold">
+                        MM Bot Cohort Position Monitor
+                    </h2>
+                    <div className="text-xs opacity-70">
+                        {monitor.ticker} · {monitor.sampling_interval_seconds}s sampling · {monitor.history_window_minutes}m history
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
+                {summaryItems.map((item) => (
+                    <div
+                        key={item.label}
+                        className="rounded border border-gray-200 dark:border-gray-700 p-3"
+                    >
+                        <div className="text-xs opacity-70 mb-1">{item.label}</div>
+                        <SignedValueWithArrow
+                            value={item.value}
+                            showArrow={item.showArrow}
+                            fontClassName="text-xl font-bold"
+                        />
+                    </div>
+                ))}
+            </div>
+
+            <HighchartsReact
+                highcharts={Highcharts}
+                options={buildMmBotPositionDeltaChartOptions(monitor, chartAccent)}
+            />
+        </div>
+    );
+}
+
 function ParticipantTable({
                               participants,
                           }: {
@@ -713,8 +912,8 @@ function ParticipantTable({
                                                     positionValue,
                                                 )}`}
                                             >
-                                                {formatMetricValue(positionValue as MetricRenderable)}
-                                            </span>
+                                                    {formatMetricValue(positionValue as MetricRenderable)}
+                                                </span>
                                         </div>
                                     )}
                                 </td>
@@ -1069,6 +1268,11 @@ export default function ActionMonitorPage() {
                     options={buildImpactChartOptions(snapshot, chartAccent)}
                 />
             </div>
+
+            <MmBotPositionMonitorCard
+                monitor={snapshot.mm_bot_position_monitor}
+                chartAccent={chartAccent}
+            />
 
             <div className="space-y-4">
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
