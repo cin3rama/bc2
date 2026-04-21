@@ -23,6 +23,17 @@ export type ActionMonitorPositionTotal = {
     position_change_dir: ChangeDirection;
 };
 
+export interface ActionMonitorMmBotPositionMonitor {
+    ticker: string;
+    sampling_interval_seconds: number;
+    history_window_minutes: number;
+    current_net_position_size: DecimalString | number | null;
+    delta_15s: DecimalString | number | null;
+    delta_1m: DecimalString | number | null;
+    delta_5m: DecimalString | number | null;
+    series_1m_delta: Array<[UnixMs, DecimalString | number | null]>;
+}
+
 export interface ActionMonitorSnapshot {
     kind: 'mf_action_monitor_snapshot';
     version: 1;
@@ -33,6 +44,7 @@ export interface ActionMonitorSnapshot {
     impact: ActionMonitorImpactBlock;
     categories: ActionMonitorCategories;
     series: ActionMonitorSeries;
+    mm_bot_position_monitor?: ActionMonitorMmBotPositionMonitor | null;
 }
 
 export interface ActionMonitorMeta {
