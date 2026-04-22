@@ -614,6 +614,7 @@ function buildImpactChartOptions(
     };
 }
 
+// /app/action-monitor/page.tsx
 function buildMmBotPositionDeltaChartOptions(
     monitor: ActionMonitorMmBotPositionMonitor,
     chartAccent: string,
@@ -686,18 +687,27 @@ function buildMmBotPositionDeltaChartOptions(
             series: {
                 animation: false,
             },
-            column: {
-                borderWidth: 0,
-                pointPadding: 0.08,
-                groupPadding: 0.12,
+            line: {
+                lineWidth: 2,
+                marker: {
+                    enabled: false,
+                },
                 threshold: 0,
-                color: '#22c55e',
-                negativeColor: '#ef4444',
+                zoneAxis: 'y',
+                zones: [
+                    {
+                        value: 0,
+                        color: '#ef4444',
+                    },
+                    {
+                        color: '#22c55e',
+                    },
+                ],
             },
         },
         series: [
             {
-                type: 'column',
+                type: 'line',
                 name: '1m Δ',
                 data,
             },
