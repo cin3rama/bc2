@@ -293,6 +293,13 @@ function AOITypeSymbol({
                     'linear-gradient(90deg, #ffffff 0%, #ffffff 50%, #000000 50%, #000000 100%)',
             };
             break;
+        case 'fakeout':
+            className += ' border-gray-500';
+            style = {
+                background:
+                    'linear-gradient(90deg, #ef4444 0%, #ef4444 50%, #ffffff 50%, #ffffff 100%)',
+            };
+            break;
         case 'archived':
         case 'position':
             className += ' bg-black border-black';
@@ -348,6 +355,15 @@ function AOITypeLegend() {
                             equityUsd="1000000"
                         />
                         <span>active_basis_bot</span>
+                    </div>
+
+                    <div className="inline-flex items-center gap-2">
+                        <AOITypeSymbol
+                            isActiveAoi={true}
+                            aoiType="fakeout"
+                            equityUsd="1000000"
+                        />
+                        <span>fakeout</span>
                     </div>
 
                     <div className="inline-flex items-center gap-2">
@@ -614,7 +630,6 @@ function buildImpactChartOptions(
     };
 }
 
-// /app/action-monitor/page.tsx
 function buildMmBotPositionDeltaChartOptions(
     monitor: ActionMonitorMmBotPositionMonitor,
     chartAccent: string,
