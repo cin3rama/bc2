@@ -534,7 +534,7 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
                             <div><span className="font-semibold">Ticker: </span><span className="font-mono text-xs">{ticker}</span></div>
                             <div><span className="font-semibold">Lifecycle: </span><span>{aoi.lifecycle_state ?? "—"}</span></div>
                             <div><span className="font-semibold">Type: </span><span>{aoi.aoi_type ?? "—"}</span></div>
-                            <div><span className="font-semibold">Type: </span><span>{aoi.account_id ?? "—"}</span></div>
+                            <div><span className="font-semibold">Account: </span><span>{aoi.account_id ?? "—"}</span></div>
                             <div><span className="font-semibold">Entry reason: </span><span>{aoi.entry_reason ?? "—"}</span></div>
                             {aoi.notes ? (
                                 <div><span className="font-semibold">Notes: </span><span>{aoi.notes}</span></div>
