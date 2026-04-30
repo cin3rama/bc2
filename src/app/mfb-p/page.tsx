@@ -1,24 +1,23 @@
 // /app/mfb-p/page.tsx
 "use client";
 
-import React, {useEffect, useMemo, useRef, useState} from "react";
+import React, {useEffect, useMemo, useState, type CSSProperties} from "react";
 import Link from "next/link";
+import Highcharts from "highcharts";
+import HighchartsReact from "highcharts-react-official";
 import {useHeaderConfig} from "@/contexts/HeaderConfigContext";
 import {useTickerPeriod} from "@/contexts/TickerPeriodContext";
 import {Card, CardHeader, CardTitle, CardContent} from "@/components/ui/Card";
 import {API_BASE} from "@/lib/env";
 import {useWebsocket} from "@/hooks/useWebsocket";
+import {useMfbParticipant} from "@/hooks/useMfbParticipant";
 import type {
     ActionMonitorCategory,
     ActionMonitorEnvelope,
     ActionMonitorParticipant,
     ActionMonitorSnapshot,
-    ActorDirection,
-    ActorEvent,
-    ActorFeedItem,
-    ActorSession,
-    ActorState,
 } from "@/types/actionMonitorTypes";
+import type {MfbPStateRow} from "@/types/mfb_p";
 
 type AoiApiRow = {
     aoi_id: number;
@@ -48,22 +47,8 @@ type DisplayAoiRow = AoiApiRow & {
     live_available: boolean;
 };
 
-type WatchingNowRow = {
-    aoi_id: number | null;
-    account_id: string;
-    label: string;
-    aoi_type: string | null;
-    state: ActorState;
-    direction: ActorDirection | null;
-    size: number | null;
-    duration_ms: number | null;
-    is_watched: boolean;
-};
-
-const ACTIVATION_THRESHOLD = 1;
-const PROBE_WINDOW_MS = 45_000;
-const ZERO_POSITION_EPSILON = 0.000001;
-const MAX_FEED_ITEMS = 40;
+const CANON_PERIODS = ["15min", "1h", "4h", "1d", "1w"] as const;
+type CanonPeriod = (typeof CANON_PERIODS)[number];
 
 function shortAccountId(full: string): string {
     if (!full?.startsWith("0x") || full.length <= 10) return full;
@@ -111,54 +96,6 @@ function compareNullableNumbersDesc(a: number | null, b: number | null): number 
     if (a === null) return 1;
     if (b === null) return -1;
     return b - a;
-}
-
-function getActorDirectionFromPosition(value: number | null): ActorDirection | null {
-    if (value === null || Math.abs(value) <= ZERO_POSITION_EPSILON) return null;
-    return value > 0 ? "long" : "short";
-}
-
-function formatDurationMs(durationMs: number | null): string {
-    if (durationMs === null) return "—";
-    const seconds = Math.max(0, Math.floor(durationMs / 1000));
-    return `${seconds}s`;
-}
-
-function formatMs(ms: number | undefined): string {
-    if (!ms) return "-";
-    try {
-        return new Date(ms).toISOString();
-    } catch {
-        return String(ms);
-    }
-}
-
-function getStateBadgeClass(state: ActorState): string {
-    switch (state) {
-        case "confirmed":
-            return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
-        case "probe":
-            return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
-        case "exited":
-            return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
-        default:
-            return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
-    }
-}
-
-function getEventBadgeClass(event: ActorEvent): string {
-    switch (event) {
-        case "confirmed":
-            return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
-        case "add":
-            return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
-        case "reduce":
-            return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
-        case "exit":
-            return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
-        default:
-            return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
-    }
 }
 
 function buildLiveActorMap(snapshot: ActionMonitorSnapshot): Record<string, LiveActorSnapshot> {
@@ -213,26 +150,233 @@ function buildLiveActorMap(snapshot: ActionMonitorSnapshot): Record<string, Live
     return byAccount;
 }
 
+function coerceCanonPeriod(raw: unknown): CanonPeriod {
+    if (typeof raw === "string" && (CANON_PERIODS as readonly string[]).includes(raw)) {
+        return raw as CanonPeriod;
+    }
+    return "1h";
+}
+
+function lookbackMinutesForPeriod(period: CanonPeriod): number {
+    switch (period) {
+        case "15min":
+            return 15;
+        case "1h":
+            return 60;
+        case "4h":
+            return 240;
+        case "1d":
+            return 1440;
+        case "1w":
+            return 10080;
+        default:
+            return 60;
+    }
+}
+
+function readPositionSize(row: MfbPStateRow | null | undefined): number | null {
+    return parsePositionValue(row?.position_size);
+}
+
+function buildWatchedPositionChartOptions(
+    accountId: string,
+    data: Array<[number, number | null]>,
+    chartAccent: string,
+): Highcharts.Options {
+    return {
+        chart: {
+            backgroundColor: "transparent",
+            height: 280,
+        },
+        time: {timezone: "UTC"},
+        title: {
+            text: "Signed Position Size",
+            style: {
+                color: chartAccent,
+                fontSize: "14px",
+                fontWeight: "600",
+            },
+        },
+        credits: {enabled: false},
+        legend: {enabled: false},
+        xAxis: {
+            type: "datetime",
+            lineColor: chartAccent,
+            tickColor: chartAccent,
+            gridLineColor: chartAccent,
+            labels: {
+                format: "{value:%H:%M}",
+                style: {
+                    color: chartAccent,
+                },
+            },
+            title: {
+                text: "Time (UTC)",
+                style: {
+                    color: chartAccent,
+                },
+            },
+        },
+        yAxis: {
+            title: {
+                text: "Position Size",
+                style: {
+                    color: chartAccent,
+                },
+            },
+            gridLineColor: chartAccent,
+            labels: {
+                style: {
+                    color: chartAccent,
+                },
+            },
+            plotLines: [
+                {
+                    value: 0,
+                    width: 1,
+                    color: chartAccent,
+                    zIndex: 3,
+                },
+            ],
+        },
+        tooltip: {
+            shared: false,
+            xDateFormat: "%Y-%m-%d %H:%M:%S UTC",
+            pointFormat: `<span style="font-weight:600">${accountId}</span><br/>Position: {point.y:,.2f}`,
+        },
+        plotOptions: {
+            series: {
+                animation: false,
+            },
+            line: {
+                lineWidth: 2,
+                marker: {
+                    enabled: false,
+                },
+                connectNulls: false,
+            },
+        },
+        series: [
+            {
+                type: "line",
+                name: "Signed Position Size",
+                data,
+            },
+        ],
+    };
+}
+
+function WatchedAoiCard({
+                            aoi,
+                            ticker,
+                            period,
+                            lookbackMinutes,
+                            chartAccent,
+                        }: {
+    aoi: DisplayAoiRow;
+    ticker: string;
+    period: CanonPeriod;
+    lookbackMinutes: number;
+    chartAccent: string;
+}) {
+    const {detail, loading} = useMfbParticipant({
+        mode: "aoi",
+        aoiId: aoi.aoi_id,
+        ticker,
+        period,
+        lookbackMinutes,
+        eventLimit: 10,
+    });
+
+    const stateRows: MfbPStateRow[] = Array.isArray(detail?.series?.state)
+        ? detail.series.state
+        : [];
+
+    const latestState = stateRows.length ? stateRows[stateRows.length - 1] : null;
+    const currentSignedPosition = readPositionSize(latestState) ?? aoi.effective_position_size;
+    const effectiveAoiType =
+        detail?.aoi?.aoi_type ?? aoi.effective_aoi_type ?? "—";
+
+    const positionSeries = stateRows.map((row) => [
+        row.ts_minute_ms,
+        readPositionSize(row),
+    ]) as Array<[number, number | null]>;
+
+    return (
+        <Card>
+            <CardHeader>
+                <div className="flex flex-col gap-3">
+                    <div
+                        className="font-mono text-sm md:text-base font-semibold break-all text-text dark:text-text-inverted">
+                        {aoi.account_id}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs md:text-sm">
+                        <div>
+                            <div className="text-gray-500 dark:text-gray-400 font-semibold">AOI Type</div>
+                            <div className="text-text dark:text-text-inverted">{effectiveAoiType}</div>
+                        </div>
+
+                        <div>
+                            <div className="text-gray-500 dark:text-gray-400 font-semibold">Ticker</div>
+                            <div className="text-text dark:text-text-inverted">{ticker}</div>
+                        </div>
+
+                        <div>
+                            <div className="text-gray-500 dark:text-gray-400 font-semibold">Current Signed Position
+                            </div>
+                            <div className={`font-medium tabular-nums ${getPositionClass(currentSignedPosition)}`}>
+                                {formatPositionValue(currentSignedPosition)}
+                            </div>
+                        </div>
+
+                        <div>
+                            <div className="text-gray-500 dark:text-gray-400 font-semibold">AOI</div>
+                            <div className="text-text dark:text-text-inverted">{displayLabel(aoi)}</div>
+                        </div>
+                    </div>
+                </div>
+            </CardHeader>
+
+            <CardContent>
+                {loading && positionSeries.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Loading live AOI position chart…
+                    </p>
+                ) : positionSeries.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        No live signed position history available yet for this watched AOI.
+                    </p>
+                ) : (
+                    <div className="w-full">
+                        <HighchartsReact
+                            highcharts={Highcharts}
+                            options={buildWatchedPositionChartOptions(
+                                aoi.account_id,
+                                positionSeries,
+                                chartAccent,
+                            )}
+                        />
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function MfbPHubPage() {
     const {setConfig} = useHeaderConfig();
-    const {ticker} = useTickerPeriod();
+    const {ticker, period: rawPeriod} = useTickerPeriod();
     const {actionMonitor$} = useWebsocket();
 
     const [aois, setAois] = useState<AoiApiRow[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [sortMode, setSortMode] = useState<AoiSortMode>("aoi_id_asc");
-
     const [watchModeAccounts, setWatchModeAccounts] = useState<Set<string>>(new Set());
-    const [actorSessions, setActorSessions] = useState<Record<string, ActorSession>>({});
-    const [actorFeed, setActorFeed] = useState<ActorFeedItem[]>([]);
     const [liveActorsByAccount, setLiveActorsByAccount] = useState<Record<string, LiveActorSnapshot>>({});
-    const [liveAsofMs, setLiveAsofMs] = useState<number | null>(null);
     const [isLiveConnected, setIsLiveConnected] = useState(false);
-
-    const actorSessionsRef = useRef<Record<string, ActorSession>>({});
-    const prevPositionsRef = useRef<Record<string, number | null>>({});
-    const eventCounterRef = useRef(0);
+    const [isDarkMode, setIsDarkMode] = useState(false);
 
     useEffect(() => {
         setConfig({showTicker: true, showPeriod: true});
@@ -293,16 +437,6 @@ export default function MfbPHubPage() {
     }, [ticker]);
 
     useEffect(() => {
-        actorSessionsRef.current = {};
-        prevPositionsRef.current = {};
-        setActorSessions({});
-        setActorFeed([]);
-        setLiveActorsByAccount({});
-        setLiveAsofMs(null);
-        setIsLiveConnected(false);
-    }, [ticker]);
-
-    useEffect(() => {
         const sub = actionMonitor$.subscribe({
             next: (msg: ActionMonitorEnvelope) => {
                 if (!msg?.payload || msg.type !== "update_data") return;
@@ -312,205 +446,8 @@ export default function MfbPHubPage() {
                     return;
                 }
 
-                const asofMs =
-                    snapshot.meta?.asof_ms ??
-                    snapshot.meta?.generated_ts_ms ??
-                    Date.now();
-
-                const nextLiveActors = buildLiveActorMap(snapshot);
-                setLiveActorsByAccount(nextLiveActors);
-                setLiveAsofMs(asofMs);
+                setLiveActorsByAccount(buildLiveActorMap(snapshot));
                 setIsLiveConnected(true);
-
-                const trackedAccounts = Array.from(
-                    new Set<string>([
-                        ...aois.map((row) => row.account_id),
-                        ...Array.from(watchModeAccounts),
-                    ]),
-                );
-
-                const nextSessions: Record<string, ActorSession> = {
-                    ...actorSessionsRef.current,
-                };
-                const nextFeedItems: ActorFeedItem[] = [];
-
-                trackedAccounts.forEach((accountId) => {
-                    const currentPosition = nextLiveActors[accountId]?.position_size ?? null;
-                    const previousPosition = prevPositionsRef.current[accountId] ?? null;
-                    const existingSession = nextSessions[accountId];
-
-                    if (currentPosition === null) {
-                        return;
-                    }
-
-                    if (previousPosition === null) {
-                        prevPositionsRef.current[accountId] = currentPosition;
-                        return;
-                    }
-
-                    const delta = currentPosition - previousPosition;
-                    const absDelta = Math.abs(delta);
-                    const currentDirection = getActorDirectionFromPosition(currentPosition);
-                    const isNowZero = Math.abs(currentPosition) <= ZERO_POSITION_EPSILON;
-
-                    if (!existingSession) {
-                        if (!isNowZero && currentDirection && absDelta >= ACTIVATION_THRESHOLD) {
-                            nextSessions[accountId] = {
-                                account_id: accountId,
-                                state: "probe",
-                                direction: currentDirection,
-                                start_ts_ms: asofMs,
-                                last_update_ts_ms: asofMs,
-                                initial_size: currentPosition,
-                                current_size: currentPosition,
-                            };
-
-                            nextFeedItems.push({
-                                id: ++eventCounterRef.current,
-                                account_id: accountId,
-                                event: "activation",
-                                state: "probe",
-                                direction: currentDirection,
-                                ts_ms: asofMs,
-                                size: currentPosition,
-                                delta,
-                            });
-                        }
-
-                        prevPositionsRef.current[accountId] = currentPosition;
-                        return;
-                    }
-
-                    if (isNowZero || !currentDirection) {
-                        nextFeedItems.push({
-                            id: ++eventCounterRef.current,
-                            account_id: accountId,
-                            event: "exit",
-                            state: "exited",
-                            direction: existingSession.direction,
-                            ts_ms: asofMs,
-                            size: currentPosition,
-                            delta,
-                        });
-
-                        delete nextSessions[accountId];
-                        prevPositionsRef.current[accountId] = currentPosition;
-                        return;
-                    }
-
-                    if (existingSession.direction !== currentDirection) {
-                        nextFeedItems.push({
-                            id: ++eventCounterRef.current,
-                            account_id: accountId,
-                            event: "exit",
-                            state: "exited",
-                            direction: existingSession.direction,
-                            ts_ms: asofMs,
-                            size: previousPosition,
-                            delta,
-                        });
-
-                        nextSessions[accountId] = {
-                            account_id: accountId,
-                            state: "probe",
-                            direction: currentDirection,
-                            start_ts_ms: asofMs,
-                            last_update_ts_ms: asofMs,
-                            initial_size: currentPosition,
-                            current_size: currentPosition,
-                        };
-
-                        nextFeedItems.push({
-                            id: ++eventCounterRef.current,
-                            account_id: accountId,
-                            event: "activation",
-                            state: "probe",
-                            direction: currentDirection,
-                            ts_ms: asofMs,
-                            size: currentPosition,
-                            delta,
-                        });
-
-                        prevPositionsRef.current[accountId] = currentPosition;
-                        return;
-                    }
-
-                    const updatedSession: ActorSession = {
-                        ...existingSession,
-                        direction: currentDirection,
-                        current_size: currentPosition,
-                        last_update_ts_ms: asofMs,
-                    };
-
-                    if (existingSession.state === "probe") {
-                        const probeAgeMs = asofMs - existingSession.start_ts_ms;
-                        const expandedBeyondInitial =
-                            Math.abs(currentPosition) >
-                            Math.abs(existingSession.initial_size) + ZERO_POSITION_EPSILON;
-
-                        if (probeAgeMs >= PROBE_WINDOW_MS || expandedBeyondInitial) {
-                            updatedSession.state = "confirmed";
-                            nextSessions[accountId] = updatedSession;
-
-                            nextFeedItems.push({
-                                id: ++eventCounterRef.current,
-                                account_id: accountId,
-                                event: "confirmed",
-                                state: "confirmed",
-                                direction: currentDirection,
-                                ts_ms: asofMs,
-                                size: currentPosition,
-                                delta,
-                            });
-                        } else {
-                            nextSessions[accountId] = updatedSession;
-                        }
-
-                        prevPositionsRef.current[accountId] = currentPosition;
-                        return;
-                    }
-
-                    const previousMagnitude = Math.abs(previousPosition);
-                    const currentMagnitude = Math.abs(currentPosition);
-
-                    if (currentMagnitude - previousMagnitude >= ACTIVATION_THRESHOLD) {
-                        nextFeedItems.push({
-                            id: ++eventCounterRef.current,
-                            account_id: accountId,
-                            event: "add",
-                            state: "confirmed",
-                            direction: currentDirection,
-                            ts_ms: asofMs,
-                            size: currentPosition,
-                            delta,
-                        });
-                    } else if (
-                        previousMagnitude - currentMagnitude >= ACTIVATION_THRESHOLD &&
-                        !isNowZero
-                    ) {
-                        nextFeedItems.push({
-                            id: ++eventCounterRef.current,
-                            account_id: accountId,
-                            event: "reduce",
-                            state: "confirmed",
-                            direction: currentDirection,
-                            ts_ms: asofMs,
-                            size: currentPosition,
-                            delta,
-                        });
-                    }
-
-                    nextSessions[accountId] = updatedSession;
-                    prevPositionsRef.current[accountId] = currentPosition;
-                });
-
-                actorSessionsRef.current = nextSessions;
-                setActorSessions(nextSessions);
-
-                if (nextFeedItems.length > 0) {
-                    nextFeedItems.sort((a, b) => b.ts_ms - a.ts_ms);
-                    setActorFeed((prev) => [...nextFeedItems, ...prev].slice(0, MAX_FEED_ITEMS));
-                }
             },
             error: () => {
                 setIsLiveConnected(false);
@@ -521,7 +458,29 @@ export default function MfbPHubPage() {
         });
 
         return () => sub.unsubscribe();
-    }, [actionMonitor$, aois, ticker, watchModeAccounts]);
+    }, [actionMonitor$, ticker]);
+
+    useEffect(() => {
+        const syncDarkMode = () => {
+            if (typeof document !== "undefined") {
+                setIsDarkMode(document.documentElement.classList.contains("dark"));
+            }
+        };
+
+        syncDarkMode();
+
+        const observer = new MutationObserver(syncDarkMode);
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"],
+        });
+
+        return () => observer.disconnect();
+    }, []);
+
+    const period = useMemo(() => coerceCanonPeriod(rawPeriod), [rawPeriod]);
+    const lookbackMinutes = useMemo(() => lookbackMinutesForPeriod(period), [period]);
+    const chartAccent = isDarkMode ? "#d1d5db" : "#374151";
 
     const rowsByAccount = useMemo(() => {
         const out: Record<string, AoiApiRow> = {};
@@ -587,61 +546,23 @@ export default function MfbPHubPage() {
         return rows;
     }, [aois, liveActorsByAccount, sortMode, watchModeAccounts]);
 
-    const watchingNowRows = useMemo(() => {
-        const accountIds = Array.from(
-            new Set<string>([
-                ...Array.from(watchModeAccounts),
-                ...Object.keys(actorSessions),
-            ]),
-        );
+    const watchedAois = useMemo(() => {
+        return Array.from(watchModeAccounts)
+            .map((accountId) => rowsByAccount[accountId])
+            .filter((row): row is AoiApiRow => Boolean(row))
+            .map((row) => {
+                const liveActor = liveActorsByAccount[row.account_id];
 
-        const rows: WatchingNowRow[] = accountIds.map((accountId) => {
-            const baseRow = rowsByAccount[accountId];
-            const liveActor = liveActorsByAccount[accountId];
-            const session = actorSessions[accountId] ?? null;
-            const effectivePosition =
-                liveActor?.position_size ??
-                parsePositionValue(baseRow?.position_size ?? null);
-
-            return {
-                aoi_id: baseRow?.aoi_id ?? null,
-                account_id: accountId,
-                label: baseRow ? displayLabel(baseRow) : shortAccountId(accountId),
-                aoi_type: liveActor?.aoi_type ?? baseRow?.aoi_type ?? null,
-                state: session ? session.state : "idle",
-                direction: session?.direction ?? getActorDirectionFromPosition(effectivePosition),
-                size: session ? session.current_size : effectivePosition,
-                duration_ms:
-                    session && liveAsofMs !== null
-                        ? Math.max(0, liveAsofMs - session.start_ts_ms)
-                        : null,
-                is_watched: watchModeAccounts.has(accountId),
-            };
-        });
-
-        rows.sort((a, b) => {
-            if (a.is_watched !== b.is_watched) {
-                return a.is_watched ? -1 : 1;
-            }
-
-            const stateRank: Record<ActorState, number> = {
-                confirmed: 0,
-                probe: 1,
-                idle: 2,
-                exited: 3,
-            };
-            const stateCmp = stateRank[a.state] - stateRank[b.state];
-            if (stateCmp !== 0) return stateCmp;
-
-            const aMagnitude = a.size === null ? 0 : Math.abs(a.size);
-            const bMagnitude = b.size === null ? 0 : Math.abs(b.size);
-            if (bMagnitude !== aMagnitude) return bMagnitude - aMagnitude;
-
-            return a.account_id.localeCompare(b.account_id);
-        });
-
-        return rows;
-    }, [actorSessions, liveActorsByAccount, liveAsofMs, rowsByAccount, watchModeAccounts]);
+                return {
+                    ...row,
+                    effective_aoi_type: liveActor?.aoi_type ?? row.aoi_type,
+                    effective_position_size:
+                        liveActor?.position_size ?? parsePositionValue(row.position_size),
+                    is_watched: true,
+                    live_available: Boolean(liveActor),
+                } satisfies DisplayAoiRow;
+            });
+    }, [watchModeAccounts, rowsByAccount, liveActorsByAccount]);
 
     const hasAois = displayedAois.length > 0;
 
@@ -677,146 +598,51 @@ export default function MfbPHubPage() {
                 </div>
             </section>
 
-            <section className="grid gap-4 xl:grid-cols-2">
-                <Card>
-                    <CardHeader>
-                        <div className="flex items-center justify-between gap-3">
-                            <CardTitle>Watching Now</CardTitle>
-                            <span
-                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                    isLiveConnected
-                                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                        : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                                }`}
-                            >
-                                {isLiveConnected ? "LIVE" : "WAITING"}
-                            </span>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        {watchingNowRows.length === 0 ? (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                No watched actors or active sessions yet.
+            <section className="space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <h2 className="text-lg md:text-xl font-semibold text-text dark:text-text-inverted">
+                            Watch Mode
+                        </h2>
+                        <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">
+                            Full-width live position monitoring for watched AOIs using existing AOI websocket updates.
+                        </p>
+                    </div>
+
+                    <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            isLiveConnected
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                        }`}
+                    >
+                        {isLiveConnected ? "LIVE" : "WAITING"}
+                    </span>
+                </div>
+
+                {watchedAois.length === 0 ? (
+                    <Card>
+                        <CardContent>
+                            <p className="py-4 text-sm text-gray-500 dark:text-gray-400">
+                                No watched AOIs yet. Use the Watch Mode checkbox in the AOI Watchlist to pin live
+                                position cards here.
                             </p>
-                        ) : (
-                            <div className="grid gap-3 md:grid-cols-2">
-                                {watchingNowRows.map((row) => (
-                                    <div
-                                        key={row.account_id}
-                                        className="rounded border border-gray-200 dark:border-gray-800 p-3"
-                                    >
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div>
-                                                <div className="font-medium text-sm">{row.label}</div>
-                                                <div className="font-mono text-[11px] text-gray-500 dark:text-gray-400">
-                                                    {shortAccountId(row.account_id)}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {row.is_watched ? (
-                                                    <span
-                                                        className="inline-flex items-center rounded-full bg-primary-light dark:bg-primary-dark px-2 py-0.5 text-[10px] font-semibold text-black dark:text-text-inverted">
-                                                        WATCH
-                                                    </span>
-                                                ) : null}
-                                                <span
-                                                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${getStateBadgeClass(row.state)}`}>
-                                                    {row.state.toUpperCase()}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-3 space-y-1 text-xs md:text-sm">
-                                            <div>
-                                                <span className="font-semibold">Type: </span>
-                                                <span>{row.aoi_type ?? "—"}</span>
-                                            </div>
-                                            <div>
-                                                <span className="font-semibold">Direction: </span>
-                                                <span>{row.direction ?? "—"}</span>
-                                            </div>
-                                            <div>
-                                                <span className="font-semibold">Size: </span>
-                                                <span
-                                                    className={`font-medium tabular-nums ${getPositionClass(row.size)}`}>
-                                                    {formatPositionValue(row.size)}
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <span className="font-semibold">Time active: </span>
-                                                <span>{formatDurationMs(row.duration_ms)}</span>
-                                            </div>
-                                        </div>
-
-                                        {row.aoi_id !== null ? (
-                                            <div className="mt-3">
-                                                <Link
-                                                    href={`/mfb-p/lens?aoiId=${row.aoi_id}`}
-                                                    className="inline-flex items-center rounded-full border border-gray-300 dark:border-gray-700 px-3 py-1 text-[11px] md:text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                                                >
-                                                    Open Lens
-                                                </Link>
-                                            </div>
-                                        ) : null}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Lifecycle Feed</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {actorFeed.length === 0 ? (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                No lifecycle events yet.
-                            </p>
-                        ) : (
-                            <div className="space-y-2">
-                                {actorFeed.map((item) => (
-                                    <div
-                                        key={item.id}
-                                        className="flex flex-col gap-1 rounded border border-gray-200 dark:border-gray-800 px-3 py-2"
-                                    >
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div className="flex items-center gap-2">
-                                                <span
-                                                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${getEventBadgeClass(item.event)}`}>
-                                                    {item.event.toUpperCase()}
-                                                </span>
-                                                <span className="font-mono text-[11px]">
-                                                    {shortAccountId(item.account_id)}
-                                                </span>
-                                            </div>
-                                            <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                                                {formatMs(item.ts_ms)}
-                                            </span>
-                                        </div>
-                                        <div className="text-xs md:text-sm text-gray-700 dark:text-gray-300">
-                                            <span className="font-semibold">State:</span> {item.state}
-                                            {" · "}
-                                            <span className="font-semibold">Direction:</span> {item.direction ?? "—"}
-                                            {" · "}
-                                            <span className="font-semibold">Size:</span>{" "}
-                                            <span className={`font-medium tabular-nums ${getPositionClass(item.size)}`}>
-                                                {formatPositionValue(item.size)}
-                                            </span>
-                                            {" · "}
-                                            <span className="font-semibold">Δ:</span>{" "}
-                                            <span
-                                                className={`font-medium tabular-nums ${getPositionClass(item.delta)}`}>
-                                                {formatPositionValue(item.delta)}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+                        </CardContent>
+                    </Card>
+                ) : (
+                    <div className="space-y-4">
+                        {watchedAois.map((aoi) => (
+                            <WatchedAoiCard
+                                key={aoi.account_id}
+                                aoi={aoi}
+                                ticker={String(ticker ?? "")}
+                                period={period}
+                                lookbackMinutes={lookbackMinutes}
+                                chartAccent={chartAccent}
+                            />
+                        ))}
+                    </div>
+                )}
             </section>
 
             <section>
@@ -859,7 +685,7 @@ export default function MfbPHubPage() {
                                 <table className="min-w-full text-xs md:text-sm">
                                     <thead>
                                     <tr className="border-b border-gray-200 dark:border-gray-800">
-                                        <th className="py-2 pr-2 text-left font-semibold">Watch</th>
+                                        <th className="py-2 pr-2 text-left font-semibold">Watch Mode</th>
                                         <th className="py-2 pr-4 text-left font-semibold">AOI</th>
                                         <th className="py-2 px-2 text-left font-semibold">Account</th>
                                         <th className="py-2 px-2 text-left font-semibold">AOI Type</th>
