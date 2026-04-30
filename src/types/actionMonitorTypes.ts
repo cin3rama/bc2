@@ -13,6 +13,31 @@ export type DecimalString = string;
 export type UnixMs = number;
 export type ChangeDirection = 'up' | 'down' | 'flat';
 
+export type ActorDirection = 'long' | 'short';
+export type ActorState = 'idle' | 'probe' | 'confirmed' | 'exited';
+export type ActorEvent = 'activation' | 'confirmed' | 'add' | 'reduce' | 'exit';
+
+export type ActorSession = {
+    account_id: string;
+    state: 'probe' | 'confirmed';
+    direction: ActorDirection;
+    start_ts_ms: number;
+    last_update_ts_ms: number;
+    initial_size: number;
+    current_size: number;
+};
+
+export type ActorFeedItem = {
+    id: number;
+    account_id: string;
+    event: ActorEvent;
+    state: ActorState;
+    direction: ActorDirection | null;
+    ts_ms: number;
+    size: number | null;
+    delta: number | null;
+};
+
 export interface ActionMonitorEnvelope {
     type: 'update_data';
     payload: ActionMonitorSnapshot;
