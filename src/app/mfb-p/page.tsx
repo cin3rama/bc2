@@ -294,6 +294,7 @@ function WatchedAoiCard({
 
     const latestState = stateRows.length ? stateRows[stateRows.length - 1] : null;
     const currentSignedPosition = readPositionSize(latestState) ?? aoi.effective_position_size;
+    const unrealizedPnl = parsePositionValue(latestState?.unrealized_pnl);
     const effectiveAoiType =
         detail?.aoi?.aoi_type ?? aoi.effective_aoi_type ?? "—";
 
@@ -318,20 +319,21 @@ function WatchedAoiCard({
                         </div>
 
                         <div>
-                            <div className="text-gray-500 dark:text-gray-400 font-semibold">Ticker</div>
-                            <div className="text-text dark:text-text-inverted">{ticker}</div>
-                        </div>
-
-                        <div>
-                            <div className="text-gray-500 dark:text-gray-400 font-semibold">Current Signed Position
-                            </div>
+                            <div className="text-gray-500 dark:text-gray-400 font-semibold">Current Signed Position</div>
                             <div className={`font-medium tabular-nums ${getPositionClass(currentSignedPosition)}`}>
                                 {formatPositionValue(currentSignedPosition)}
                             </div>
                         </div>
 
                         <div>
-                            <div className="text-gray-500 dark:text-gray-400 font-semibold">AOI</div>
+                            <div className="text-gray-500 dark:text-gray-400 font-semibold">Unrealized Gain/Loss</div>
+                            <div className={`font-medium tabular-nums ${getPositionClass(unrealizedPnl)}`}>
+                                {formatPositionValue(unrealizedPnl)}
+                            </div>
+                        </div>
+
+                        <div>
+                            <div className="text-gray-500 dark:text-gray-400 font-semibold">Description</div>
                             <div className="text-text dark:text-text-inverted">{displayLabel(aoi)}</div>
                         </div>
                     </div>
