@@ -1,23 +1,23 @@
 // /app/mfb-p/page.tsx
 "use client";
 
-import React, {useEffect, useMemo, useState, type CSSProperties} from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
-import {useHeaderConfig} from "@/contexts/HeaderConfigContext";
-import {useTickerPeriod} from "@/contexts/TickerPeriodContext";
-import {Card, CardHeader, CardTitle, CardContent} from "@/components/ui/Card";
-import {API_BASE} from "@/lib/env";
-import {useWebsocket} from "@/hooks/useWebsocket";
-import {useMfbParticipant} from "@/hooks/useMfbParticipant";
+import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
+import { useTickerPeriod } from "@/contexts/TickerPeriodContext";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { API_BASE } from "@/lib/env";
+import { useWebsocket } from "@/hooks/useWebsocket";
+import { useMfbParticipant } from "@/hooks/useMfbParticipant";
 import type {
     ActionMonitorCategory,
     ActionMonitorEnvelope,
     ActionMonitorParticipant,
     ActionMonitorSnapshot,
 } from "@/types/actionMonitorTypes";
-import type {MfbPStateRow} from "@/types/mfb_p";
+import type { MfbPStateRow } from "@/types/mfb_p";
 
 type AoiApiRow = {
     aoi_id: number;
@@ -49,6 +49,10 @@ type DisplayAoiRow = AoiApiRow & {
 
 const CANON_PERIODS = ["15min", "1h", "4h", "1d", "1w"] as const;
 type CanonPeriod = (typeof CANON_PERIODS)[number];
+
+const WATCHED_AOI_IDS_STORAGE_KEY = "mfb_p_watch_mode_watched_aoi_ids_v1";
+const AOI_SORT_MODE_STORAGE_KEY = "mfb_p_watch_mode_sort_v1";
+const DEFAULT_SORT_MODE: AoiSortMode = "aoi_id_asc";
 
 function shortAccountId(full: string): string {
     if (!full?.startsWith("0x") || full.length <= 10) return full;
@@ -178,6 +182,62 @@ function readPositionSize(row: MfbPStateRow | null | undefined): number | null {
     return parsePositionValue(row?.position_size);
 }
 
+function isValidSortMode(value: unknown): value is AoiSortMode {
+    return (
+        value === "aoi_id_asc" ||
+        value === "aoi_type_asc" ||
+        value === "position_signed_desc" ||
+        value === "position_abs_desc"
+    );
+}
+
+function normalizeWatchedAoiIds(values: unknown): number[] {
+    if (!Array.isArray(values)) return [];
+
+    const normalized = values
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value))
+        .map((value) => Math.trunc(value));
+
+    return Array.from(new Set(normalized)).sort((a, b) => a - b);
+}
+
+function readStoredWatchedAoiIds(): number[] {
+    if (typeof window === "undefined") return [];
+
+    try {
+        const raw = window.localStorage.getItem(WATCHED_AOI_IDS_STORAGE_KEY);
+        if (!raw) return [];
+        return normalizeWatchedAoiIds(JSON.parse(raw));
+    } catch {
+        return [];
+    }
+}
+
+function writeStoredWatchedAoiIds(ids: number[]) {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+        WATCHED_AOI_IDS_STORAGE_KEY,
+        JSON.stringify(normalizeWatchedAoiIds(ids)),
+    );
+}
+
+function readStoredSortMode(): AoiSortMode {
+    if (typeof window === "undefined") return DEFAULT_SORT_MODE;
+
+    try {
+        const raw = window.localStorage.getItem(AOI_SORT_MODE_STORAGE_KEY);
+        return isValidSortMode(raw) ? raw : DEFAULT_SORT_MODE;
+    } catch {
+        return DEFAULT_SORT_MODE;
+    }
+}
+
+function writeStoredSortMode(sortMode: AoiSortMode) {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(AOI_SORT_MODE_STORAGE_KEY, sortMode);
+}
+
 function buildWatchedPositionChartOptions(
     accountId: string,
     data: Array<[number, number | null]>,
@@ -188,7 +248,7 @@ function buildWatchedPositionChartOptions(
             backgroundColor: "transparent",
             height: 280,
         },
-        time: {timezone: "UTC"},
+        time: { timezone: "UTC" },
         title: {
             text: "Signed Position Size",
             style: {
@@ -197,8 +257,8 @@ function buildWatchedPositionChartOptions(
                 fontWeight: "600",
             },
         },
-        credits: {enabled: false},
-        legend: {enabled: false},
+        credits: { enabled: false },
+        legend: { enabled: false },
         xAxis: {
             type: "datetime",
             lineColor: chartAccent,
@@ -279,7 +339,7 @@ function WatchedAoiCard({
     lookbackMinutes: number;
     chartAccent: string;
 }) {
-    const {detail, loading} = useMfbParticipant({
+    const { detail, loading } = useMfbParticipant({
         mode: "aoi",
         aoiId: aoi.aoi_id,
         ticker,
@@ -307,8 +367,7 @@ function WatchedAoiCard({
         <Card>
             <CardHeader>
                 <div className="flex flex-col gap-3">
-                    <div
-                        className="font-mono text-sm md:text-base font-semibold break-all text-text dark:text-text-inverted">
+                    <div className="font-mono text-sm md:text-base font-semibold break-all text-text dark:text-text-inverted">
                         {aoi.account_id}
                     </div>
 
@@ -367,22 +426,29 @@ function WatchedAoiCard({
 }
 
 export default function MfbPHubPage() {
-    const {setConfig} = useHeaderConfig();
-    const {ticker, period: rawPeriod} = useTickerPeriod();
-    const {actionMonitor$} = useWebsocket();
+    const { setConfig } = useHeaderConfig();
+    const { ticker, period: rawPeriod } = useTickerPeriod();
+    const { actionMonitor$ } = useWebsocket();
 
     const [aois, setAois] = useState<AoiApiRow[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
-    const [sortMode, setSortMode] = useState<AoiSortMode>("aoi_id_asc");
-    const [watchModeAccounts, setWatchModeAccounts] = useState<Set<string>>(new Set());
+    const [sortMode, setSortMode] = useState<AoiSortMode>(DEFAULT_SORT_MODE);
+    const [watchedAoiIds, setWatchedAoiIds] = useState<Set<number>>(new Set());
     const [liveActorsByAccount, setLiveActorsByAccount] = useState<Record<string, LiveActorSnapshot>>({});
     const [isLiveConnected, setIsLiveConnected] = useState(false);
     const [isDarkMode, setIsDarkMode] = useState(false);
+    const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
 
     useEffect(() => {
-        setConfig({showTicker: true, showPeriod: true});
+        setConfig({ showTicker: true, showPeriod: true });
     }, [setConfig]);
+
+    useEffect(() => {
+        setSortMode(readStoredSortMode());
+        setWatchedAoiIds(new Set(readStoredWatchedAoiIds()));
+        setHasLoadedPreferences(true);
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -480,14 +546,43 @@ export default function MfbPHubPage() {
         return () => observer.disconnect();
     }, []);
 
+    useEffect(() => {
+        if (!hasLoadedPreferences) return;
+        writeStoredSortMode(isValidSortMode(sortMode) ? sortMode : DEFAULT_SORT_MODE);
+    }, [hasLoadedPreferences, sortMode]);
+
+    useEffect(() => {
+        if (!hasLoadedPreferences) return;
+        const validIds = new Set(aois.map((row) => row.aoi_id));
+
+        setWatchedAoiIds((prev) => {
+            const filtered = Array.from(prev).filter((id) => validIds.has(id));
+            const normalized = normalizeWatchedAoiIds(filtered);
+
+            if (
+                filtered.length === prev.size &&
+                filtered.every((id) => prev.has(id))
+            ) {
+                return prev;
+            }
+
+            return new Set(normalized);
+        });
+    }, [aois, hasLoadedPreferences]);
+
+    useEffect(() => {
+        if (!hasLoadedPreferences) return;
+        writeStoredWatchedAoiIds(Array.from(watchedAoiIds));
+    }, [hasLoadedPreferences, watchedAoiIds]);
+
     const period = useMemo(() => coerceCanonPeriod(rawPeriod), [rawPeriod]);
     const lookbackMinutes = useMemo(() => lookbackMinutesForPeriod(period), [period]);
     const chartAccent = isDarkMode ? "#d1d5db" : "#374151";
 
-    const rowsByAccount = useMemo(() => {
-        const out: Record<string, AoiApiRow> = {};
+    const rowsById = useMemo(() => {
+        const out: Record<number, AoiApiRow> = {};
         aois.forEach((row) => {
-            out[row.account_id] = row;
+            out[row.aoi_id] = row;
         });
         return out;
     }, [aois]);
@@ -501,7 +596,7 @@ export default function MfbPHubPage() {
                 effective_aoi_type: liveActor?.aoi_type ?? row.aoi_type,
                 effective_position_size:
                     liveActor?.position_size ?? parsePositionValue(row.position_size),
-                is_watched: watchModeAccounts.has(row.account_id),
+                is_watched: watchedAoiIds.has(row.aoi_id),
                 live_available: Boolean(liveActor),
             };
         });
@@ -546,11 +641,11 @@ export default function MfbPHubPage() {
         });
 
         return rows;
-    }, [aois, liveActorsByAccount, sortMode, watchModeAccounts]);
+    }, [aois, liveActorsByAccount, sortMode, watchedAoiIds]);
 
     const watchedAois = useMemo(() => {
-        return Array.from(watchModeAccounts)
-            .map((accountId) => rowsByAccount[accountId])
+        return normalizeWatchedAoiIds(Array.from(watchedAoiIds))
+            .map((aoiId) => rowsById[aoiId])
             .filter((row): row is AoiApiRow => Boolean(row))
             .map((row) => {
                 const liveActor = liveActorsByAccount[row.account_id];
@@ -564,19 +659,19 @@ export default function MfbPHubPage() {
                     live_available: Boolean(liveActor),
                 } satisfies DisplayAoiRow;
             });
-    }, [watchModeAccounts, rowsByAccount, liveActorsByAccount]);
+    }, [watchedAoiIds, rowsById, liveActorsByAccount]);
 
     const hasAois = displayedAois.length > 0;
 
-    function toggleWatchMode(accountId: string) {
-        setWatchModeAccounts((prev) => {
+    function toggleWatchMode(aoiId: number) {
+        setWatchedAoiIds((prev) => {
             const next = new Set(prev);
-            if (next.has(accountId)) {
-                next.delete(accountId);
+            if (next.has(aoiId)) {
+                next.delete(aoiId);
             } else {
-                next.add(accountId);
+                next.add(aoiId);
             }
-            return next;
+            return new Set(normalizeWatchedAoiIds(Array.from(next)));
         });
     }
 
@@ -588,14 +683,12 @@ export default function MfbPHubPage() {
                         MFB_P – Accounts of Interest
                     </h1>
                     <p className="mt-1 text-xs md:text-sm text-gray-600 dark:text-gray-300">
-                        Monitor key participants for <span className="font-semibold">{ticker}</span> and drill into
-                        their live
+                        Monitor key participants for <span className="font-semibold">{ticker}</span> and drill into their live
                         behavior and events.
                     </p>
                 </div>
                 <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400">
-                    <span className="font-semibold">Note:</span> This hub lists AOIs. Click a row to open a dedicated
-                    participant
+                    <span className="font-semibold">Note:</span> This hub lists AOIs. Click a row to open a dedicated participant
                     lens.
                 </div>
             </section>
@@ -626,8 +719,7 @@ export default function MfbPHubPage() {
                     <Card>
                         <CardContent>
                             <p className="py-4 text-sm text-gray-500 dark:text-gray-400">
-                                No watched AOIs yet. Use the Watch Mode checkbox in the AOI Watchlist to pin live
-                                position cards here.
+                                No watched AOIs yet. Use the Watch Mode checkbox in the AOI Watchlist to pin live position cards here.
                             </p>
                         </CardContent>
                     </Card>
@@ -635,7 +727,7 @@ export default function MfbPHubPage() {
                     <div className="space-y-4">
                         {watchedAois.map((aoi) => (
                             <WatchedAoiCard
-                                key={aoi.account_id}
+                                key={aoi.aoi_id}
                                 aoi={aoi}
                                 ticker={String(ticker ?? "")}
                                 period={period}
@@ -663,7 +755,10 @@ export default function MfbPHubPage() {
                                 <select
                                     id="aoi-sort-mode"
                                     value={sortMode}
-                                    onChange={(e) => setSortMode(e.target.value as AoiSortMode)}
+                                    onChange={(e) => {
+                                        const nextValue = e.target.value;
+                                        setSortMode(isValidSortMode(nextValue) ? nextValue : DEFAULT_SORT_MODE);
+                                    }}
                                     className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1 text-text dark:text-text-inverted"
                                 >
                                     <option value="aoi_id_asc">AOI ID</option>
@@ -705,8 +800,8 @@ export default function MfbPHubPage() {
                                                 <input
                                                     type="checkbox"
                                                     checked={aoi.is_watched}
-                                                    onChange={() => toggleWatchMode(aoi.account_id)}
-                                                    aria-label={`Watch ${aoi.account_id}`}
+                                                    onChange={() => toggleWatchMode(aoi.aoi_id)}
+                                                    aria-label={`Watch AOI ${aoi.aoi_id}`}
                                                     className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary dark:border-gray-700 dark:bg-gray-900"
                                                 />
                                             </td>
@@ -721,8 +816,7 @@ export default function MfbPHubPage() {
                                             </td>
 
                                             <td className="py-2 px-2 align-top">
-                                                <span
-                                                    className="font-mono text-[11px]">{shortAccountId(aoi.account_id)}</span>
+                                                <span className="font-mono text-[11px]">{shortAccountId(aoi.account_id)}</span>
                                             </td>
 
                                             <td className="py-2 px-2 align-top">
@@ -730,8 +824,7 @@ export default function MfbPHubPage() {
                                             </td>
 
                                             <td className="py-2 px-2 align-top text-right">
-                                                    <span
-                                                        className={`font-medium tabular-nums ${getPositionClass(aoi.effective_position_size)}`}>
+                                                    <span className={`font-medium tabular-nums ${getPositionClass(aoi.effective_position_size)}`}>
                                                         {formatPositionValue(aoi.effective_position_size)}
                                                     </span>
                                             </td>
