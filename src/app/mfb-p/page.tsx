@@ -439,6 +439,7 @@ export default function MfbPHubPage() {
     const [isLiveConnected, setIsLiveConnected] = useState(false);
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
+    const [hasResolvedAoiDataset, setHasResolvedAoiDataset] = useState(false);
 
     useEffect(() => {
         setConfig({ showTicker: true, showPeriod: true });
@@ -449,6 +450,10 @@ export default function MfbPHubPage() {
         setWatchedAoiIds(new Set(readStoredWatchedAoiIds()));
         setHasLoadedPreferences(true);
     }, []);
+
+    useEffect(() => {
+        setHasResolvedAoiDataset(false);
+    }, [ticker]);
 
     useEffect(() => {
         let cancelled = false;
@@ -494,7 +499,10 @@ export default function MfbPHubPage() {
             } catch (err: any) {
                 if (!cancelled) setError(err?.message ?? "Failed to load AOI watchlist");
             } finally {
-                if (!cancelled) setLoading(false);
+                if (!cancelled) {
+                    setLoading(false);
+                    setHasResolvedAoiDataset(true);
+                }
             }
         }
 
@@ -552,7 +560,8 @@ export default function MfbPHubPage() {
     }, [hasLoadedPreferences, sortMode]);
 
     useEffect(() => {
-        if (!hasLoadedPreferences) return;
+        if (!hasLoadedPreferences || !hasResolvedAoiDataset) return;
+
         const validIds = new Set(aois.map((row) => row.aoi_id));
 
         setWatchedAoiIds((prev) => {
@@ -568,7 +577,7 @@ export default function MfbPHubPage() {
 
             return new Set(normalized);
         });
-    }, [aois, hasLoadedPreferences]);
+    }, [aois, hasLoadedPreferences, hasResolvedAoiDataset]);
 
     useEffect(() => {
         if (!hasLoadedPreferences) return;
