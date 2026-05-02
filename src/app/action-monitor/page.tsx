@@ -590,7 +590,6 @@ function buildImpactChartOptions(
 function buildMmBotPositionDeltaChartOptions(
     monitor: ActionMonitorMmBotPositionMonitor,
     chartAccent: string,
-    zeroLineColor: string,
 ): Highcharts.Options {
     const data = (monitor.series_1m_delta || []).map(([ts, value]) => [
         ts,
@@ -639,14 +638,6 @@ function buildMmBotPositionDeltaChartOptions(
                     color: chartAccent,
                 },
             },
-            plotLines: [
-                {
-                    value: 0,
-                    width: 2,
-                    color: zeroLineColor,
-                    zIndex: 3,
-                },
-            ],
         },
         legend: {
             enabled: false,
@@ -691,7 +682,6 @@ function buildMmBotPositionDeltaChartOptions(
 function buildMmBotNetPositionChartOptions(
     monitor: ActionMonitorMmBotPositionMonitor,
     chartAccent: string,
-    zeroLineColor: string,
 ): Highcharts.Options {
     const data = (monitor.series_net_position || []).map(([ts, value]) => [
         ts,
@@ -740,14 +730,6 @@ function buildMmBotNetPositionChartOptions(
                     color: chartAccent,
                 },
             },
-            plotLines: [
-                {
-                    value: 0,
-                    width: 2,
-                    color: zeroLineColor,
-                    zIndex: 3,
-                },
-            ],
         },
         legend: {
             enabled: false,
@@ -802,11 +784,9 @@ function SignedValueWithArrow({
 function MmBotPositionMonitorCard({
                                       monitor,
                                       chartAccent,
-                                      zeroLineColor,
                                   }: {
     monitor?: ActionMonitorMmBotPositionMonitor | null;
     chartAccent: string;
-    zeroLineColor: string;
 }) {
     if (!monitor) {
         return (
@@ -876,13 +856,13 @@ function MmBotPositionMonitorCard({
             <div className="space-y-2">
                 <HighchartsReact
                     highcharts={Highcharts}
-                    options={buildMmBotPositionDeltaChartOptions(monitor, chartAccent, zeroLineColor)}
+                    options={buildMmBotPositionDeltaChartOptions(monitor, chartAccent)}
                 />
 
                 {(monitor.series_net_position || []).length > 0 ? (
                     <HighchartsReact
                         highcharts={Highcharts}
-                        options={buildMmBotNetPositionChartOptions(monitor, chartAccent, zeroLineColor)}
+                        options={buildMmBotNetPositionChartOptions(monitor, chartAccent)}
                     />
                 ) : (
                     <div className="rounded border border-gray-200 dark:border-gray-700 px-3 py-2 text-xs opacity-70">
@@ -1264,7 +1244,6 @@ export default function ActionMonitorPage() {
     }
 
     const chartAccent = isDarkMode ? '#8B770C' : '#FFE066';
-    const zeroLineColor = isDarkMode ? '#f9fafb' : '#111827';
     const chartVars: CSSProperties = {
         ['--am-chart-line' as string]: chartAccent,
         ['--am-chart-grid' as string]: chartAccent,
@@ -1352,7 +1331,6 @@ export default function ActionMonitorPage() {
             <MmBotPositionMonitorCard
                 monitor={snapshot.mm_bot_position_monitor}
                 chartAccent={chartAccent}
-                zeroLineColor={zeroLineColor}
             />
 
             <div className="space-y-3">
