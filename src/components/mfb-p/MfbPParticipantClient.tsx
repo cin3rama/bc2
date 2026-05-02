@@ -1,16 +1,17 @@
 // /components/mfb-p/MfbPParticipantClient.tsx
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {useCallback, useEffect, useMemo, useState} from "react";
+import Link from "next/link";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 
-import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
-import { useTickerPeriod } from "@/contexts/TickerPeriodContext";
+import {useHeaderConfig} from "@/contexts/HeaderConfigContext";
+import {useTickerPeriod} from "@/contexts/TickerPeriodContext";
 import LoadingIndicator from "@/components/LoadingIndicator";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { useMfbParticipant } from "@/hooks/useMfbParticipant";
-import { API_BASE } from "@/lib/env";
+import {Card, CardHeader, CardTitle, CardContent} from "@/components/ui/Card";
+import {useMfbParticipant} from "@/hooks/useMfbParticipant";
+import {API_BASE} from "@/lib/env";
 import type {
     MfbPStateRow,
     MfbPFlowRow,
@@ -108,7 +109,7 @@ function coerceCanonPeriod(raw: any): CanonPeriod {
     if (typeof raw === "string" && (CANON_PERIODS as readonly string[]).includes(raw)) {
         return raw as CanonPeriod;
     }
-    console.warn("[MFB_P] period missing/invalid; defaulting to '1h'", { raw });
+    console.warn("[MFB_P] period missing/invalid; defaulting to '1h'", {raw});
     return "1h";
 }
 
@@ -125,7 +126,7 @@ function lookbackMinutesForPeriod(period: CanonPeriod): number {
         case "1w":
             return 10080;
         default:
-            console.warn("[MFB_P] unexpected period; defaulting lookback to 60", { period });
+            console.warn("[MFB_P] unexpected period; defaulting lookback to 60", {period});
             return 60;
     }
 }
@@ -158,9 +159,9 @@ function readPositionSize(row: any): number | null {
     return parseNumOrNull(row?.position_size ?? row?.positionSize);
 }
 
-export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientProps) {
-    const { setConfig } = useHeaderConfig();
-    const { ticker, period: rawPeriod } = useTickerPeriod() as any;
+export default function MfbPParticipantClient({aoiId}: MfbPParticipantClientProps) {
+    const {setConfig} = useHeaderConfig();
+    const {ticker, period: rawPeriod} = useTickerPeriod() as any;
 
     const [portfolioView, setPortfolioView] = useState<PortfolioPanelView>("portfolio");
     const [stateView, setStateView] = useState<StatePanelView>("current");
@@ -172,7 +173,7 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
     const [hasFetchedTokenArray, setHasFetchedTokenArray] = useState(false);
 
     useEffect(() => {
-        setConfig({ showTicker: true, showPeriod: true });
+        setConfig({showTicker: true, showPeriod: true});
     }, [setConfig]);
 
     useEffect(() => {
@@ -187,7 +188,7 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
         [historyPeriod]
     );
 
-    const { detail, loading, error } = useMfbParticipant({
+    const {detail, loading, error} = useMfbParticipant({
         mode: "aoi",
         aoiId,
         ticker,
@@ -261,7 +262,7 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
     }, [tokenArray]);
 
     if (loading && !detail) {
-        return <LoadingIndicator message="Loading participant data..." />;
+        return <LoadingIndicator message="Loading participant data..."/>;
     }
 
     if (!detail && error) {
@@ -335,143 +336,143 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
 
     const currentEquityOptions = currentEquitySeries.length
         ? {
-            chart: { height: 260, zoomType: "x" },
-            title: { text: undefined },
-            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
-            yAxis: { title: { text: "Equity (USD)" } },
-            legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
-            series: [{ type: "line", name: "Equity", data: currentEquitySeries }],
+            chart: {height: 260, zoomType: "x"},
+            title: {text: undefined},
+            xAxis: {type: "datetime", labels: {format: "{value:%H:%M}"}, title: {text: "Time (UTC)"}},
+            yAxis: {title: {text: "Equity (USD)"}},
+            legend: {enabled: false},
+            tooltip: {shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2},
+            series: [{type: "line", name: "Equity", data: currentEquitySeries}],
         }
         : null;
 
     const currentLeverageOptions = currentLeverageSeries.length
         ? {
-            chart: { height: 220, zoomType: "x" },
-            title: { text: undefined },
-            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
-            yAxis: { title: { text: "Gross Leverage" } },
-            legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
-            series: [{ type: "line", name: "Gross Leverage", data: currentLeverageSeries }],
+            chart: {height: 220, zoomType: "x"},
+            title: {text: undefined},
+            xAxis: {type: "datetime", labels: {format: "{value:%H:%M}"}, title: {text: "Time (UTC)"}},
+            yAxis: {title: {text: "Gross Leverage"}},
+            legend: {enabled: false},
+            tooltip: {shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2},
+            series: [{type: "line", name: "Gross Leverage", data: currentLeverageSeries}],
         }
         : null;
 
     const currentMarginUtilOptions = currentMarginUtilSeries.length
         ? {
-            chart: { height: 220, zoomType: "x" },
-            title: { text: undefined },
-            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
-            yAxis: { title: { text: "Margin Utilization (%)" } },
-            legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
-            series: [{ type: "line", name: "Margin Utilization", data: currentMarginUtilSeries }],
+            chart: {height: 220, zoomType: "x"},
+            title: {text: undefined},
+            xAxis: {type: "datetime", labels: {format: "{value:%H:%M}"}, title: {text: "Time (UTC)"}},
+            yAxis: {title: {text: "Margin Utilization (%)"}},
+            legend: {enabled: false},
+            tooltip: {shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2},
+            series: [{type: "line", name: "Margin Utilization", data: currentMarginUtilSeries}],
         }
         : null;
 
     const currentPositionSizeOptions = currentPositionSizeSeries.length
         ? {
-            chart: { height: 220, zoomType: "x" },
-            title: { text: undefined },
-            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
+            chart: {height: 220, zoomType: "x"},
+            title: {text: undefined},
+            xAxis: {type: "datetime", labels: {format: "{value:%H:%M}"}, title: {text: "Time (UTC)"}},
             yAxis: {
-                title: { text: "Position Size" },
-                plotLines: [{ value: 0, width: 1, color: "rgba(128,128,128,0.35)" }],
+                title: {text: "Position Size"},
+                plotLines: [{value: 0, width: 1, color: "rgba(128,128,128,0.35)"}],
             },
-            legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
-            series: [{ type: "line", name: "Position Size", data: currentPositionSizeSeries, connectNulls: false }],
+            legend: {enabled: false},
+            tooltip: {shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2},
+            series: [{type: "line", name: "Position Size", data: currentPositionSizeSeries, connectNulls: false}],
         }
         : null;
 
     const historyEquityOptions = historyEquitySeries.length
         ? {
-            chart: { height: 260, zoomType: "x" },
-            title: { text: undefined },
+            chart: {height: 260, zoomType: "x"},
+            title: {text: undefined},
             xAxis: {
                 type: "datetime",
-                labels: { format: historyXAxisFormat },
-                title: { text: "Time (UTC)" },
+                labels: {format: historyXAxisFormat},
+                title: {text: "Time (UTC)"},
             },
-            yAxis: { title: { text: "Equity (USD)" } },
-            legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
-            series: [{ type: "line", name: "Equity", data: historyEquitySeries }],
+            yAxis: {title: {text: "Equity (USD)"}},
+            legend: {enabled: false},
+            tooltip: {shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2},
+            series: [{type: "line", name: "Equity", data: historyEquitySeries}],
         }
         : null;
 
     const historyLeverageOptions = historyLeverageSeries.length
         ? {
-            chart: { height: 220, zoomType: "x" },
-            title: { text: undefined },
+            chart: {height: 220, zoomType: "x"},
+            title: {text: undefined},
             xAxis: {
                 type: "datetime",
-                labels: { format: historyXAxisFormat },
-                title: { text: "Time (UTC)" },
+                labels: {format: historyXAxisFormat},
+                title: {text: "Time (UTC)"},
             },
-            yAxis: { title: { text: "Gross Leverage" } },
-            legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
-            series: [{ type: "line", name: "Gross Leverage", data: historyLeverageSeries }],
+            yAxis: {title: {text: "Gross Leverage"}},
+            legend: {enabled: false},
+            tooltip: {shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2},
+            series: [{type: "line", name: "Gross Leverage", data: historyLeverageSeries}],
         }
         : null;
 
     const historyMarginUtilOptions = historyMarginUtilSeries.length
         ? {
-            chart: { height: 220, zoomType: "x" },
-            title: { text: undefined },
+            chart: {height: 220, zoomType: "x"},
+            title: {text: undefined},
             xAxis: {
                 type: "datetime",
-                labels: { format: historyXAxisFormat },
-                title: { text: "Time (UTC)" },
+                labels: {format: historyXAxisFormat},
+                title: {text: "Time (UTC)"},
             },
-            yAxis: { title: { text: "Margin Utilization (%)" } },
-            legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
-            series: [{ type: "line", name: "Margin Utilization", data: historyMarginUtilSeries }],
+            yAxis: {title: {text: "Margin Utilization (%)"}},
+            legend: {enabled: false},
+            tooltip: {shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2},
+            series: [{type: "line", name: "Margin Utilization", data: historyMarginUtilSeries}],
         }
         : null;
 
     const historyPositionSizeOptions = historyPositionSizeSeries.length
         ? {
-            chart: { height: 220, zoomType: "x" },
-            title: { text: undefined },
+            chart: {height: 220, zoomType: "x"},
+            title: {text: undefined},
             xAxis: {
                 type: "datetime",
-                labels: { format: historyXAxisFormat },
-                title: { text: "Time (UTC)" },
+                labels: {format: historyXAxisFormat},
+                title: {text: "Time (UTC)"},
             },
             yAxis: {
-                title: { text: "Position Size" },
-                plotLines: [{ value: 0, width: 1, color: "rgba(128,128,128,0.35)" }],
+                title: {text: "Position Size"},
+                plotLines: [{value: 0, width: 1, color: "rgba(128,128,128,0.35)"}],
             },
-            legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
-            series: [{ type: "line", name: "Position Size", data: historyPositionSizeSeries, connectNulls: false }],
+            legend: {enabled: false},
+            tooltip: {shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2},
+            series: [{type: "line", name: "Position Size", data: historyPositionSizeSeries, connectNulls: false}],
         }
         : null;
 
     const flowCountOptions = tradeCountSeries.length
         ? {
-            chart: { height: 220, zoomType: "x" },
-            title: { text: undefined },
-            xAxis: { type: "datetime", labels: { format: "{value:%H:%M}" }, title: { text: "Time (UTC)" } },
-            yAxis: { title: { text: "Trades / minute" } },
-            legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 0 },
-            series: [{ type: "column", name: "Trade Count", data: tradeCountSeries }],
+            chart: {height: 220, zoomType: "x"},
+            title: {text: undefined},
+            xAxis: {type: "datetime", labels: {format: "{value:%H:%M}"}, title: {text: "Time (UTC)"}},
+            yAxis: {title: {text: "Trades / minute"}},
+            legend: {enabled: false},
+            tooltip: {shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 0},
+            series: [{type: "column", name: "Trade Count", data: tradeCountSeries}],
         }
         : null;
 
     const flowSignedVolOptions = signedVolSeries.length
         ? {
-            chart: { height: 220, zoomType: "x" },
-            title: { text: undefined },
-            xAxis: { type: "datetime", title: { text: "Time (UTC)" } },
-            yAxis: { title: { text: "Net Signed Volume" } },
-            legend: { enabled: false },
-            tooltip: { shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2 },
-            series: [{ type: "column", name: "Net Signed Volume", data: signedVolSeries }],
+            chart: {height: 220, zoomType: "x"},
+            title: {text: undefined},
+            xAxis: {type: "datetime", title: {text: "Time (UTC)"}},
+            yAxis: {title: {text: "Net Signed Volume"}},
+            legend: {enabled: false},
+            tooltip: {shared: false, xDateFormat: "%Y-%m-%d %H:%M:%S UTC", valueDecimals: 2},
+            series: [{type: "column", name: "Net Signed Volume", data: signedVolSeries}],
         }
         : null;
 
@@ -488,21 +489,31 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
 
     return (
         <main className="flex flex-col gap-4 p-2 md:p-4">
-            <section className="flex flex-col gap-1">
-                <h1 className="text-xl md:text-2xl font-semibold text-text dark:text-text-inverted">
-                    AOI Detail — {accountTail5(aoi.account_id)} • {period}
-                </h1>
-                <div className="text-xs text-gray-600 dark:text-gray-300">
-                    Lookback: <span className="font-semibold">{lookbackMinutes}</span> minutes • Window:{" "}
-                    <span className="font-mono">{formatMs(window?.start_ts_ms)}</span> →{" "}
-                    <span className="font-mono">{formatMs(window?.end_ts_ms)}</span>
+            <section className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="flex flex-col gap-1">
+                    <h1 className="text-xl md:text-2xl font-semibold text-text dark:text-text-inverted">
+                        AOI Detail — {accountTail5(aoi.account_id)} • {period}
+                    </h1>
+                    <div className="text-xs text-gray-600 dark:text-gray-300">
+                        Lookback: <span className="font-semibold">{lookbackMinutes}</span> minutes • Window:{" "}
+                        <span className="font-mono">{formatMs(window?.start_ts_ms)}</span> →{" "}
+                        <span className="font-mono">{formatMs(window?.end_ts_ms)}</span>
+                    </div>
                 </div>
+
+                <Link
+                    href="/mfb-p"
+                    className="inline-flex items-center self-start rounded-full border border-gray-300 dark:border-gray-700 px-3 py-1.5 text-xs md:text-sm font-medium text-text dark:text-text-inverted hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                    Back to AOI List
+                </Link>
             </section>
 
             {(healthState || healthFlow) && (
                 <section className="space-y-2">
                     {healthState?.state_stale ? (
-                        <div className="rounded-md border border-yellow-200 dark:border-yellow-800 bg-yellow-100 dark:bg-yellow-900/20 px-3 py-2 text-sm text-yellow-900 dark:text-yellow-100">
+                        <div
+                            className="rounded-md border border-yellow-200 dark:border-yellow-800 bg-yellow-100 dark:bg-yellow-900/20 px-3 py-2 text-sm text-yellow-900 dark:text-yellow-100">
                             <span className="font-semibold">State feed stale:</span>{" "}
                             stale by {healthState.stale_minutes} minutes • last seen{" "}
                             <span className="font-mono text-xs">{formatMs(healthState.last_seen_ts_ms)}</span>
@@ -510,14 +521,16 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
                     ) : null}
 
                     {healthState?.has_gaps ? (
-                        <div className="rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100">
+                        <div
+                            className="rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100">
                             <span className="font-semibold">State series has gaps:</span>{" "}
                             missing {healthState.missing_points} of {healthState.expected_points} points
                         </div>
                     ) : null}
 
                     {healthFlow?.has_gaps ? (
-                        <div className="rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100">
+                        <div
+                            className="rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100">
                             <span className="font-semibold">Flow series has gaps:</span>{" "}
                             missing {healthFlow.missing_points} of {healthFlow.expected_points} points
                         </div>
@@ -531,16 +544,23 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
                     <CardContent>
                         <div className="space-y-1 text-sm">
                             <div><span className="font-semibold">AOI ID: </span><span>#{aoi.id}</span></div>
-                            <div><span className="font-semibold">Ticker: </span><span className="font-mono text-xs">{ticker}</span></div>
-                            <div><span className="font-semibold">Lifecycle: </span><span>{aoi.lifecycle_state ?? "—"}</span></div>
+                            <div><span className="font-semibold">Ticker: </span><span
+                                className="font-mono text-xs">{ticker}</span></div>
+                            <div><span
+                                className="font-semibold">Lifecycle: </span><span>{aoi.lifecycle_state ?? "—"}</span>
+                            </div>
                             <div><span className="font-semibold">Type: </span><span>{aoi.aoi_type ?? "—"}</span></div>
-                            <div><span className="font-semibold">Account: </span><span>{aoi.account_id ?? "—"}</span></div>
-                            <div><span className="font-semibold">Entry reason: </span><span>{aoi.entry_reason ?? "—"}</span></div>
+                            <div><span className="font-semibold">Account: </span><span>{aoi.account_id ?? "—"}</span>
+                            </div>
+                            <div><span
+                                className="font-semibold">Entry reason: </span><span>{aoi.entry_reason ?? "—"}</span>
+                            </div>
                             {aoi.notes ? (
                                 <div><span className="font-semibold">Notes: </span><span>{aoi.notes}</span></div>
                             ) : null}
                             {aoi.first_seen_ts_ms ? (
-                                <div><span className="font-semibold">First seen: </span><span className="text-xs">{formatMs(aoi.first_seen_ts_ms)}</span></div>
+                                <div><span className="font-semibold">First seen: </span><span
+                                    className="text-xs">{formatMs(aoi.first_seen_ts_ms)}</span></div>
                             ) : null}
                         </div>
                     </CardContent>
@@ -590,21 +610,28 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
                             latestState ? (
                                 <div className="grid gap-3 md:grid-cols-3 text-sm">
                                     <div className="space-y-1">
-                                        <div className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400">Balance</div>
+                                        <div
+                                            className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400">Balance
+                                        </div>
                                         <div>Equity: {formatNumber(latestState.equity_usd)}</div>
-                                        <div className={upnlClass}>Unrealized PnL: {formatNumber(latestState.unrealized_pnl)}</div>
+                                        <div className={upnlClass}>Unrealized
+                                            PnL: {formatNumber(latestState.unrealized_pnl)}</div>
                                         <div>Withdrawable: {formatNumber(latestState.withdrawable_usd)}</div>
                                     </div>
 
                                     <div className="space-y-1">
-                                        <div className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400">Margin</div>
+                                        <div
+                                            className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400">Margin
+                                        </div>
                                         <div>Gross Notional: {formatNumber(latestState.gross_notional_usd)}</div>
                                         <div>Margin Used: {formatNumber(latestState.margin_used_usd)}</div>
                                         <div>Maint. Margin: {formatNumber(latestState.maintenance_margin_usd)}</div>
                                     </div>
 
                                     <div className="space-y-1">
-                                        <div className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400">Risk</div>
+                                        <div
+                                            className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400">Risk
+                                        </div>
                                         <div>Gross Leverage: {formatNumber(latestState.gross_leverage)}</div>
                                         <div>Margin Utilization: {formatPercent(latestState.margin_utilization)}</div>
                                         <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -709,39 +736,43 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
                             <>
                                 {currentEquityOptions ? (
                                     <div className="mb-4">
-                                        <HighchartsReact highcharts={Highcharts} options={currentEquityOptions} />
+                                        <HighchartsReact highcharts={Highcharts} options={currentEquityOptions}/>
                                     </div>
                                 ) : (
-                                    <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">No equity series in window.</p>
+                                    <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">No equity series in
+                                        window.</p>
                                 )}
 
                                 <div className="grid gap-4 md:grid-cols-2">
                                     {currentLeverageOptions ? (
-                                        <HighchartsReact highcharts={Highcharts} options={currentLeverageOptions} />
+                                        <HighchartsReact highcharts={Highcharts} options={currentLeverageOptions}/>
                                     ) : (
                                         <p className="text-xs text-gray-500 dark:text-gray-400">No leverage series.</p>
                                     )}
 
                                     {currentMarginUtilOptions ? (
-                                        <HighchartsReact highcharts={Highcharts} options={currentMarginUtilOptions} />
+                                        <HighchartsReact highcharts={Highcharts} options={currentMarginUtilOptions}/>
                                     ) : (
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">No margin utilization series.</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">No margin utilization
+                                            series.</p>
                                     )}
                                 </div>
 
                                 <div className="mt-4">
                                     <div className="mb-2 text-sm font-semibold">Position Size (critical)</div>
                                     {currentPositionSizeOptions ? (
-                                        <HighchartsReact highcharts={Highcharts} options={currentPositionSizeOptions} />
+                                        <HighchartsReact highcharts={Highcharts} options={currentPositionSizeOptions}/>
                                     ) : (
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">No position series in window.</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">No position series in
+                                            window.</p>
                                     )}
                                 </div>
                             </>
                         ) : (
                             <>
                                 <div className="mb-4 flex items-center gap-2">
-                                    <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                    <span
+                                        className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                         AOI History
                                     </span>
 
@@ -765,7 +796,7 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
 
                                 {historyEquityOptions ? (
                                     <div className="mb-4">
-                                        <HighchartsReact highcharts={Highcharts} options={historyEquityOptions} />
+                                        <HighchartsReact highcharts={Highcharts} options={historyEquityOptions}/>
                                     </div>
                                 ) : (
                                     <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
@@ -775,24 +806,26 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
 
                                 <div className="grid gap-4 md:grid-cols-2">
                                     {historyLeverageOptions ? (
-                                        <HighchartsReact highcharts={Highcharts} options={historyLeverageOptions} />
+                                        <HighchartsReact highcharts={Highcharts} options={historyLeverageOptions}/>
                                     ) : (
                                         <p className="text-xs text-gray-500 dark:text-gray-400">No leverage series.</p>
                                     )}
 
                                     {historyMarginUtilOptions ? (
-                                        <HighchartsReact highcharts={Highcharts} options={historyMarginUtilOptions} />
+                                        <HighchartsReact highcharts={Highcharts} options={historyMarginUtilOptions}/>
                                     ) : (
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">No margin utilization series.</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">No margin utilization
+                                            series.</p>
                                     )}
                                 </div>
 
                                 <div className="mt-4">
                                     <div className="mb-2 text-sm font-semibold">Position Size (critical)</div>
                                     {historyPositionSizeOptions ? (
-                                        <HighchartsReact highcharts={Highcharts} options={historyPositionSizeOptions} />
+                                        <HighchartsReact highcharts={Highcharts} options={historyPositionSizeOptions}/>
                                     ) : (
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">No position series in history_state.</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">No position series in
+                                            history_state.</p>
                                     )}
                                 </div>
                             </>
@@ -816,18 +849,19 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
                     <CardContent>
                         {flowAllZero ? (
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Flow in this window is all zeros (mostly densified synthetic minutes). No trades detected.
+                                Flow in this window is all zeros (mostly densified synthetic minutes). No trades
+                                detected.
                             </p>
                         ) : (
                             <div className="grid gap-4 md:grid-cols-2">
                                 {flowCountOptions ? (
-                                    <HighchartsReact highcharts={Highcharts} options={flowCountOptions} />
+                                    <HighchartsReact highcharts={Highcharts} options={flowCountOptions}/>
                                 ) : (
                                     <p className="text-xs text-gray-500 dark:text-gray-400">No flow count series.</p>
                                 )}
 
                                 {flowSignedVolOptions ? (
-                                    <HighchartsReact highcharts={Highcharts} options={flowSignedVolOptions} />
+                                    <HighchartsReact highcharts={Highcharts} options={flowSignedVolOptions}/>
                                 ) : (
                                     <p className="text-xs text-gray-500 dark:text-gray-400">No signed volume series.</p>
                                 )}
@@ -851,17 +885,20 @@ export default function MfbPParticipantClient({ aoiId }: MfbPParticipantClientPr
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
                                                 <span className="font-mono text-xs">{ev.event_type}</span>
-                                                <span className="text-[10px] text-gray-500 dark:text-gray-400">{formatMs(ev.ts_event_ms)}</span>
+                                                <span
+                                                    className="text-[10px] text-gray-500 dark:text-gray-400">{formatMs(ev.ts_event_ms)}</span>
                                             </div>
                                         </div>
                                         {ev.payload?.note ? (
-                                            <div className="mt-1 text-xs text-gray-800 dark:text-gray-200">{ev.payload.note}</div>
+                                            <div
+                                                className="mt-1 text-xs text-gray-800 dark:text-gray-200">{ev.payload.note}</div>
                                         ) : null}
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">No recent events in the current window.</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">No recent events in the current
+                                window.</p>
                         )}
                     </CardContent>
                 </Card>

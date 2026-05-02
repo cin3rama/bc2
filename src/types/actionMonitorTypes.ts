@@ -57,6 +57,7 @@ export interface ActionMonitorMmBotPositionMonitor {
     delta_1m: DecimalString | number | null;
     delta_5m: DecimalString | number | null;
     series_1m_delta: Array<[UnixMs, DecimalString | number | null]>;
+    series_net_position?: Array<[UnixMs, DecimalString | number | null]>;
 }
 
 export interface ActionMonitorSnapshot {

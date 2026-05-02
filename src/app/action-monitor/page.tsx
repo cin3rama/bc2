@@ -416,78 +416,34 @@ function MetricGridCard({
     );
 }
 
-function MetricRowSection({
-                              title,
-                              entries,
-                              columnsClassName,
-                              compact = false,
-                          }: {
+function CompactSummaryBlock({
+                                 title,
+                                 entries,
+                                 containerClassName,
+                                 valueClassName = 'text-sm font-semibold',
+                             }: {
     title: string;
     entries: Array<{ label: string; value: MetricRenderable }>;
-    columnsClassName: string;
-    compact?: boolean;
+    containerClassName: string;
+    valueClassName?: string;
 }) {
     return (
-        <div
-            className={`rounded shadow bg-white dark:bg-gray-800 text-text dark:text-text-inverted ${
-                compact ? 'p-3' : 'p-4'
-            }`}
-        >
-            <h2 className={`${compact ? 'text-sm' : 'text-base'} font-semibold mb-3`}>
+        <div className={`rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 ${containerClassName}`}>
+            <div className="text-[11px] font-semibold uppercase tracking-wide opacity-70 mb-2">
                 {title}
-            </h2>
-            <div className={`grid gap-2 ${columnsClassName}`}>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
                 {entries.map((entry) => (
                     <div
                         key={entry.label}
-                        className={`rounded border border-gray-200 dark:border-gray-700 ${
-                            compact ? 'p-2 min-h-[68px]' : 'p-3'
-                        }`}
+                        className="rounded border border-gray-200 dark:border-gray-700 px-2 py-1.5"
                     >
-                        <div className={`${compact ? 'text-[11px]' : 'text-xs'} opacity-70 mb-1`}>
-                            {entry.label}
-                        </div>
-                        <div className={`${compact ? 'text-base' : 'text-xl'} font-bold`}>
+                        <div className="text-[10px] opacity-70 leading-tight">{entry.label}</div>
+                        <div className={`${valueClassName} leading-tight`}>
                             {formatMetricValue(entry.value)}
                         </div>
                     </div>
                 ))}
-            </div>
-        </div>
-    );
-}
-
-function ImpactPairCard({
-                            title,
-                            leftLabel,
-                            leftValue,
-                            rightLabel,
-                            rightValue,
-                        }: {
-    title: string;
-    leftLabel: string;
-    leftValue: MetricRenderable;
-    rightLabel: string;
-    rightValue: MetricRenderable;
-}) {
-    return (
-        <div className="rounded shadow bg-white dark:bg-gray-800 p-4 text-text dark:text-text-inverted">
-            <h2 className="text-base font-semibold mb-4">{title}</h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="rounded border border-gray-200 dark:border-gray-700 p-3">
-                    <div className="text-xs opacity-70 mb-1">{leftLabel}</div>
-                    <div className="text-xl font-bold">
-                        {formatMetricValue(leftValue)}
-                    </div>
-                </div>
-
-                <div className="rounded border border-gray-200 dark:border-gray-700 p-3">
-                    <div className="text-xs opacity-70 mb-1">{rightLabel}</div>
-                    <div className="text-xl font-bold">
-                        {formatMetricValue(rightValue)}
-                    </div>
-                </div>
             </div>
         </div>
     );
@@ -513,14 +469,14 @@ function buildImpactChartOptions(
     return {
         chart: {
             backgroundColor: 'transparent',
-            height: 360,
+            height: 340,
         },
         time: { timezone: 'UTC' },
         title: {
             text: 'Impact 1 Minute',
             style: {
                 color: chartAccent,
-                fontSize: '14px',
+                fontSize: '13px',
                 fontWeight: '600',
             },
         },
@@ -574,6 +530,7 @@ function buildImpactChartOptions(
             enabled: true,
             itemStyle: {
                 color: chartAccent,
+                fontSize: '11px',
             },
         },
         tooltip: {
@@ -633,6 +590,7 @@ function buildImpactChartOptions(
 function buildMmBotPositionDeltaChartOptions(
     monitor: ActionMonitorMmBotPositionMonitor,
     chartAccent: string,
+    zeroLineColor: string,
 ): Highcharts.Options {
     const data = (monitor.series_1m_delta || []).map(([ts, value]) => [
         ts,
@@ -642,14 +600,14 @@ function buildMmBotPositionDeltaChartOptions(
     return {
         chart: {
             backgroundColor: 'transparent',
-            height: 300,
+            height: 240,
         },
         time: { timezone: 'UTC' },
         title: {
             text: 'MM Bot Cohort Position Δ (1m)',
             style: {
                 color: chartAccent,
-                fontSize: '14px',
+                fontSize: '13px',
                 fontWeight: '600',
             },
         },
@@ -684,8 +642,8 @@ function buildMmBotPositionDeltaChartOptions(
             plotLines: [
                 {
                     value: 0,
-                    width: 1,
-                    color: chartAccent,
+                    width: 2,
+                    color: zeroLineColor,
                     zIndex: 3,
                 },
             ],
@@ -730,6 +688,96 @@ function buildMmBotPositionDeltaChartOptions(
     };
 }
 
+function buildMmBotNetPositionChartOptions(
+    monitor: ActionMonitorMmBotPositionMonitor,
+    chartAccent: string,
+    zeroLineColor: string,
+): Highcharts.Options {
+    const data = (monitor.series_net_position || []).map(([ts, value]) => [
+        ts,
+        toNumeric(value),
+    ]);
+
+    return {
+        chart: {
+            backgroundColor: 'transparent',
+            height: 280,
+        },
+        time: { timezone: 'UTC' },
+        title: {
+            text: 'Market Makers Net Position',
+            style: {
+                color: chartAccent,
+                fontSize: '13px',
+                fontWeight: '600',
+            },
+        },
+        credits: {
+            enabled: false,
+        },
+        xAxis: {
+            type: 'datetime',
+            lineColor: chartAccent,
+            tickColor: chartAccent,
+            gridLineColor: chartAccent,
+            labels: {
+                format: '{value:%H:%M}',
+                style: {
+                    color: chartAccent,
+                },
+            },
+        },
+        yAxis: {
+            title: {
+                text: 'Net Position',
+                style: {
+                    color: chartAccent,
+                },
+            },
+            gridLineColor: chartAccent,
+            labels: {
+                style: {
+                    color: chartAccent,
+                },
+            },
+            plotLines: [
+                {
+                    value: 0,
+                    width: 2,
+                    color: zeroLineColor,
+                    zIndex: 3,
+                },
+            ],
+        },
+        legend: {
+            enabled: false,
+        },
+        tooltip: {
+            shared: false,
+            xDateFormat: '%Y-%m-%d %H:%M:%S UTC',
+            pointFormat: '<span style="font-weight:600">Market Makers Net Position:</span> {point.y:,.2f}',
+        },
+        plotOptions: {
+            series: {
+                animation: false,
+            },
+            line: {
+                lineWidth: 2,
+                marker: {
+                    enabled: false,
+                },
+            },
+        },
+        series: [
+            {
+                type: 'line',
+                name: 'Market Makers Net Position',
+                data,
+            },
+        ],
+    };
+}
+
 function SignedValueWithArrow({
                                   value,
                                   showArrow = false,
@@ -754,17 +802,19 @@ function SignedValueWithArrow({
 function MmBotPositionMonitorCard({
                                       monitor,
                                       chartAccent,
+                                      zeroLineColor,
                                   }: {
     monitor?: ActionMonitorMmBotPositionMonitor | null;
     chartAccent: string;
+    zeroLineColor: string;
 }) {
     if (!monitor) {
         return (
-            <div className="rounded shadow bg-white dark:bg-gray-800 p-4 text-text dark:text-text-inverted">
-                <div className="text-base font-semibold mb-2">
+            <div className="rounded shadow bg-white dark:bg-gray-800 p-3 text-text dark:text-text-inverted">
+                <div className="text-sm font-semibold mb-1">
                     MM Bot Cohort Position Monitor
                 </div>
-                <div className="text-sm opacity-70">
+                <div className="text-xs opacity-70">
                     No monitor data available for the selected ticker.
                 </div>
             </div>
@@ -773,60 +823,73 @@ function MmBotPositionMonitorCard({
 
     const summaryItems = [
         {
-            label: 'Current Total',
+            label: 'Current Net',
             value: monitor.current_net_position_size,
             showArrow: false,
         },
         {
-            label: '15s Change',
+            label: '15s Δ',
             value: monitor.delta_15s,
             showArrow: true,
         },
         {
-            label: '1m Change',
+            label: '1m Δ',
             value: monitor.delta_1m,
             showArrow: true,
         },
         {
-            label: '5m Change',
+            label: '5m Δ',
             value: monitor.delta_5m,
             showArrow: true,
         },
     ];
 
     return (
-        <div className="rounded shadow bg-white dark:bg-gray-800 p-4 text-text dark:text-text-inverted">
-            <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="rounded shadow bg-white dark:bg-gray-800 p-3 text-text dark:text-text-inverted">
+            <div className="flex items-start justify-between gap-2 mb-2">
                 <div>
-                    <h2 className="text-base font-semibold">
+                    <h2 className="text-sm font-semibold">
                         MM Bot Cohort Position Monitor
                     </h2>
-                    <div className="text-xs opacity-70">
-                        {monitor.ticker} · {monitor.sampling_interval_seconds}s sampling · {monitor.history_window_minutes}m history
+                    <div className="text-[10px] opacity-70">
+                        {monitor.sampling_interval_seconds}s sampling · {monitor.history_window_minutes}m history
                     </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-2 mb-2">
                 {summaryItems.map((item) => (
                     <div
                         key={item.label}
-                        className="rounded border border-gray-200 dark:border-gray-700 p-3"
+                        className="rounded border border-gray-200 dark:border-gray-700 px-2 py-1.5"
                     >
-                        <div className="text-xs opacity-70 mb-1">{item.label}</div>
+                        <div className="text-[10px] opacity-70 mb-0.5">{item.label}</div>
                         <SignedValueWithArrow
                             value={item.value}
                             showArrow={item.showArrow}
-                            fontClassName="text-xl font-bold"
+                            fontClassName="text-base font-semibold"
                         />
                     </div>
                 ))}
             </div>
 
-            <HighchartsReact
-                highcharts={Highcharts}
-                options={buildMmBotPositionDeltaChartOptions(monitor, chartAccent)}
-            />
+            <div className="space-y-2">
+                <HighchartsReact
+                    highcharts={Highcharts}
+                    options={buildMmBotPositionDeltaChartOptions(monitor, chartAccent, zeroLineColor)}
+                />
+
+                {(monitor.series_net_position || []).length > 0 ? (
+                    <HighchartsReact
+                        highcharts={Highcharts}
+                        options={buildMmBotNetPositionChartOptions(monitor, chartAccent, zeroLineColor)}
+                    />
+                ) : (
+                    <div className="rounded border border-gray-200 dark:border-gray-700 px-3 py-2 text-xs opacity-70">
+                        No Market Makers Net Position series available.
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
@@ -1201,6 +1264,7 @@ export default function ActionMonitorPage() {
     }
 
     const chartAccent = isDarkMode ? '#8B770C' : '#FFE066';
+    const zeroLineColor = isDarkMode ? '#f9fafb' : '#111827';
     const chartVars: CSSProperties = {
         ['--am-chart-line' as string]: chartAccent,
         ['--am-chart-grid' as string]: chartAccent,
@@ -1214,6 +1278,25 @@ export default function ActionMonitorPage() {
         value: entry.value,
     }));
 
+    const impactEntries = [
+        {
+            label: 'Up Absorption',
+            value: snapshot.impact?.up_move_absorption as MetricRenderable,
+        },
+        {
+            label: 'Buy Vol / Up $',
+            value: snapshot.impact?.buy_vol_per_up_dollar as MetricRenderable,
+        },
+        {
+            label: 'Down Absorption',
+            value: snapshot.impact?.down_move_absorption as MetricRenderable,
+        },
+        {
+            label: 'Sell Vol / Down $',
+            value: snapshot.impact?.sell_vol_per_down_dollar as MetricRenderable,
+        },
+    ];
+
     const flowEntries = blockEntries(
         snapshot.flow as Record<string, unknown>,
     )
@@ -1225,14 +1308,14 @@ export default function ActionMonitorPage() {
 
     return (
         <div
-            className="p-4 space-y-4 text-text dark:text-text-inverted"
+            className="p-4 space-y-3 text-text dark:text-text-inverted"
             style={chartVars}
         >
-            <div className="rounded shadow bg-white dark:bg-gray-800 p-4">
-                <div className="flex justify-between">
+            <div className="rounded shadow bg-white dark:bg-gray-800 p-3">
+                <div className="flex justify-between items-center gap-3 mb-3">
                     <h1 className="text-xl font-bold">Action Monitor</h1>
                     <div
-                        className={`text-sm font-bold ${
+                        className={`text-xs font-bold ${
                             isConnected ? 'text-green-500' : 'text-red-500'
                         }`}
                     >
@@ -1240,54 +1323,26 @@ export default function ActionMonitorPage() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4 text-xs">
-                    <div>
-                        <div className="opacity-70">Ticker</div>
-                        <div>{snapshot.meta.ticker}</div>
-                    </div>
-                    <div>
-                        <div className="opacity-70">Period</div>
-                        <div>{snapshot.meta.period}</div>
-                    </div>
-                    <div>
-                        <div className="opacity-70">Window Ms</div>
-                        <div>{formatMetricValue(snapshot.meta.window_ms)}</div>
-                    </div>
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
+                    <CompactSummaryBlock
+                        title="Price"
+                        entries={priceEntries}
+                        containerClassName="xl:col-span-5"
+                    />
+                    <CompactSummaryBlock
+                        title="Impact"
+                        entries={impactEntries}
+                        containerClassName="xl:col-span-4"
+                    />
+                    <CompactSummaryBlock
+                        title="Flow"
+                        entries={flowEntries}
+                        containerClassName="xl:col-span-3"
+                    />
                 </div>
             </div>
 
-            <MetricRowSection
-                title="Price"
-                entries={priceEntries}
-                columnsClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6"
-                compact={true}
-            />
-
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <ImpactPairCard
-                    title="Upward Impact"
-                    leftLabel="Up Move Absorption"
-                    leftValue={snapshot.impact?.up_move_absorption as MetricRenderable}
-                    rightLabel="Buy Vol Per Up Dollar"
-                    rightValue={snapshot.impact?.buy_vol_per_up_dollar as MetricRenderable}
-                />
-
-                <ImpactPairCard
-                    title="Downward Impact"
-                    leftLabel="Down Move Absorption"
-                    leftValue={snapshot.impact?.down_move_absorption as MetricRenderable}
-                    rightLabel="Sell Vol Per Down Dollar"
-                    rightValue={snapshot.impact?.sell_vol_per_down_dollar as MetricRenderable}
-                />
-            </div>
-
-            <MetricRowSection
-                title="Flow"
-                entries={flowEntries}
-                columnsClassName="grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"
-            />
-
-            <div className="rounded shadow bg-white dark:bg-gray-800 p-4">
+            <div className="rounded shadow bg-white dark:bg-gray-800 p-3">
                 <HighchartsReact
                     highcharts={Highcharts}
                     options={buildImpactChartOptions(snapshot, chartAccent)}
@@ -1297,9 +1352,10 @@ export default function ActionMonitorPage() {
             <MmBotPositionMonitorCard
                 monitor={snapshot.mm_bot_position_monitor}
                 chartAccent={chartAccent}
+                zeroLineColor={zeroLineColor}
             />
 
-            <div className="space-y-4">
+            <div className="space-y-3">
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                     <CategoryCard
                         title="MM Buyers"
