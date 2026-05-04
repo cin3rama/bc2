@@ -1,4 +1,4 @@
-// app/mfb-p-success-leader/page.tsx
+// /app/mfb-p-success-leader/page.tsx
 "use client"; // MUST be the first non-empty line
 
 import React, {useCallback, useEffect, useMemo, useState} from "react";
@@ -20,6 +20,12 @@ import {
 } from "@/types/mfb_p_success_leader";
 
 const WINDOWS: SuccessLeaderWindowDays[] = [7, 30, 60];
+
+type SuccessLeaderSortMode =
+    | "growth_desc_value_desc"
+    | "value_desc_growth_desc";
+
+const DEFAULT_SORT_MODE: SuccessLeaderSortMode = "growth_desc_value_desc";
 
 function formatUtcMs(ms: number | null | undefined): string {
     if (ms == null) return "—";
@@ -67,6 +73,13 @@ function growthClass(pctGrowth: DecimalLike | null | undefined): string {
     if (n > 0) return "text-green-600 dark:text-green-400";
     if (n < 0) return "text-red-600 dark:text-red-400";
     return "text-gray-800 dark:text-gray-200";
+}
+
+function compareNullableDesc(a: number | null, b: number | null): number {
+    if (a == null && b == null) return 0;
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return b - a;
 }
 
 /** Derived UI field: Confidence badge from days_observed */
@@ -151,6 +164,7 @@ export default function MfbPSuccessLeaderHubPage() {
     const {setConfig} = useHeaderConfig();
 
     const [windowDays, setWindowDays] = useState<SuccessLeaderWindowDays>(7);
+    const [sortMode, setSortMode] = useState<SuccessLeaderSortMode>(DEFAULT_SORT_MODE);
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -233,12 +247,41 @@ export default function MfbPSuccessLeaderHubPage() {
             (x: any) =>
                 x &&
                 x.kind === SUCCESS_LEADER_SNAPSHOT_KIND &&
-                (x.version === 1 || x.version === 2) // ✅ THIS IS THE FIX
+                (x.version === 1 || x.version === 2)
         ) as LeaderRow[];
     }, [leaderboard?.leaders, minimalSeed?.leaders]);
 
+    const sortedLeaders: LeaderRow[] = useMemo(() => {
+        const rows = [...leaders];
+
+        rows.sort((a, b) => {
+            const aGrowth = parseDecimalLike(a.pct_growth);
+            const bGrowth = parseDecimalLike(b.pct_growth);
+            const aValueEnd = parseDecimalLike(a.value_end);
+            const bValueEnd = parseDecimalLike(b.value_end);
+
+            if (sortMode === "growth_desc_value_desc") {
+                const growthCmp = compareNullableDesc(aGrowth, bGrowth);
+                if (growthCmp !== 0) return growthCmp;
+
+                const valueCmp = compareNullableDesc(aValueEnd, bValueEnd);
+                if (valueCmp !== 0) return valueCmp;
+            } else {
+                const valueCmp = compareNullableDesc(aValueEnd, bValueEnd);
+                if (valueCmp !== 0) return valueCmp;
+
+                const growthCmp = compareNullableDesc(aGrowth, bGrowth);
+                if (growthCmp !== 0) return growthCmp;
+            }
+
+            return a.account_id.localeCompare(b.account_id);
+        });
+
+        return rows;
+    }, [leaders, sortMode]);
+
     const hasEligibleDay = effectiveAsofDayMs != null;
-    const hasLeaders = leaders.length > 0;
+    const hasLeaders = sortedLeaders.length > 0;
 
     return (
         <main className="flex flex-col gap-4 p-2 md:p-4">
@@ -266,6 +309,16 @@ export default function MfbPSuccessLeaderHubPage() {
                                     {d} Days
                                 </option>
                             ))}
+                        </select>
+
+                        <span className="text-xs md:text-sm text-gray-600 dark:text-gray-300">Sort</span>
+                        <select
+                            value={sortMode}
+                            onChange={(e) => setSortMode(e.target.value as SuccessLeaderSortMode)}
+                            className="text-[10px] p-1 w-40 sm:text-xs sm:p-2 sm:w-auto rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-black dark:text-white"
+                        >
+                            <option value="growth_desc_value_desc">Growth ↓ then Ending Value ↓</option>
+                            <option value="value_desc_growth_desc">Ending Value ↓ then Growth ↓</option>
                         </select>
 
                         <button
@@ -330,7 +383,7 @@ export default function MfbPSuccessLeaderHubPage() {
                                     </thead>
 
                                     <tbody>
-                                    {leaders.map((row, idx) => {
+                                    {sortedLeaders.map((row, idx) => {
                                         const rank = idx + 1;
                                         const conf = confidenceBadge(row.days_observed, row.window_days);
                                         const fund = fundingBadge(row.cashflow_cumulative);
@@ -346,7 +399,7 @@ export default function MfbPSuccessLeaderHubPage() {
 
                                         return (
                                             <tr
-                                                key={`${row.account_id}-${idx}`}
+                                                key={`${row.account_id}-${row.window_days}-${idx}`}
                                                 className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
                                             >
                                                 <td className="py-2 pr-4 align-top">
@@ -354,8 +407,7 @@ export default function MfbPSuccessLeaderHubPage() {
                                                 </td>
 
                                                 <td className="py-2 px-2 align-top">
-                                                    <span
-                                                        className="font-mono text-[11px]">…{accountTail5(row.account_id)}</span>
+                                                    <span className="font-mono text-[11px]">…{accountTail5(row.account_id)}</span>
                                                 </td>
 
                                                 <td className={`py-2 px-2 align-top font-semibold ${growthClass(row.pct_growth)}`}>
@@ -368,14 +420,14 @@ export default function MfbPSuccessLeaderHubPage() {
 
                                                 <td className="py-2 px-2 align-top">
                                                     <div className="flex flex-wrap gap-2">
-                              <span
-                                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${conf.cls}`}>
-                                {conf.label}
-                              </span>
+                                                            <span
+                                                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${conf.cls}`}>
+                                                                {conf.label}
+                                                            </span>
                                                         <span
                                                             className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${fund.cls}`}>
-                                {fund.label}
-                              </span>
+                                                                {fund.label}
+                                                            </span>
                                                     </div>
                                                 </td>
 
@@ -395,9 +447,8 @@ export default function MfbPSuccessLeaderHubPage() {
 
                                 <div className="mt-3 text-[11px] text-gray-500 dark:text-gray-400">
                                     <span className="font-semibold">Window:</span> {effectiveWindowDays}d •{" "}
-                                    <span
-                                        className="font-semibold">As-of (UTC):</span> {formatUtcMs(effectiveAsofDayMs)} •{" "}
-                                    <span className="font-semibold">Leaders:</span> {leaders.length}
+                                    <span className="font-semibold">As-of (UTC):</span> {formatUtcMs(effectiveAsofDayMs)} •{" "}
+                                    <span className="font-semibold">Leaders:</span> {sortedLeaders.length}
                                 </div>
                             </div>
                         )}
