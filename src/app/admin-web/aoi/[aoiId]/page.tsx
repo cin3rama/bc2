@@ -3,12 +3,12 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import AdminSessionGate from "@/components/admin-web/AdminSessionGate";
 
-export default function AdminWebAoiDetailPage({
-                                                  params,
-                                              }: {
-    params: { aoiId: string };
+export default async function AdminWebAoiDetailPage({
+                                                        params,
+                                                    }: {
+    params: Promise<{ aoiId: string }>;
 }) {
-    const { aoiId } = params;
+    const { aoiId } = await params;
 
     return (
         <main className="flex flex-col gap-4">
