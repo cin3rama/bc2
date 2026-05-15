@@ -10,12 +10,12 @@ export default function AdminSessionGate({
                                          }: {
     children: React.ReactNode;
 }) {
-    const { isReady, isAuthenticated } = useAdminSession();
+    const { isReady, isRestoring, isAuthenticated } = useAdminSession();
 
-    if (!isReady) {
+    if (!isReady || isRestoring) {
         return (
             <div className="rounded border border-gray-200 dark:border-gray-800 px-4 py-6 text-sm text-gray-600 dark:text-gray-300">
-                Checking admin session shell…
+                Checking admin session…
             </div>
         );
     }

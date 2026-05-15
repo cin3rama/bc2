@@ -13,17 +13,16 @@ export default function AdminWebHomePage() {
                 <section className="grid gap-4 xl:grid-cols-2">
                     <Card>
                         <CardHeader>
-                            <CardTitle>AOI Actor Management</CardTitle>
+                            <CardTitle>AOI Actor Policy</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
                                 <p>
-                                    Task 9B will bind this surface to the validated actor-level admin
-                                    endpoints for list/read/patch.
+                                    Manage actor-level AOI policy through the protected mf_admin backend.
                                 </p>
                                 <div className="rounded border border-gray-200 dark:border-gray-800 p-3 text-xs">
-                                    Target fields: aoi_type, lifecycle_state, checkpoint_tier,
-                                    checkpoint_mode, replay_enabled, reconcile_enabled, notes
+                                    Fields: aoi_type, lifecycle_state, checkpoint_tier, checkpoint_mode,
+                                    replay_enabled, reconcile_enabled, notes
                                 </div>
                             </div>
                         </CardContent>
@@ -31,17 +30,16 @@ export default function AdminWebHomePage() {
 
                     <Card>
                         <CardHeader>
-                            <CardTitle>Actor-Market Management</CardTitle>
+                            <CardTitle>Actor-Market Policy</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
                                 <p>
-                                    Task 9B will bind this surface to the validated actor-market
-                                    list/read/patch endpoints for per-ticker policy control.
+                                    Manage per-market AOI policy while preserving backend runtime ownership.
                                 </p>
                                 <div className="rounded border border-gray-200 dark:border-gray-800 p-3 text-xs">
-                                    Target fields: market_priority, market_lifecycle_state,
-                                    replay_enabled, reconcile_enabled
+                                    Fields: market_priority, market_lifecycle_state, replay_enabled,
+                                    reconcile_enabled
                                 </div>
                             </div>
                         </CardContent>
