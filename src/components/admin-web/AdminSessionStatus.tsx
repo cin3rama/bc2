@@ -11,9 +11,9 @@ function walletTail(walletAddress: string | null): string {
 }
 
 export default function AdminSessionStatus() {
-    const { isReady, isAuthenticated, walletAddress, mode } = useAdminSession();
+    const { isReady, isRestoring, isAuthenticated, walletAddress, label, mode } = useAdminSession();
 
-    if (!isReady) {
+    if (!isReady || isRestoring) {
         return (
             <div className="inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                 Checking session…
@@ -30,12 +30,13 @@ export default function AdminSessionStatus() {
     }
 
     return (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                 Authenticated
             </span>
             <span className="text-[11px] text-gray-600 dark:text-gray-300">
-                {walletTail(walletAddress)} • {mode}
+                {walletTail(walletAddress)} • {mode ?? "wallet"}
+                {label ? ` • ${label}` : ""}
             </span>
         </div>
     );

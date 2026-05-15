@@ -8,37 +8,40 @@ import { useAdminSession } from "@/components/admin-web/AdminSessionProvider";
 import { ADMIN_WEB_API_ROOT } from "@/lib/admin-web/env";
 
 export default function AdminAuthenticatedPlaceholderCard() {
-    const { walletAddress, mode } = useAdminSession();
+    const { walletAddress, walletAddressChecksum, label, loginTsMs, mode } = useAdminSession();
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Admin Session Shell Ready</CardTitle>
+                <CardTitle>Admin Session Active</CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="grid gap-3 md:grid-cols-3 text-sm">
                     <div className="rounded border border-gray-200 dark:border-gray-800 p-3">
                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                            Wallet
+                        </div>
+                        <div className="font-mono text-[11px] break-all">{walletAddressChecksum ?? walletAddress ?? "—"}</div>
+                        <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                            Mode: {mode ?? "wallet"}
+                        </div>
+                    </div>
+
+                    <div className="rounded border border-gray-200 dark:border-gray-800 p-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
                             Session
                         </div>
-                        <div className="font-mono text-[11px] break-all">{walletAddress ?? "—"}</div>
-                        <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                            Mode: {mode}
-                        </div>
-                    </div>
-
-                    <div className="rounded border border-gray-200 dark:border-gray-800 p-3">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
-                            Next Task 9B Targets
-                        </div>
                         <div className="text-xs text-gray-700 dark:text-gray-300">
-                            auth/session flow, AOI actor list/read/patch, and actor-market list/read/patch
+                            Label: {label ?? "—"}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-700 dark:text-gray-300">
+                            Login UTC ms: {loginTsMs ?? "—"}
                         </div>
                     </div>
 
                     <div className="rounded border border-gray-200 dark:border-gray-800 p-3">
                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
-                            API Scaffold
+                            API
                         </div>
                         <div className="text-xs text-gray-700 dark:text-gray-300 break-all">
                             {ADMIN_WEB_API_ROOT}
@@ -51,13 +54,7 @@ export default function AdminAuthenticatedPlaceholderCard() {
                         href="/admin-web/aoi"
                         className="inline-flex items-center rounded-full border border-gray-300 dark:border-gray-700 px-3 py-1.5 text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     >
-                        Open AOI Actor Shell
-                    </Link>
-                    <Link
-                        href="/admin-web/aoi/detail?aoiId=1"
-                        className="inline-flex items-center rounded-full border border-gray-300 dark:border-gray-700 px-3 py-1.5 text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                    >
-                        Open AOI Detail Shell
+                        Open AOI Policy
                     </Link>
                 </div>
             </CardContent>

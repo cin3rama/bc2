@@ -45,10 +45,10 @@ export default function AdminRouteChrome({ children }: { children: React.ReactNo
                         {isAuthenticated ? (
                             <button
                                 type="button"
-                                onClick={logout}
+                                onClick={() => void logout()}
                                 className="inline-flex items-center rounded-full border border-gray-300 dark:border-gray-700 px-3 py-1 text-[11px] md:text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                             >
-                                Logout Placeholder Session
+                                Logout Admin Session
                             </button>
                         ) : null}
                     </div>
@@ -59,13 +59,13 @@ export default function AdminRouteChrome({ children }: { children: React.ReactNo
                         href="/admin-web"
                         className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] md:text-xs font-medium transition-colors ${navClass(isHome)}`}
                     >
-                        Session Shell
+                        Admin Home
                     </Link>
                     <Link
                         href="/admin-web/aoi"
                         className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] md:text-xs font-medium transition-colors ${navClass(Boolean(isAoi))}`}
                     >
-                        AOI Policy Shell
+                        AOI Policy
                     </Link>
                 </div>
             </section>
