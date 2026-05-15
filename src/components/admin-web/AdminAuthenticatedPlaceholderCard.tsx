@@ -54,7 +54,7 @@ export default function AdminAuthenticatedPlaceholderCard() {
                         Open AOI Actor Shell
                     </Link>
                     <Link
-                        href="/admin-web/aoi/1"
+                        href="/admin-web/aoi/detail?aoiId=1"
                         className="inline-flex items-center rounded-full border border-gray-300 dark:border-gray-700 px-3 py-1.5 text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     >
                         Open AOI Detail Shell
