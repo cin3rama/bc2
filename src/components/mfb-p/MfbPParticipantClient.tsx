@@ -1,4 +1,4 @@
-// /components/mfb-p/MfbPParticipantClient.tsx
+// /src/components/mfb-p/MfbPParticipantClient.tsx
 "use client";
 
 import React, {useCallback, useEffect, useMemo, useState} from "react";
@@ -159,6 +159,14 @@ function readPositionSize(row: any): number | null {
     return parseNumOrNull(row?.position_size ?? row?.positionSize);
 }
 
+function getPortfolioLatestState(detail: any, fallback: MfbPStateRow | null): MfbPStateRow | null {
+    const liveLatest = detail?.state?.latest;
+    if (liveLatest && typeof liveLatest === "object") {
+        return liveLatest as MfbPStateRow;
+    }
+    return fallback;
+}
+
 export default function MfbPParticipantClient({aoiId}: MfbPParticipantClientProps) {
     const {setConfig} = useHeaderConfig();
     const {ticker, period: rawPeriod} = useTickerPeriod() as any;
@@ -307,14 +315,15 @@ export default function MfbPParticipantClient({aoiId}: MfbPParticipantClientProp
     const stateRows: MfbPStateRow[] = Array.isArray(detail.series?.state)
         ? detail.series.state
         : [];
-    const historyStateRows: MfbPStateRow[] = Array.isArray(detail.history_state)
-        ? detail.history_state
+    const historyStateRows: MfbPStateRow[] = Array.isArray((detail as any).history_state)
+        ? (detail as any).history_state
         : [];
     const flowRows: MfbPFlowRow[] = Array.isArray(detail.series?.flow)
         ? detail.series.flow
         : [];
 
     const latestState = stateRows.length ? stateRows[stateRows.length - 1] : null;
+    const portfolioLatestState = getPortfolioLatestState(detail, latestState);
     const latestFlow = flowRows.length ? flowRows[flowRows.length - 1] : null;
 
     const currentEquitySeries = stateRows.map((r) => [r.ts_minute_ms, parseNum(r.equity_usd, 0)]);
@@ -479,7 +488,7 @@ export default function MfbPParticipantClient({aoiId}: MfbPParticipantClientProp
     const events = detail.events?.recent ?? [];
     const sortedEvents = events.slice().sort((a, b) => (b.ts_event_ms ?? 0) - (a.ts_event_ms ?? 0));
 
-    const upnlNum = parseNum(latestState?.unrealized_pnl, NaN);
+    const upnlNum = parseNum(portfolioLatestState?.unrealized_pnl, NaN);
     const upnlClass =
         Number.isFinite(upnlNum) && upnlNum > 0
             ? "text-green-600 dark:text-green-400"
@@ -571,9 +580,9 @@ export default function MfbPParticipantClient({aoiId}: MfbPParticipantClientProp
                         <div className="flex items-center justify-between gap-3">
                             <CardTitle>
                                 Portfolio Snapshot{" "}
-                                {latestState?.ts_minute_ms ? (
+                                {portfolioLatestState?.ts_minute_ms ? (
                                     <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
-                                        last point {formatMs(latestState.ts_minute_ms)}
+                                        last point {formatMs(portfolioLatestState.ts_minute_ms)}
                                     </span>
                                 ) : null}
                             </CardTitle>
@@ -607,35 +616,35 @@ export default function MfbPParticipantClient({aoiId}: MfbPParticipantClientProp
                     </CardHeader>
                     <CardContent>
                         {portfolioView === "portfolio" ? (
-                            latestState ? (
+                            portfolioLatestState ? (
                                 <div className="grid gap-3 md:grid-cols-3 text-sm">
                                     <div className="space-y-1">
                                         <div
                                             className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400">Balance
                                         </div>
-                                        <div>Equity: {formatNumber(latestState.equity_usd)}</div>
+                                        <div>Equity: {formatNumber(portfolioLatestState.equity_usd)}</div>
                                         <div className={upnlClass}>Unrealized
-                                            PnL: {formatNumber(latestState.unrealized_pnl)}</div>
-                                        <div>Withdrawable: {formatNumber(latestState.withdrawable_usd)}</div>
+                                            PnL: {formatNumber(portfolioLatestState.unrealized_pnl)}</div>
+                                        <div>Withdrawable: {formatNumber(portfolioLatestState.withdrawable_usd)}</div>
                                     </div>
 
                                     <div className="space-y-1">
                                         <div
                                             className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400">Margin
                                         </div>
-                                        <div>Gross Notional: {formatNumber(latestState.gross_notional_usd)}</div>
-                                        <div>Margin Used: {formatNumber(latestState.margin_used_usd)}</div>
-                                        <div>Maint. Margin: {formatNumber(latestState.maintenance_margin_usd)}</div>
+                                        <div>Gross Notional: {formatNumber(portfolioLatestState.gross_notional_usd)}</div>
+                                        <div>Margin Used: {formatNumber(portfolioLatestState.margin_used_usd)}</div>
+                                        <div>Maint. Margin: {formatNumber(portfolioLatestState.maintenance_margin_usd)}</div>
                                     </div>
 
                                     <div className="space-y-1">
                                         <div
                                             className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400">Risk
                                         </div>
-                                        <div>Gross Leverage: {formatNumber(latestState.gross_leverage)}</div>
-                                        <div>Margin Utilization: {formatPercent(latestState.margin_utilization)}</div>
+                                        <div>Gross Leverage: {formatNumber(portfolioLatestState.gross_leverage)}</div>
+                                        <div>Margin Utilization: {formatPercent(portfolioLatestState.margin_utilization)}</div>
                                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                                            is_gap_filled: {String(Boolean(latestState.is_gap_filled))}
+                                            is_gap_filled: {String(Boolean(portfolioLatestState.is_gap_filled))}
                                         </div>
                                     </div>
                                 </div>

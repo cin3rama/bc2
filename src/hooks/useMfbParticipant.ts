@@ -1,4 +1,4 @@
-// /hooks/useMfbParticipant.ts
+// /src/hooks/useMfbParticipant.ts
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -178,6 +178,48 @@ function normalizeFlowRows(raw: unknown): MfbPFlowRow[] {
     return sortByTsAsc(mapped);
 }
 
+function normalizeStatePoint(raw: unknown, fallbackTs?: number | null): MfbPStateRow | null {
+    if (!raw || typeof raw !== "object") return null;
+
+    const row = raw as any;
+    const ts =
+        typeof row?.ts_minute_ms === "number"
+            ? row.ts_minute_ms
+            : typeof row?.ts_ms === "number"
+                ? row.ts_ms
+                : typeof fallbackTs === "number"
+                    ? fallbackTs
+                    : null;
+
+    if (ts === null) return null;
+
+    return {
+        ...row,
+        ts_minute_ms: ts,
+    } as MfbPStateRow;
+}
+
+function normalizeFlowPoint(raw: unknown, fallbackTs?: number | null): MfbPFlowRow | null {
+    if (!raw || typeof raw !== "object") return null;
+
+    const row = raw as any;
+    const ts =
+        typeof row?.ts_minute_ms === "number"
+            ? row.ts_minute_ms
+            : typeof row?.ts_ms === "number"
+                ? row.ts_ms
+                : typeof fallbackTs === "number"
+                    ? fallbackTs
+                    : null;
+
+    if (ts === null) return null;
+
+    return {
+        ...row,
+        ts_minute_ms: ts,
+    } as MfbPFlowRow;
+}
+
 export function useMfbParticipant({
                                       mode,
                                       aoiId,
@@ -262,11 +304,6 @@ export function useMfbParticipant({
 
                 const normalizedEvents = normalizeEventsBlock(raw.events);
 
-                // Canonicalize the live payload shape:
-                // - minute_state -> detail.series.state
-                // - minute_flow  -> detail.series.flow
-                // - history_state.series -> detail.history_state
-                // Also preserve backward compatibility with older shapes.
                 const stateRows = normalizeStateRows(
                     raw?.series?.state ?? raw?.minute_state
                 );
@@ -281,10 +318,28 @@ export function useMfbParticipant({
                         : raw?.history_state?.series
                 );
 
-                const normalized: MfbPAoiDetail = {
+                const stateLatest =
+                    normalizeStatePoint(raw?.state?.latest, last(stateRows)?.ts_minute_ms) ??
+                    last(stateRows);
+
+                const flowLatest =
+                    normalizeFlowPoint(raw?.flow?.latest, last(flowRows)?.ts_minute_ms) ??
+                    last(flowRows);
+
+                const normalized = {
                     ...raw,
                     events: normalizedEvents,
                     history_state: historyStateRows,
+                    state: {
+                        ...(raw?.state ?? {}),
+                        latest: stateLatest,
+                        series: stateRows,
+                    },
+                    flow: {
+                        ...(raw?.flow ?? {}),
+                        latest: flowLatest,
+                        series: flowRows,
+                    },
                     series: {
                         state: stateRows,
                         flow: flowRows,
@@ -293,7 +348,7 @@ export function useMfbParticipant({
                         ...(raw.meta ?? {}),
                         window: raw?.meta?.window ?? inferWindowFallback(lookbackMinutes),
                     },
-                };
+                } as MfbPAoiDetail;
 
                 setDetail(normalized);
             } catch (err: any) {
@@ -359,7 +414,13 @@ export function useMfbParticipant({
                         }
 
                         if (payload?.state?.latest) {
-                            nextState = upsertByTs(nextState, payload.state.latest);
+                            const normalizedStateLatest = normalizeStatePoint(
+                                payload.state.latest,
+                                last(nextState)?.ts_minute_ms
+                            );
+                            if (normalizedStateLatest) {
+                                nextState = upsertByTs(nextState, normalizedStateLatest);
+                            }
                         }
 
                         const prevFlow = prev.series.flow ?? [];
@@ -370,7 +431,13 @@ export function useMfbParticipant({
                         }
 
                         if (payload?.flow?.latest) {
-                            nextFlow = upsertByTs(nextFlow, payload.flow.latest);
+                            const normalizedFlowLatest = normalizeFlowPoint(
+                                payload.flow.latest,
+                                last(nextFlow)?.ts_minute_ms
+                            );
+                            if (normalizedFlowLatest) {
+                                nextFlow = upsertByTs(nextFlow, normalizedFlowLatest);
+                            }
                         }
 
                         if (!payload?.flow?.latest && (!Array.isArray(payload?.flow?.series) || !payload.flow.series.length)) {
@@ -392,12 +459,36 @@ export function useMfbParticipant({
                                 ? normalizeEventsBlock(payload.events)
                                 : prev.events;
 
+                        const prevAny = prev as any;
+
+                        const nextStateLatest =
+                            normalizeStatePoint(payload?.state?.latest, last(nextState)?.ts_minute_ms) ??
+                            prevAny?.state?.latest ??
+                            last(nextState);
+
+                        const nextFlowLatest =
+                            normalizeFlowPoint(payload?.flow?.latest, last(nextFlow)?.ts_minute_ms) ??
+                            prevAny?.flow?.latest ??
+                            last(nextFlow);
+
                         return {
                             ...prev,
                             meta: { ...(prev.meta ?? {}), window: nextWindow ?? prev.meta?.window },
+                            state: {
+                                ...(prevAny?.state ?? {}),
+                                ...(payload?.state ?? {}),
+                                latest: nextStateLatest,
+                                series: nextState,
+                            },
+                            flow: {
+                                ...(prevAny?.flow ?? {}),
+                                ...(payload?.flow ?? {}),
+                                latest: nextFlowLatest,
+                                series: nextFlow,
+                            },
                             series: { state: nextState, flow: nextFlow },
                             events: nextEvents,
-                        };
+                        } as MfbPAoiDetail;
                     });
 
                     console.log("[MFB_P][WS] applying", {
