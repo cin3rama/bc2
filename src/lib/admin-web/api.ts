@@ -69,6 +69,14 @@ export type AdminAoiPolicy = {
     last_replay_ts_ms: number | null;
 };
 
+export type AdminAoiCreatePayload = {
+    account_id: string;
+    lifecycle_state: AdminAoiLifecycleState;
+    aoi_type: AdminAoiType;
+};
+
+export type AdminAoiCreateResponse = AdminAoiPolicy;
+
 export type AdminAoiPolicyPatchPayload = Partial<{
     aoi_type: AdminAoiType;
     lifecycle_state: AdminAoiLifecycleState;
@@ -258,6 +266,12 @@ export const adminWebApi = {
                 method: "GET",
             }
         ),
+
+    createAoiPolicy: async (payload: AdminAoiCreatePayload) =>
+        requestJson<AdminAoiCreateResponse>(MF_ADMIN_PATHS.aoiList, {
+            method: "POST",
+            body: JSON.stringify(payload),
+        }),
 
     readAoiPolicy: async (aoiId: number | string) =>
         requestJson<AdminAoiDetailResponse>(MF_ADMIN_PATHS.aoiDetail(aoiId), {
