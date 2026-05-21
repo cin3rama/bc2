@@ -77,6 +77,14 @@ export type AdminAoiCreatePayload = {
 
 export type AdminAoiCreateResponse = AdminAoiPolicy;
 
+export type AdminAoiCreateDuplicateErrorPayload = {
+    error: "duplicate_aoi_account";
+    account_id: string;
+    existing_aoi_id: number;
+    existing_lifecycle_state: AdminAoiLifecycleState | string | null;
+    existing_aoi_type: AdminAoiType | string | null;
+};
+
 export type AdminAoiPolicyPatchPayload = Partial<{
     aoi_type: AdminAoiType;
     lifecycle_state: AdminAoiLifecycleState;
@@ -152,6 +160,20 @@ export class AdminWebApiError extends Error {
         this.status = status;
         this.payload = payload;
     }
+}
+
+export function isAdminAoiCreateDuplicateErrorPayload(
+    payload: unknown
+): payload is AdminAoiCreateDuplicateErrorPayload {
+    if (!payload || typeof payload !== "object") return false;
+
+    const typed = payload as Partial<AdminAoiCreateDuplicateErrorPayload>;
+
+    return (
+        typed.error === "duplicate_aoi_account" &&
+        typeof typed.account_id === "string" &&
+        typeof typed.existing_aoi_id === "number"
+    );
 }
 
 export const MF_ADMIN_PATHS = {
