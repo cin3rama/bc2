@@ -77,6 +77,7 @@ export default function Header() {
                     <Link href="/action-monitor" className="nav-link">Market Action</Link>
                     <Link href="/mfb-p" className="nav-link">Market Actors</Link>
                     <Link href="/marketflow-analytics" className="nav-link">Market Analytics</Link>
+                    <Link href="/mfb-p-success-leader" className="nav-link">Success Leaders</Link>
                 </nav>
 
                 {/* Right-side controls */}
@@ -93,9 +94,8 @@ export default function Header() {
                                     <option value="BTC-USD">BTC-USD</option>
                                     <option value="ETH-USD">ETH-USD</option>
                                     <option value="SOL-USD">SOL-USD</option>
+                                    <option value="VVV-USD">VVV-USD</option>
                                     <option value="ZEC-USD">ZEC-USD</option>
-                                    <option value="MON-USD">MON-USD</option>
-                                    <option value="XMR-USD">XMR-USD</option>
                                 </select>
                             )}
                             {showPeriod && (
@@ -140,26 +140,40 @@ export default function Header() {
                             </Link>
                         </li>
                         <li>
+                            <Link href="/trends" onClick={() => setMenuOpen(false)}>
+                                Trend Analysis
+                            </Link>
+                        </li>
+                        <li>
                             <Link href="/marketflow" onClick={() => setMenuOpen(false)}>
                                 Marketflow
                             </Link>
                         </li>
                         <li>
-                            <Link href="/order-flow" onClick={() => setMenuOpen(false)}>
-                                Order Flow
+                            <Link href="/action-monitor" onClick={() => setMenuOpen(false)}>
+                                Market Action
+                            </Link>
+                        </li>
+                        <li>
+                            <Link href="/mfb-p" onClick={() => setMenuOpen(false)}>
+                                Market Actors
+                            </Link>
+                        </li>
+                        <li>
+                            <Link href="/marketflow-behavior" onClick={() => setMenuOpen(false)}>
+                                Market Behavior
+                            </Link>
+                        </li>
+                        <li>
+                            <Link href="/mfb-p-success-leader" onClick={() => setMenuOpen(false)}>
+                                Success Leaders
                             </Link>
                         </li>
                         <li>
                             <Link
                                 href="/marketflow-analytics/"
                                 onClick={() => setMenuOpen(false)}
-                            >
-                                Market Concentration
-                            </Link>
-                        </li>
-                        <li>
-                            <Link href="/trends" onClick={() => setMenuOpen(false)}>
-                                Trend Analysis
+                            >Market Concentration
                             </Link>
                         </li>
                     </ul>
