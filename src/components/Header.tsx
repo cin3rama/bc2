@@ -65,7 +65,7 @@ export default function Header() {
                             A3therflow
                         </h1>
                         <h2 className="text-xs font-light text-text dark:text-text-inverted">
-                            Market Action - Actors - Analytics
+                            Market Action - Actors - Ai
                         </h2>
                     </div>
                 </div>

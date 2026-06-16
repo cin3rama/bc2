@@ -48,9 +48,10 @@ export type AdminAoiType =
     | "position_trader"
     | "active_basis_bot"
     | "other"
-    | "unclassified";
+    | "unclassified"
+    | "success_leader";
 
-export type AdminAoiLifecycleState = "active" | "archive";
+export type AdminAoiLifecycleState = "active" | "archived";
 export type AdminCheckpointTier = 1 | 2 | 3;
 export type AdminCheckpointMode = "pinned" | "rotating" | "disabled";
 
@@ -83,6 +84,24 @@ export type AdminAoiCreateDuplicateErrorPayload = {
     existing_aoi_id: number;
     existing_lifecycle_state: AdminAoiLifecycleState | string | null;
     existing_aoi_type: AdminAoiType | string | null;
+};
+
+export type AdminAoiBulkPatchPayload = Partial<{
+    lifecycle_state: AdminAoiLifecycleState;
+    aoi_type: AdminAoiType;
+    checkpoint_mode: AdminCheckpointMode;
+}>;
+
+export type AdminAoiBulkPatchRequest = {
+    aoi_ids: number[];
+    patch: AdminAoiBulkPatchPayload;
+};
+
+export type AdminAoiBulkPatchResponse = {
+    ok: true;
+    updated_count: number;
+    aoi_ids: number[];
+    patch: AdminAoiBulkPatchPayload;
 };
 
 export type AdminAoiPolicyPatchPayload = Partial<{
@@ -182,6 +201,7 @@ export const MF_ADMIN_PATHS = {
     authMe: `${API_ROOT}/auth/me/`,
     authLogout: `${API_ROOT}/auth/logout/`,
     aoiList: `${API_ROOT}/aoi/`,
+    aoiBulk: `${API_ROOT}/aoi/bulk/`,
     aoiDetail: (aoiId: number | string) => `${API_ROOT}/aoi/${encodeURIComponent(String(aoiId))}/`,
     aoiMarketList: (aoiId: number | string) =>
         `${API_ROOT}/aoi/${encodeURIComponent(String(aoiId))}/markets/`,
@@ -292,6 +312,12 @@ export const adminWebApi = {
     createAoiPolicy: async (payload: AdminAoiCreatePayload) =>
         requestJson<AdminAoiCreateResponse>(MF_ADMIN_PATHS.aoiList, {
             method: "POST",
+            body: JSON.stringify(payload),
+        }),
+
+    bulkPatchAoiPolicies: async (payload: AdminAoiBulkPatchRequest) =>
+        requestJson<AdminAoiBulkPatchResponse>(MF_ADMIN_PATHS.aoiBulk, {
+            method: "PATCH",
             body: JSON.stringify(payload),
         }),
 
