@@ -7,8 +7,10 @@ import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import AdminSessionGate from "@/components/admin-web/AdminSessionGate";
 import { useAdminSession } from "@/components/admin-web/AdminSessionProvider";
+// /src/app/admin-web/aoi/detail/AdminAoiDetailClient.tsx
 import {
     adminWebApi,
+    AdminAoiLifecycleState,
     AdminAoiMarketPolicy,
     AdminAoiPolicy,
     AdminAoiType,
@@ -27,7 +29,7 @@ const AOI_TYPES: AdminAoiType[] = [
     "unclassified",
 ];
 
-const ACTOR_LIFECYCLE_STATES = ["active", "archive"] as const;
+const ACTOR_LIFECYCLE_STATES: AdminAoiLifecycleState[] = ["active", "archived"];
 const CHECKPOINT_TIERS: AdminCheckpointTier[] = [1, 2, 3];
 const CHECKPOINT_MODES: AdminCheckpointMode[] = ["pinned", "rotating", "disabled"];
 const MARKET_PRIORITIES: AdminMarketPriority[] = [1, 2, 3];
@@ -40,7 +42,7 @@ const MARKET_LIFECYCLE_STATES: AdminMarketLifecycleState[] = [
 
 type ActorFormState = {
     aoi_type: AdminAoiType;
-    lifecycle_state: "active" | "archive";
+    lifecycle_state: AdminAoiLifecycleState;
     checkpoint_tier: AdminCheckpointTier;
     checkpoint_mode: AdminCheckpointMode;
     replay_enabled: boolean;
@@ -74,8 +76,8 @@ function coerceCheckpointMode(value: unknown): AdminCheckpointMode {
         : "disabled";
 }
 
-function coerceActorLifecycle(value: unknown): "active" | "archive" {
-    return value === "archive" ? "archive" : "active";
+function coerceActorLifecycle(value: unknown): AdminAoiLifecycleState {
+    return value === "archived" ? "archived" : "active";
 }
 
 function coerceMarketLifecycle(value: unknown): AdminMarketLifecycleState {
@@ -359,7 +361,7 @@ export default function AdminAoiDetailClient() {
                                                         current
                                                             ? {
                                                                 ...current,
-                                                                lifecycle_state: event.target.value as "active" | "archive",
+                                                                    lifecycle_state: event.target.value as AdminAoiLifecycleState,
                                                             }
                                                             : current
                                                     )
@@ -368,7 +370,7 @@ export default function AdminAoiDetailClient() {
                                             >
                                                 {ACTOR_LIFECYCLE_STATES.map((value) => (
                                                     <option key={value} value={value}>
-                                                        {value}
+                                                        {value === "archived" ? "Archived" : "Active"}
                                                     </option>
                                                 ))}
                                             </select>
