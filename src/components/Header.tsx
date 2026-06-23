@@ -93,6 +93,7 @@ export default function Header() {
                                 >
                                     <option value="BTC-USD">BTC-USD</option>
                                     <option value="ETH-USD">ETH-USD</option>
+                                    <option value="DYDX-USD">DYDX-USD</option>
                                     <option value="SOL-USD">SOL-USD</option>
                                     <option value="VVV-USD">VVV-USD</option>
                                     <option value="ZEC-USD">ZEC-USD</option>
