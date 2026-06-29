@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
+import { AOITypeDisplay } from "@/components/aoi/AOITypeSymbol";
 import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
 import { useTickerPeriod } from "@/contexts/TickerPeriodContext";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -374,7 +375,12 @@ function WatchedAoiCard({
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs md:text-sm">
                         <div>
                             <div className="text-gray-500 dark:text-gray-400 font-semibold">AOI Type</div>
-                            <div className="text-text dark:text-text-inverted">{effectiveAoiType}</div>
+                            <div className="mt-1">
+                                <AOITypeDisplay
+                                    aoiType={effectiveAoiType}
+                                    labelClassName="text-xs md:text-sm text-text dark:text-text-inverted"
+                                />
+                            </div>
                         </div>
 
                         <div>
@@ -819,8 +825,8 @@ export default function MfbPHubPage() {
                                                 <div className="flex flex-col">
                                                     <span className="font-medium">{displayLabel(aoi)}</span>
                                                     <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                                                            AOI #{aoi.aoi_id}
-                                                        </span>
+                                                        AOI #{aoi.aoi_id}
+                                                    </span>
                                                 </div>
                                             </td>
 
@@ -829,13 +835,16 @@ export default function MfbPHubPage() {
                                             </td>
 
                                             <td className="py-2 px-2 align-top">
-                                                <span>{aoi.effective_aoi_type ?? "—"}</span>
+                                                <AOITypeDisplay
+                                                    aoiType={aoi.effective_aoi_type}
+                                                    labelClassName="text-xs md:text-sm"
+                                                />
                                             </td>
 
                                             <td className="py-2 px-2 align-top text-right">
-                                                    <span className={`font-medium tabular-nums ${getPositionClass(aoi.effective_position_size)}`}>
-                                                        {formatPositionValue(aoi.effective_position_size)}
-                                                    </span>
+                                                <span className={`font-medium tabular-nums ${getPositionClass(aoi.effective_position_size)}`}>
+                                                    {formatPositionValue(aoi.effective_position_size)}
+                                                </span>
                                             </td>
 
                                             <td className="py-2 pl-2 pr-0 align-top text-right">
