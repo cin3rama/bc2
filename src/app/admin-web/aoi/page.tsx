@@ -7,6 +7,8 @@ import {useRouter} from "next/navigation";
 import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/Card";
 import AdminSessionGate from "@/components/admin-web/AdminSessionGate";
 import {useAdminSession} from "@/components/admin-web/AdminSessionProvider";
+import { AOITypeDisplay } from "@/components/aoi/AOITypeSymbol";
+import { CANONICAL_AOI_TYPES } from "@/lib/aoi-types";
 import {
     adminWebApi,
     AdminAoiBulkPatchPayload,
@@ -19,16 +21,6 @@ import {
     AdminWebApiError,
     isAdminAoiCreateDuplicateErrorPayload,
 } from "@/lib/admin-web/api";
-
-const AOI_TYPE_OPTIONS: AdminAoiType[] = [
-    "mm_bot",
-    "fakeout",
-    "position_trader",
-    "active_basis_bot",
-    "success_leader",
-    "other",
-    "unclassified",
-];
 
 const LIFECYCLE_OPTIONS: AdminAoiLifecycleState[] = ["active", "archived"];
 const CHECKPOINT_MODE_OPTIONS: AdminCheckpointMode[] = ["pinned", "rotating", "disabled"];
@@ -495,7 +487,7 @@ export default function AdminWebAoiListPage() {
                                                     }
                                                     className="w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
                                                 >
-                                                    {AOI_TYPE_OPTIONS.map((option) => (
+                                                    {CANONICAL_AOI_TYPES.map((option) => (
                                                         <option key={option} value={option}>
                                                             {option}
                                                         </option>
@@ -626,7 +618,7 @@ export default function AdminWebAoiListPage() {
                                                     className="w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
                                                 >
                                                     <option value={BULK_NO_CHANGE}>No change</option>
-                                                    {AOI_TYPE_OPTIONS.map((option) => (
+                                                    {CANONICAL_AOI_TYPES.map((option) => (
                                                         <option key={option} value={option}>
                                                             {option}
                                                         </option>
@@ -836,7 +828,12 @@ export default function AdminWebAoiListPage() {
                                                 <td className="py-2 px-2 align-top font-mono text-[11px]">
                                                     {accountShort(row.account_id)}
                                                 </td>
-                                                <td className="py-2 px-2 align-top">{row.aoi_type ?? "—"}</td>
+                                                <td className="py-2 px-2 align-top">
+                                                    <AOITypeDisplay
+                                                        aoiType={row.aoi_type}
+                                                        labelClassName="text-xs md:text-sm"
+                                                    />
+                                                </td>
                                                 <td className="py-2 px-2 align-top">{lifecycleLabel(row.lifecycle_state)}</td>
                                                 <td className="py-2 px-2 align-top">{row.checkpoint_tier ?? "—"}</td>
                                                 <td className="py-2 px-2 align-top">{checkpointModeLabel(row.checkpoint_mode)}</td>

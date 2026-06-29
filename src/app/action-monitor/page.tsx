@@ -1,10 +1,10 @@
 // /app/action-monitor/page.tsx
-
 'use client';
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
+import { AOITypeLegend, AOITypeSymbol } from '@/components/aoi/AOITypeSymbol';
 import { useWebsocket } from '@/hooks/useWebsocket';
 import type {
     ActionMonitorEnvelope,
@@ -47,7 +47,13 @@ const AOI_POSITION_TYPE_ORDER = [
     'position_trader',
     'success_leader',
     'active_basis_bot',
+    'fakeout',
+    'scalper',
+    'zero_net_event_actor',
+    'campaign_inventory_manager',
+    'retained_accumulator',
     'other',
+    'unclassified',
 ] as const;
 
 function flattenMetricEntries(
@@ -227,157 +233,6 @@ function DirectionArrow({ dir }: { dir?: ChangeDirection | null }) {
     }
 
     return null;
-}
-
-function getAOISizeClass(equityUsd: unknown): string {
-    const numeric =
-        typeof equityUsd === 'string'
-            ? Number(equityUsd)
-            : typeof equityUsd === 'number'
-                ? equityUsd
-                : NaN;
-
-    if (!Number.isNaN(numeric) && numeric > 10_000_000) return 'w-4 h-4';
-    if (!Number.isNaN(numeric) && numeric >= 1_000_000) return 'w-3 h-3';
-    return 'w-2.5 h-2.5';
-}
-
-function getAOITitle(aoiType: unknown, equityUsd: unknown): string {
-    const rawType =
-        typeof aoiType === 'string' && aoiType.trim() !== ''
-            ? aoiType.trim()
-            : 'fallback';
-    const equityText = formatUnknownValue(equityUsd);
-    return `${rawType} · ${equityText}`;
-}
-
-function AOITypeSymbol({
-                           isActiveAoi,
-                           aoiType,
-                           equityUsd,
-                       }: {
-    isActiveAoi?: boolean;
-    aoiType: unknown;
-    equityUsd: unknown;
-}) {
-    if (
-        !isActiveAoi &&
-        (aoiType === null || aoiType === undefined) &&
-        (equityUsd === null || equityUsd === undefined)
-    ) {
-        return null;
-    }
-
-    const rawType =
-        typeof aoiType === 'string' ? aoiType.trim().toLowerCase() : null;
-    const sizeClass = getAOISizeClass(equityUsd);
-    const title = getAOITitle(aoiType, equityUsd);
-
-    let className = `inline-block rounded-full border border-gray-500 ${sizeClass}`;
-    let style: CSSProperties | undefined;
-
-    switch (rawType) {
-        case 'mm_bot':
-            className += ' bg-yellow-400 border-yellow-500';
-            break;
-        case 'position_trader':
-            className += ' bg-violet-500 border-violet-600';
-            break;
-        case 'success_leader':
-            className += ' bg-green-500 border-green-600';
-            break;
-        case 'active_basis_bot':
-            className += ' border-gray-500';
-            style = {
-                background:
-                    'linear-gradient(90deg, #ffffff 0%, #ffffff 50%, #000000 50%, #000000 100%)',
-            };
-            break;
-        case 'fakeout':
-            className += ' border-gray-500';
-            style = {
-                background:
-                    'linear-gradient(90deg, #ef4444 0%, #ef4444 50%, #ffffff 50%, #ffffff 100%)',
-            };
-            break;
-        case 'archived':
-        case 'position':
-            className += ' bg-black border-black';
-            break;
-        default:
-            className += ' bg-black border-black';
-            break;
-    }
-
-    return <span className={className} style={style} title={title} />;
-}
-
-function AOITypeLegend() {
-    return (
-        <div className="flex justify-center">
-            <div className="rounded shadow bg-white dark:bg-gray-800 px-4 py-3 text-text dark:text-text-inverted">
-                <div className="text-sm font-semibold text-center mb-3">
-                    AOI Type Legend
-                </div>
-
-                <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3 text-xs">
-                    <div className="inline-flex items-center gap-2">
-                        <AOITypeSymbol
-                            isActiveAoi={true}
-                            aoiType="mm_bot"
-                            equityUsd="1000000"
-                        />
-                        <span>mm_bot</span>
-                    </div>
-
-                    <div className="inline-flex items-center gap-2">
-                        <AOITypeSymbol
-                            isActiveAoi={true}
-                            aoiType="position_trader"
-                            equityUsd="1000000"
-                        />
-                        <span>position_trader</span>
-                    </div>
-
-                    <div className="inline-flex items-center gap-2">
-                        <AOITypeSymbol
-                            isActiveAoi={true}
-                            aoiType="success_leader"
-                            equityUsd="1000000"
-                        />
-                        <span>success_leader</span>
-                    </div>
-
-                    <div className="inline-flex items-center gap-2">
-                        <AOITypeSymbol
-                            isActiveAoi={true}
-                            aoiType="active_basis_bot"
-                            equityUsd="1000000"
-                        />
-                        <span>active_basis_bot</span>
-                    </div>
-
-                    <div className="inline-flex items-center gap-2">
-                        <AOITypeSymbol
-                            isActiveAoi={true}
-                            aoiType="fakeout"
-                            equityUsd="1000000"
-                        />
-                        <span>fakeout</span>
-                    </div>
-
-                    <div className="inline-flex items-center gap-2">
-                        <AOITypeSymbol
-                            isActiveAoi={true}
-                            aoiType="archived"
-                            equityUsd="1000000"
-                        />
-                        <span>archived / fallback</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
 }
 
 function MetricGridCard({
@@ -936,8 +791,8 @@ function ParticipantTable({
                                             className="select-text break-all"
                                             title={row.account_id}
                                         >
-                                                {row.account_id}
-                                            </span>
+                                            {row.account_id}
+                                        </span>
                                     )}
                                 </td>
 
@@ -945,8 +800,8 @@ function ParticipantTable({
                                     <div className="inline-flex items-center">
                                         <DirectionArrow dir={row.vol_change_dir} />
                                         <span>
-                                                {formatMetricValue(row.total_vol as MetricRenderable)}
-                                            </span>
+                                            {formatMetricValue(row.total_vol as MetricRenderable)}
+                                        </span>
                                     </div>
                                 </td>
 
@@ -954,10 +809,10 @@ function ParticipantTable({
                                     <div className="inline-flex items-center">
                                         <DirectionArrow dir={row.trades_change_dir} />
                                         <span>
-                                                {formatMetricValue(
-                                                    row.total_trades as MetricRenderable,
-                                                )}
-                                            </span>
+                                            {formatMetricValue(
+                                                row.total_trades as MetricRenderable,
+                                            )}
+                                        </span>
                                     </div>
                                 </td>
 
@@ -980,8 +835,8 @@ function ParticipantTable({
                                                     positionValue,
                                                 )}`}
                                             >
-                                                    {formatMetricValue(positionValue as MetricRenderable)}
-                                                </span>
+                                                {formatMetricValue(positionValue as MetricRenderable)}
+                                            </span>
                                         </div>
                                     )}
                                 </td>

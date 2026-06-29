@@ -7,7 +7,8 @@ import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import AdminSessionGate from "@/components/admin-web/AdminSessionGate";
 import { useAdminSession } from "@/components/admin-web/AdminSessionProvider";
-// /src/app/admin-web/aoi/detail/AdminAoiDetailClient.tsx
+import { AOITypeDisplay } from "@/components/aoi/AOITypeSymbol";
+import { CANONICAL_AOI_TYPES, normalizeAoiType } from "@/lib/aoi-types";
 import {
     adminWebApi,
     AdminAoiLifecycleState,
@@ -19,15 +20,6 @@ import {
     AdminMarketLifecycleState,
     AdminMarketPriority,
 } from "@/lib/admin-web/api";
-
-const AOI_TYPES: AdminAoiType[] = [
-    "mm_bot",
-    "fakeout",
-    "position_trader",
-    "active_basis_bot",
-    "other",
-    "unclassified",
-];
 
 const ACTOR_LIFECYCLE_STATES: AdminAoiLifecycleState[] = ["active", "archived"];
 const CHECKPOINT_TIERS: AdminCheckpointTier[] = [1, 2, 3];
@@ -67,7 +59,7 @@ function coerceMarketPriority(value: unknown): AdminMarketPriority {
 }
 
 function coerceAoiType(value: unknown): AdminAoiType {
-    return AOI_TYPES.includes(value as AdminAoiType) ? (value as AdminAoiType) : "unclassified";
+    return normalizeAoiType(value) ?? "unclassified";
 }
 
 function coerceCheckpointMode(value: unknown): AdminCheckpointMode {
@@ -325,6 +317,12 @@ export default function AdminAoiDetailClient() {
                                 <div className="space-y-4">
                                     <div className="rounded border border-gray-200 dark:border-gray-800 p-3 text-xs">
                                         <div className="font-mono break-all">{actor.account_id}</div>
+                                        <div className="mt-2">
+                                            <AOITypeDisplay
+                                                aoiType={actor.aoi_type}
+                                                labelClassName="text-xs"
+                                            />
+                                        </div>
                                         <div className="mt-1 text-gray-600 dark:text-gray-300">
                                             First seen UTC ms: {actor.first_seen_ts_ms ?? "—"}
                                         </div>
@@ -344,7 +342,7 @@ export default function AdminAoiDetailClient() {
                                                 }
                                                 className="w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
                                             >
-                                                {AOI_TYPES.map((value) => (
+                                                {CANONICAL_AOI_TYPES.map((value) => (
                                                     <option key={value} value={value}>
                                                         {value}
                                                     </option>
@@ -361,7 +359,7 @@ export default function AdminAoiDetailClient() {
                                                         current
                                                             ? {
                                                                 ...current,
-                                                                    lifecycle_state: event.target.value as AdminAoiLifecycleState,
+                                                                lifecycle_state: event.target.value as AdminAoiLifecycleState,
                                                             }
                                                             : current
                                                     )

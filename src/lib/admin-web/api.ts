@@ -1,5 +1,6 @@
 // /src/lib/admin-web/api.ts
 import {ADMIN_WEB_API_ROOT} from "@/lib/admin-web/env";
+import type { CanonicalAoiType } from "@/lib/aoi-types";
 
 const trimTrailingSlash = (value: string): string => value.replace(/\/+$/, "");
 const API_ROOT = trimTrailingSlash(ADMIN_WEB_API_ROOT);
@@ -42,15 +43,7 @@ export type AdminAuthLogoutResponse = {
     authenticated: false;
 };
 
-export type AdminAoiType =
-    | "mm_bot"
-    | "fakeout"
-    | "position_trader"
-    | "active_basis_bot"
-    | "other"
-    | "unclassified"
-    | "success_leader";
-
+export type AdminAoiType = CanonicalAoiType;
 export type AdminAoiLifecycleState = "active" | "archived";
 export type AdminCheckpointTier = 1 | 2 | 3;
 export type AdminCheckpointMode = "pinned" | "rotating" | "disabled";
