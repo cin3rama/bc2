@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2, ShieldCheck, ShieldX } from "lucide-react";
 import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
 import { useTickerPeriod } from "@/contexts/TickerPeriodContext";
 import { API_BASE } from "@/lib/env";
@@ -26,6 +26,8 @@ const SECTION_TITLES = [
 type SectionTitle = (typeof SECTION_TITLES)[number];
 
 type SnapshotSectionMap = Partial<Record<SectionTitle | string, unknown>>;
+
+type AdminAuthState = "checking" | "authenticated" | "unauthenticated" | "error";
 
 type MarketStateSnapshot = {
     id?: number | string | null;
@@ -54,6 +56,20 @@ type SnapshotApiResponse =
     snapshot?: MarketStateSnapshot;
     data?: MarketStateSnapshot;
     result?: MarketStateSnapshot;
+};
+
+type AdminMeResponse =
+    | {
+    ok: true;
+    authenticated: true;
+    wallet_address?: string;
+    wallet_address_checksum?: string;
+}
+    | {
+    ok?: false;
+    authenticated?: false;
+    detail?: string;
+    error?: string;
 };
 
 function unwrapSnapshot(payload: SnapshotApiResponse): MarketStateSnapshot {
@@ -99,11 +115,27 @@ function stringifyContent(value: unknown): string {
         return String(value);
     }
 
+    if (typeof value === "object") {
+        const typed = value as Record<string, unknown>;
+
+        if (typeof typed.body === "string" && typed.body.trim()) {
+            return typed.body;
+        }
+
+        if (typeof typed.text === "string" && typed.text.trim()) {
+            return typed.text;
+        }
+
+        if (typeof typed.content === "string" && typed.content.trim()) {
+            return typed.content;
+        }
+    }
+
     return JSON.stringify(value, null, 2);
 }
 
 function getSectionContent(snapshot: MarketStateSnapshot | null, title: SectionTitle): string {
-    if (!snapshot) return "Run an analysis to populate this section.";
+    if (!snapshot) return "Run an authenticated AI analysis to populate this section.";
 
     const direct = snapshot.sections?.[title];
     if (direct !== undefined && direct !== null && direct !== "") {
@@ -141,6 +173,19 @@ function getSectionContent(snapshot: MarketStateSnapshot | null, title: SectionT
     return "No content returned yet.";
 }
 
+function getSnapshotStatus(snapshot: MarketStateSnapshot | null): string {
+    if (!snapshot) return "—";
+
+    if (snapshot.status) return snapshot.status;
+
+    if (snapshot.analysis_json && typeof snapshot.analysis_json === "object") {
+        const status = (snapshot.analysis_json as Record<string, unknown>).status;
+        if (typeof status === "string" && status.trim()) return status;
+    }
+
+    return "—";
+}
+
 function MetadataItem({ label, value }: { label: string; value: React.ReactNode }) {
     return (
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-gray-800 dark:bg-gray-950">
@@ -175,6 +220,37 @@ function AnalysisCard({
     );
 }
 
+function AuthStatusBadge({
+                             authState,
+                         }: {
+    authState: AdminAuthState;
+}) {
+    if (authState === "checking") {
+        return (
+            <div className="inline-flex items-center rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                Checking admin session…
+            </div>
+        );
+    }
+
+    if (authState === "authenticated") {
+        return (
+            <div className="inline-flex items-center rounded-xl border border-green-300 bg-green-50 px-3 py-2 text-xs font-medium text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-100">
+                <ShieldCheck className="mr-2 h-3.5 w-3.5" />
+                AI analysis available — admin session active
+            </div>
+        );
+    }
+
+    return (
+        <div className="inline-flex items-center rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+            <ShieldX className="mr-2 h-3.5 w-3.5" />
+            AI analysis requires admin authentication
+        </div>
+    );
+}
+
 export default function MfAiWyckoffPage() {
     const { setConfig } = useHeaderConfig();
     const { ticker, period, hydrated } = useTickerPeriod();
@@ -183,18 +259,66 @@ export default function MfAiWyckoffPage() {
     const [snapshot, setSnapshot] = useState<MarketStateSnapshot | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [authState, setAuthState] = useState<AdminAuthState>("checking");
 
     useEffect(() => {
         setConfig({ showTicker: true, showPeriod: true });
     }, [setConfig]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function checkAdminAuth() {
+            setAuthState("checking");
+
+            try {
+                const response = await fetch(`${API_BASE}/api/mf-admin/auth/me/`, {
+                    method: "GET",
+                    credentials: "include",
+                    headers: {
+                        Accept: "application/json",
+                    },
+                });
+
+                const text = await response.text();
+                const payload = text ? (JSON.parse(text) as AdminMeResponse) : null;
+
+                if (cancelled) return;
+
+                if (response.ok && payload?.authenticated === true) {
+                    setAuthState("authenticated");
+                    return;
+                }
+
+                setAuthState("unauthenticated");
+            } catch {
+                if (!cancelled) {
+                    setAuthState("error");
+                }
+            }
+        }
+
+        checkAdminAuth();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const warnings = useMemo(
         () => normalizeWarnings(snapshot?.warnings),
         [snapshot?.warnings]
     );
 
+    const canRunOpenAiAnalysis = hydrated && authState === "authenticated" && !loading;
+
     async function handleAnalyze() {
         if (!hydrated || loading) return;
+
+        if (authState !== "authenticated") {
+            setError("AI analysis requires authenticated admin access. Please sign in as an MF admin and reload this page.");
+            return;
+        }
 
         setLoading(true);
         setError(null);
@@ -218,6 +342,7 @@ export default function MfAiWyckoffPage() {
                             frontend_volume_profile_context: {},
                             frontend_image_refs: [],
                         },
+                        use_openai_analysis: true,
                     }),
                 }
             );
@@ -227,9 +352,13 @@ export default function MfAiWyckoffPage() {
 
             if (!response.ok) {
                 const message =
-                    payload?.error ||
-                    payload?.detail ||
-                    `Snapshot request failed with HTTP ${response.status}`;
+                    response.status === 403
+                        ? "OpenAI analysis requires authenticated admin access."
+                        : payload?.error ||
+                        payload?.detail ||
+                        payload?.message ||
+                        `Snapshot request failed with HTTP ${response.status}`;
+
                 throw new Error(message);
             }
 
@@ -254,14 +383,17 @@ export default function MfAiWyckoffPage() {
                             MF_AI Wyckoff Market-State Snapshot
                         </h1>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                            Request one backend-generated market-state snapshot and render the returned analysis.
+                            Request one authenticated backend-generated market-state snapshot and render the returned analysis.
                         </p>
+                        <div className="mt-3">
+                            <AuthStatusBadge authState={authState} />
+                        </div>
                     </div>
 
                     <button
                         type="button"
                         onClick={handleAnalyze}
-                        disabled={!hydrated || loading}
+                        disabled={!canRunOpenAiAnalysis}
                         className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-black transition hover:bg-primary-light disabled:cursor-not-allowed disabled:opacity-60 dark:bg-primary-dark dark:text-white dark:hover:bg-primary"
                     >
                         {loading ? (
@@ -274,6 +406,12 @@ export default function MfAiWyckoffPage() {
                         )}
                     </button>
                 </div>
+
+                {authState !== "authenticated" && authState !== "checking" && (
+                    <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+                        Sign in through the MF admin flow before requesting real OpenAI analysis.
+                    </div>
+                )}
 
                 <div className="mt-4">
                     <label
@@ -327,7 +465,16 @@ export default function MfAiWyckoffPage() {
                             label="Generated UTC"
                             value={formatUtcMs(snapshot?.generated_ts_ms)}
                         />
-                        <MetadataItem label="Status" value={snapshot?.status ?? "—"} />
+                        <MetadataItem label="Status" value={getSnapshotStatus(snapshot)} />
+                        <MetadataItem
+                            label="Inference Provider"
+                            value={snapshot?.inference_provider ?? "—"}
+                        />
+                        <MetadataItem label="Model" value={snapshot?.model_name ?? "—"} />
+                        <MetadataItem
+                            label="Schema Version"
+                            value={snapshot?.schema_version ?? "—"}
+                        />
                     </div>
 
                     {warnings.length > 0 && (
