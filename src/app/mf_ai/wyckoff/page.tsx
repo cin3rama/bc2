@@ -820,7 +820,12 @@ function renderDataQuality(card?: DataQualityCard | null) {
                 <div>Volume Profile: {boolText(card.volume_profile_available)}</div>
                 <div>Oracle / Mark: {boolText(card.oracle_mark_available)}</div>
                 <div>Funding: {boolText(card.funding_available)}</div>
-                <div>Actor-side reliability: {card.dataset_actor_side_reliability ?? "—"}</div>
+                <div>
+                    Actor-side reliability:{" "}
+                    {typeof card.dataset_actor_side_reliability === "string"
+                        ? card.dataset_actor_side_reliability
+                        : stringifyContent(card.dataset_actor_side_reliability)}
+                </div>
             </div>
             <div>
                 <div className="font-semibold">Warnings</div>
