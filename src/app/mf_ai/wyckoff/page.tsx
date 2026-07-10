@@ -194,7 +194,7 @@ type ActorEvent = {
 type ActorBehaviorCard = {
     overview?: string | null;
     cohort_behavior?: ActorCohort[] | null;
-    dominant_actor_mix?: string | null;
+    dominant_actor_mix?: unknown;
     actors?: ActorEvent[] | null;
     summary?: string | null;
 };
@@ -659,7 +659,12 @@ function renderActorBehavior(card?: ActorBehaviorCard | null) {
     return (
         <>
             <ProseBlock>{card.overview}</ProseBlock>
-            <div><span className="font-semibold">Dominant actor mix:</span> {card.dominant_actor_mix ?? "—"}</div>
+            <div>
+                <span className="font-semibold">Dominant actor mix:</span>{" "}
+                {typeof card.dominant_actor_mix === "string"
+                    ? card.dominant_actor_mix
+                    : stringifyContent(card.dominant_actor_mix)}
+            </div>
 
             <div>
                 <div className="mb-2 font-semibold">Cohort Behavior</div>
