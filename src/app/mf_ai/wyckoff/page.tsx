@@ -1,11 +1,11 @@
 // app/mf-ai/wyckoff/page.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Loader2, ShieldCheck, ShieldX } from "lucide-react";
-import { useHeaderConfig } from "@/contexts/HeaderConfigContext";
-import { useTickerPeriod } from "@/contexts/TickerPeriodContext";
-import { API_BASE } from "@/lib/env";
+import React, {useEffect, useMemo, useState} from "react";
+import {AlertTriangle, Loader2, ShieldCheck, ShieldX} from "lucide-react";
+import {useHeaderConfig} from "@/contexts/HeaderConfigContext";
+import {useTickerPeriod} from "@/contexts/TickerPeriodContext";
+import {API_BASE} from "@/lib/env";
 import {
     Card,
     CardContent,
@@ -13,21 +13,9 @@ import {
     CardTitle,
 } from "@/components/ui/Card";
 
-const SECTION_TITLES = [
-    "Dataset Read",
-    "Bottom Line",
-    "Wyckoff Structure",
-    "The Tape",
-    "Effort vs Result",
-    "Volume Profile Analysis",
-    "Actor Behavior",
-] as const;
-
-type SectionTitle = (typeof SECTION_TITLES)[number];
-
-type SnapshotSectionMap = Partial<Record<SectionTitle | string, unknown>>;
-
 type AdminAuthState = "checking" | "authenticated" | "unauthenticated" | "error";
+
+type SnapshotSectionMap = Partial<Record<string, unknown>>;
 
 type MarketStateSnapshot = {
     id?: number | string | null;
@@ -37,16 +25,22 @@ type MarketStateSnapshot = {
     range_start_ms?: number | string | null;
     range_end_ms?: number | string | null;
     generated_ts_ms?: number | string | null;
-    schema_version?: string | number | null;
     inference_provider?: string | null;
     model_name?: string | null;
+
+    analysis_status?: string | null;
+    analysis_schema_version?: string | number | null;
+
+    schema_version?: string | number | null;
+    status?: string | null;
+
     metadata?: Record<string, unknown> | null;
+    cards?: CanonicalCards | null;
     sections?: SnapshotSectionMap | null;
     wyckoff_chart?: unknown;
     analysis_json?: unknown;
     input_summary_json?: unknown;
     warnings?: unknown;
-    status?: string | null;
 };
 
 type SnapshotApiResponse =
@@ -72,11 +66,207 @@ type AdminMeResponse =
     error?: string;
 };
 
+type CanonicalCards = {
+    dataset_read?: DatasetReadCard | null;
+    bottom_line?: BottomLineCard | null;
+    wyckoff_structure?: WyckoffStructureCard | null;
+    key_levels?: KeyLevelCard[] | null;
+    tape_read?: TapeReadCard[] | null;
+    effort_vs_result?: EffortVsResultCard | null;
+    actor_behavior?: ActorBehaviorCard | null;
+    volume_profile?: VolumeProfileCard | null;
+    confirmation_invalidation?: ConfirmationInvalidationCard | null;
+    data_quality?: DataQualityCard | null;
+};
+
+type DatasetReadCard = {
+    file?: string | null;
+    window?: {
+        start_utc?: string | null;
+        end_utc?: string | null;
+    } | null;
+    rows?: number | string | null;
+    ohlc?: {
+        open?: number | string | null;
+        high?: number | string | null;
+        low?: number | string | null;
+        close?: number | string | null;
+    } | null;
+    volume?: number | string | null;
+    aggressive_buys?: number | string | null;
+    aggressive_sells?: number | string | null;
+    delta?: number | string | null;
+    buy_sell_ratio?: number | string | null;
+    dominance_read?: string | null;
+};
+
+type BottomLineCard = {
+    market_state?: string | null;
+    bias?: string | null;
+    summary?: string | null;
+    primary_level?: string | null;
+    primary_risk?: string | null;
+    primary_confirmation?: string | null;
+    confidence?: string | null;
+};
+
+type WyckoffLabel = {
+    label?: string | null;
+    price_zone?: string | null;
+    status?: string | null;
+    commentary?: string | null;
+};
+
+type WyckoffStructureCard = {
+    active_structure?: string | null;
+    current_location?: string | null;
+    confirmed_labels?: WyckoffLabel[] | null;
+    provisional_labels?: WyckoffLabel[] | null;
+    invalidated_labels?: WyckoffLabel[] | null;
+    structure_summary?: string | null;
+};
+
+type KeyLevelCard = {
+    price_zone?: string | null;
+    grade?: number | string | null;
+    commentary?: string | null;
+};
+
+type TapeReadCard = {
+    start_utc?: string | null;
+    end_utc?: string | null;
+    price_action?: {
+        from?: number | string | null;
+        to?: number | string | null;
+        low?: number | string | null;
+        high?: number | string | null;
+    } | null;
+    volume_context?: {
+        volume?: number | string | null;
+        delta?: number | string | null;
+        delta_direction?: string | null;
+    } | null;
+    key_levels_involved?: string[] | null;
+    event_type?: string | null;
+    factual_read?: string | null;
+};
+
+type EffortVsResultCard = {
+    overall_read?: string | null;
+    summary?: string | null;
+    positive_evidence?: string[] | null;
+    negative_evidence?: string[] | null;
+    auction_effect?: string | null;
+    absorption_read?: string | null;
+    confidence?: string | null;
+};
+
+type ActorCohort = {
+    aoi_type?: string | null;
+    net_position?: number | string | null;
+    delta_1m?: number | string | null;
+    delta_5m?: number | string | null;
+    delta_15m?: number | string | null;
+    actor_count?: number | string | null;
+    dominant_side?: string | null;
+    behavior_summary?: string | null;
+};
+
+type ActorEvent = {
+    actor_id_short?: string | null;
+    account_id?: string | null;
+    aoi_type?: string | null;
+    economic_action?: string | null;
+    position_delta?: {
+        from?: number | string | null;
+        to?: number | string | null;
+        change?: number | string | null;
+        unit?: string | null;
+        source?: string | null;
+    } | null;
+    time_context?: string | null;
+    price_context?: string | null;
+    behavior_summary?: string | null;
+    classification_signal?: string | null;
+    importance?: string | null;
+};
+
+type ActorBehaviorCard = {
+    overview?: string | null;
+    cohort_behavior?: ActorCohort[] | null;
+    dominant_actor_mix?: string | null;
+    actors?: ActorEvent[] | null;
+    summary?: string | null;
+};
+
+type VolumeProfileCard = {
+    available?: boolean | null;
+    summary?: string | null;
+    key_profile_references?: string[] | null;
+    validation_read?: string | null;
+    confidence?: string | null;
+};
+
+type RuleCard = {
+    price_zone?: string | null;
+    condition?: string | null;
+    interpretation?: string | null;
+    importance?: string | null;
+};
+
+type ConfirmationInvalidationCard = {
+    confirmation_rules?: RuleCard[] | null;
+    invalidation_rules?: RuleCard[] | null;
+    summary?: string | null;
+};
+
+type DataQualityCard = {
+    aoi_retained_position_state_available?: boolean | null;
+    watch_mode_equivalent_state_available?: boolean | null;
+    volume_profile_available?: boolean | null;
+    oracle_mark_available?: boolean | null;
+    funding_available?: boolean | null;
+    dataset_actor_side_reliability?: string | null;
+    warnings?: string[] | null;
+    missing_inputs?: string[] | null;
+};
+
 function unwrapSnapshot(payload: SnapshotApiResponse): MarketStateSnapshot {
     if ("snapshot" in payload && payload.snapshot) return payload.snapshot;
     if ("data" in payload && payload.data) return payload.data;
     if ("result" in payload && payload.result) return payload.result;
     return payload as MarketStateSnapshot;
+}
+
+async function parseApiPayload(response: Response): Promise<unknown> {
+    const text = await response.text();
+    if (!text) return null;
+
+    try {
+        return JSON.parse(text);
+    } catch {
+        return {
+            detail: "API returned a non-JSON response.",
+            message: text.slice(0, 500),
+        };
+    }
+}
+
+function getErrorMessage(payload: unknown, status: number): string {
+    if (payload && typeof payload === "object") {
+        const typed = payload as Record<string, unknown>;
+        const detail = typeof typed.detail === "string" ? typed.detail : null;
+        const message = typeof typed.message === "string" ? typed.message : null;
+        const error = typeof typed.error === "string" ? typed.error : null;
+        const retryable =
+            typeof typed.retryable === "boolean" ? ` Retryable: ${typed.retryable ? "yes" : "no"}.` : "";
+
+        return [detail, message, error ? `Error code: ${error}.` : null]
+            .filter(Boolean)
+            .join(" ") + retryable;
+    }
+
+    return `Snapshot request failed with HTTP ${status}`;
 }
 
 function formatUtcMs(value: number | string | null | undefined): string {
@@ -86,6 +276,39 @@ function formatUtcMs(value: number | string | null | undefined): string {
     if (!Number.isFinite(numeric)) return "—";
 
     return new Date(numeric).toISOString().replace(".000Z", "Z");
+}
+
+function formatUtcRange(startUtc?: string | null, endUtc?: string | null): string {
+    if (!startUtc && !endUtc) return "—";
+    if (startUtc && endUtc) return `${startUtc}–${endUtc} UTC`;
+    return `${startUtc ?? "—"}–${endUtc ?? "—"} UTC`;
+}
+
+function formatNumber(value: number | string | null | undefined): string {
+    if (value === null || value === undefined || value === "") return "—";
+
+    const numeric = typeof value === "string" ? Number(value) : value;
+    if (!Number.isFinite(numeric)) return String(value);
+
+    return new Intl.NumberFormat("en-US", {
+        maximumFractionDigits: 4,
+    }).format(numeric);
+}
+
+function formatSignedNumber(value: number | string | null | undefined): string {
+    if (value === null || value === undefined || value === "") return "—";
+
+    const numeric = typeof value === "string" ? Number(value) : value;
+    if (!Number.isFinite(numeric)) return String(value);
+
+    const sign = numeric > 0 ? "+" : "";
+    return `${sign}${formatNumber(numeric)}`;
+}
+
+function boolText(value: boolean | null | undefined): string {
+    if (value === true) return "available";
+    if (value === false) return "not available";
+    return "unknown";
 }
 
 function normalizeWarnings(warnings: unknown): string[] {
@@ -118,77 +341,69 @@ function stringifyContent(value: unknown): string {
     if (typeof value === "object") {
         const typed = value as Record<string, unknown>;
 
-        if (typeof typed.body === "string" && typed.body.trim()) {
-            return typed.body;
-        }
-
-        if (typeof typed.text === "string" && typed.text.trim()) {
-            return typed.text;
-        }
-
-        if (typeof typed.content === "string" && typed.content.trim()) {
-            return typed.content;
-        }
+        if (typeof typed.body === "string" && typed.body.trim()) return typed.body;
+        if (typeof typed.text === "string" && typed.text.trim()) return typed.text;
+        if (typeof typed.content === "string" && typed.content.trim()) return typed.content;
     }
 
     return JSON.stringify(value, null, 2);
 }
 
-function getSectionContent(snapshot: MarketStateSnapshot | null, title: SectionTitle): string {
-    if (!snapshot) return "Run an authenticated AI analysis to populate this section.";
+function getCanonicalCards(snapshot: MarketStateSnapshot | null): CanonicalCards | null {
+    if (!snapshot) return null;
 
-    const direct = snapshot.sections?.[title];
-    if (direct !== undefined && direct !== null && direct !== "") {
-        return stringifyContent(direct);
-    }
-
-    const snakeKey = title.toLowerCase().replaceAll(" ", "_");
-    const snake = snapshot.sections?.[snakeKey];
-    if (snake !== undefined && snake !== null && snake !== "") {
-        return stringifyContent(snake);
+    if (snapshot.cards && typeof snapshot.cards === "object") {
+        return snapshot.cards;
     }
 
     if (snapshot.analysis_json && typeof snapshot.analysis_json === "object") {
         const analysis = snapshot.analysis_json as Record<string, unknown>;
-
-        const analysisDirect = analysis[title];
-        if (
-            analysisDirect !== undefined &&
-            analysisDirect !== null &&
-            analysisDirect !== ""
-        ) {
-            return stringifyContent(analysisDirect);
-        }
-
-        const analysisSnake = analysis[snakeKey];
-        if (
-            analysisSnake !== undefined &&
-            analysisSnake !== null &&
-            analysisSnake !== ""
-        ) {
-            return stringifyContent(analysisSnake);
+        if (analysis.cards && typeof analysis.cards === "object") {
+            return analysis.cards as CanonicalCards;
         }
     }
 
-    return "No content returned yet.";
+    return null;
 }
 
-function getSnapshotStatus(snapshot: MarketStateSnapshot | null): string {
+function getAnalysisStatus(snapshot: MarketStateSnapshot | null): string {
     if (!snapshot) return "—";
 
-    if (snapshot.status) return snapshot.status;
+    if (snapshot.analysis_status) return snapshot.analysis_status;
 
     if (snapshot.analysis_json && typeof snapshot.analysis_json === "object") {
-        const status = (snapshot.analysis_json as Record<string, unknown>).status;
-        if (typeof status === "string" && status.trim()) return status;
+        const analysis = snapshot.analysis_json as Record<string, unknown>;
+        if (typeof analysis.analysis_status === "string") return analysis.analysis_status;
+        if (typeof analysis.status === "string") return analysis.status;
     }
+
+    if (snapshot.status) return snapshot.status;
 
     return "—";
 }
 
-function MetadataItem({ label, value }: { label: string; value: React.ReactNode }) {
+function getAnalysisSchemaVersion(snapshot: MarketStateSnapshot | null): React.ReactNode {
+    if (!snapshot) return "—";
+
+    if (snapshot.analysis_schema_version) return snapshot.analysis_schema_version;
+
+    if (snapshot.analysis_json && typeof snapshot.analysis_json === "object") {
+        const analysis = snapshot.analysis_json as Record<string, unknown>;
+        if (
+            typeof analysis.analysis_schema_version === "string" ||
+            typeof analysis.analysis_schema_version === "number"
+        ) {
+            return analysis.analysis_schema_version;
+        }
+    }
+
+    return snapshot.schema_version ?? "—";
+}
+
+function MetadataItem({label, value}: { label: string; value: React.ReactNode }) {
     return (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-gray-800 dark:bg-gray-950">
+        <div
+            className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-gray-800 dark:bg-gray-950">
             <div className="mb-1 text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 {label}
             </div>
@@ -199,36 +414,477 @@ function MetadataItem({ label, value }: { label: string; value: React.ReactNode 
     );
 }
 
+function Pill({children, tone = "neutral"}: { children: React.ReactNode; tone?: "positive" | "negative" | "neutral" }) {
+    const cls =
+        tone === "positive"
+            ? "border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-100"
+            : tone === "negative"
+                ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
+                : "border-gray-300 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200";
+
+    return (
+        <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>
+            {children}
+        </span>
+    );
+}
+
 function AnalysisCard({
                           title,
-                          content,
+                          children,
                       }: {
-    title: SectionTitle;
-    content: string;
+    title: string;
+    children: React.ReactNode;
 }) {
     return (
-        <Card className="min-h-[18rem] overflow-hidden shadow-sm">
+        <Card className="min-h-[20rem] overflow-hidden shadow-sm">
             <CardHeader>
                 <CardTitle>{title}</CardTitle>
             </CardHeader>
-            <CardContent className="h-[14.25rem] overflow-y-auto">
-                <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-gray-800 dark:text-gray-100">
-                    {content}
-                </pre>
+            <CardContent className="h-[16.5rem] overflow-y-auto">
+                <div className="space-y-3 text-sm leading-6 text-gray-800 dark:text-gray-100">
+                    {children}
+                </div>
             </CardContent>
         </Card>
     );
 }
 
-function AuthStatusBadge({
-                             authState,
-                         }: {
-    authState: AdminAuthState;
-}) {
+function ProseBlock({children}: { children: React.ReactNode }) {
+    return <div className="whitespace-pre-wrap break-words">{children || "—"}</div>;
+}
+
+function ListBlock({items}: { items?: string[] | null }) {
+    if (!items || items.length === 0) return <div className="text-gray-500 dark:text-gray-400">—</div>;
+
+    return (
+        <ul className="list-disc space-y-1 pl-5">
+            {items.map((item, index) => (
+                <li key={`${item}-${index}`} className="whitespace-pre-wrap break-words">
+                    {item}
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+function LabelGroup({title, labels}: { title: string; labels?: WyckoffLabel[] | null }) {
+    if (!labels || labels.length === 0) {
+        return (
+            <div>
+                <div className="mb-1 font-semibold">{title}</div>
+                <div className="text-gray-500 dark:text-gray-400">None returned.</div>
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            <div className="mb-2 font-semibold">{title}</div>
+            <div className="space-y-2">
+                {labels.map((item, index) => (
+                    <div key={`${item.label}-${index}`}
+                         className="rounded-lg border border-gray-200 p-2 dark:border-gray-800">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold">{item.label ?? "—"}</span>
+                            <Pill>{item.price_zone ?? "—"}</Pill>
+                            <Pill>{item.status ?? "—"}</Pill>
+                        </div>
+                        <div className="mt-1 whitespace-pre-wrap break-words text-gray-700 dark:text-gray-200">
+                            {item.commentary ?? "—"}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function renderDatasetRead(card?: DatasetReadCard | null) {
+    if (!card) return <ProseBlock>No Dataset Read returned yet.</ProseBlock>;
+
+    return (
+        <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6">
+{`Dataset read
+
+File: ${card.file ?? "—"}
+Window: ${formatUtcRange(card.window?.start_utc, card.window?.end_utc)}
+Rows: ${formatNumber(card.rows)}
+Open: ${formatNumber(card.ohlc?.open)}
+High: ${formatNumber(card.ohlc?.high)}
+Low: ${formatNumber(card.ohlc?.low)}
+Close: ${formatNumber(card.ohlc?.close)}
+Volume: ${formatNumber(card.volume)}
+Aggressive buys: ${formatNumber(card.aggressive_buys)}
+Aggressive sells: ${formatNumber(card.aggressive_sells)}
+Delta: ${formatSignedNumber(card.delta)}
+Buy/sell ratio: ${formatNumber(card.buy_sell_ratio)}
+
+${card.dominance_read ?? "—"}`}
+        </pre>
+    );
+}
+
+function renderBottomLine(card?: BottomLineCard | null) {
+    if (!card) return <ProseBlock>No Bottom Line returned yet.</ProseBlock>;
+
+    return (
+        <>
+            <div className="flex flex-wrap gap-2">
+                <Pill>{card.market_state ?? "market_state: —"}</Pill>
+                <Pill>{card.bias ?? "bias: —"}</Pill>
+                <Pill>{`confidence: ${card.confidence ?? "—"}`}</Pill>
+            </div>
+            <ProseBlock>{card.summary}</ProseBlock>
+            <div><span className="font-semibold">Primary level:</span> {card.primary_level ?? "—"}</div>
+            <div><span className="font-semibold">Primary risk:</span> {card.primary_risk ?? "—"}</div>
+            <div><span className="font-semibold">Primary confirmation:</span> {card.primary_confirmation ?? "—"}</div>
+        </>
+    );
+}
+
+function renderWyckoffStructure(card?: WyckoffStructureCard | null) {
+    if (!card) return <ProseBlock>No Wyckoff Structure returned yet.</ProseBlock>;
+
+    return (
+        <>
+            <div><span className="font-semibold">Active structure:</span> {card.active_structure ?? "—"}</div>
+            <div><span className="font-semibold">Current location:</span> {card.current_location ?? "—"}</div>
+            <ProseBlock>{card.structure_summary}</ProseBlock>
+            <LabelGroup title="Confirmed labels" labels={card.confirmed_labels}/>
+            <LabelGroup title="Provisional labels" labels={card.provisional_labels}/>
+            <LabelGroup title="Invalidated labels" labels={card.invalidated_labels}/>
+        </>
+    );
+}
+
+function renderKeyLevels(levels?: KeyLevelCard[] | null) {
+    if (!levels || levels.length === 0) return <ProseBlock>No Key Levels returned yet.</ProseBlock>;
+
+    return (
+        <div className="space-y-3">
+            {levels.map((level, index) => {
+                const numericGrade = Number(level.grade);
+                const tone = Number.isFinite(numericGrade)
+                    ? numericGrade > 0
+                        ? "positive"
+                        : numericGrade < 0
+                            ? "negative"
+                            : "neutral"
+                    : "neutral";
+
+                return (
+                    <div key={`${level.price_zone}-${index}`}
+                         className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+                        <div className="mb-1 flex flex-wrap items-center gap-2 font-semibold">
+                            <span>{level.price_zone ?? "—"}</span>
+                            <Pill tone={tone}>{`grade: ${formatSignedNumber(level.grade)}`}</Pill>
+                        </div>
+                        <ProseBlock>{level.commentary}</ProseBlock>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function renderTapeRead(items?: TapeReadCard[] | null) {
+    if (!items || items.length === 0) return <ProseBlock>No Tape Read returned yet.</ProseBlock>;
+
+    return (
+        <div className="space-y-3">
+            {items.map((item, index) => (
+                <div key={`${item.start_utc}-${index}`}
+                     className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+                    <div className="mb-2 flex flex-wrap gap-2">
+                        <Pill>{formatUtcRange(item.start_utc, item.end_utc)}</Pill>
+                        <Pill>{item.event_type ?? "event: —"}</Pill>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                        <div>Price: {formatNumber(item.price_action?.from)} → {formatNumber(item.price_action?.to)}</div>
+                        <div>Range: {formatNumber(item.price_action?.low)}–{formatNumber(item.price_action?.high)}</div>
+                        <div>Volume: {formatNumber(item.volume_context?.volume)}</div>
+                        <div>Delta: {formatSignedNumber(item.volume_context?.delta)} ({item.volume_context?.delta_direction ?? "—"})</div>
+                    </div>
+                    {item.key_levels_involved && item.key_levels_involved.length > 0 && (
+                        <div className="mt-2 text-xs">
+                            <span className="font-semibold">Levels:</span> {item.key_levels_involved.join(", ")}
+                        </div>
+                    )}
+                    <div className="mt-2">
+                        <ProseBlock>{item.factual_read}</ProseBlock>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function renderEffortVsResult(card?: EffortVsResultCard | null) {
+    if (!card) return <ProseBlock>No Effort vs Result returned yet.</ProseBlock>;
+
+    return (
+        <>
+            <div className="flex flex-wrap gap-2">
+                <Pill>{card.overall_read ?? "overall: —"}</Pill>
+                <Pill>{`confidence: ${card.confidence ?? "—"}`}</Pill>
+            </div>
+            <div>
+                <div className="font-semibold">Summary</div>
+                <ProseBlock>{card.summary}</ProseBlock>
+            </div>
+            <div>
+                <div className="font-semibold">Positive evidence</div>
+                <ListBlock items={card.positive_evidence}/>
+            </div>
+            <div>
+                <div className="font-semibold">Negative evidence</div>
+                <ListBlock items={card.negative_evidence}/>
+            </div>
+            <div>
+                <div className="font-semibold">Auction effect</div>
+                <ProseBlock>{card.auction_effect}</ProseBlock>
+            </div>
+            <div>
+                <div className="font-semibold">Absorption read</div>
+                <ProseBlock>{card.absorption_read}</ProseBlock>
+            </div>
+        </>
+    );
+}
+
+function renderActorBehavior(card?: ActorBehaviorCard | null) {
+    if (!card) return <ProseBlock>No Actor Behavior returned yet.</ProseBlock>;
+
+    return (
+        <>
+            <ProseBlock>{card.overview}</ProseBlock>
+            <div><span className="font-semibold">Dominant actor mix:</span> {card.dominant_actor_mix ?? "—"}</div>
+
+            <div>
+                <div className="mb-2 font-semibold">Cohort Behavior</div>
+                {!card.cohort_behavior || card.cohort_behavior.length === 0 ? (
+                    <div className="text-gray-500 dark:text-gray-400">No cohort behavior returned.</div>
+                ) : (
+                    <div className="space-y-2">
+                        {card.cohort_behavior.map((cohort, index) => (
+                            <div key={`${cohort.aoi_type}-${index}`}
+                                 className="rounded-lg border border-gray-200 p-2 dark:border-gray-800">
+                                <div className="mb-1 flex flex-wrap gap-2">
+                                    <Pill>{cohort.aoi_type ?? "aoi_type: —"}</Pill>
+                                    <Pill>{cohort.dominant_side ?? "side: —"}</Pill>
+                                    <Pill>{`actors: ${formatNumber(cohort.actor_count)}`}</Pill>
+                                </div>
+                                <div className="grid grid-cols-1 gap-1 text-xs sm:grid-cols-2">
+                                    <div>Net position: {formatSignedNumber(cohort.net_position)}</div>
+                                    <div>Δ1m: {formatSignedNumber(cohort.delta_1m)}</div>
+                                    <div>Δ5m: {formatSignedNumber(cohort.delta_5m)}</div>
+                                    <div>Δ15m: {formatSignedNumber(cohort.delta_15m)}</div>
+                                </div>
+                                <div className="mt-2">
+                                    <ProseBlock>{cohort.behavior_summary}</ProseBlock>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div>
+                <div className="mb-2 font-semibold">Notable Actors</div>
+                {!card.actors || card.actors.length === 0 ? (
+                    <div className="text-gray-500 dark:text-gray-400">No individual actor events returned.</div>
+                ) : (
+                    <div className="space-y-2">
+                        {card.actors.map((actor, index) => (
+                            <div key={`${actor.actor_id_short}-${index}`}
+                                 className="rounded-lg border border-gray-200 p-2 dark:border-gray-800">
+                                <div className="mb-1 flex flex-wrap items-center gap-2">
+                                    <span className="font-semibold">{actor.actor_id_short ?? "actor: —"}</span>
+                                    <Pill>{actor.aoi_type ?? "aoi_type: —"}</Pill>
+                                    <Pill>{actor.economic_action ?? "action: —"}</Pill>
+                                    <Pill>{actor.importance ?? "importance: —"}</Pill>
+                                </div>
+                                {actor.account_id && (
+                                    <div
+                                        className="mb-1 break-all font-mono text-[11px] text-gray-500 dark:text-gray-400">
+                                        {actor.account_id}
+                                    </div>
+                                )}
+                                <div className="grid grid-cols-1 gap-1 text-xs sm:grid-cols-2">
+                                    <div>Position: {formatNumber(actor.position_delta?.from)} → {formatNumber(actor.position_delta?.to)}</div>
+                                    <div>Change: {formatSignedNumber(actor.position_delta?.change)} {actor.position_delta?.unit ?? ""}</div>
+                                    <div>Source: {actor.position_delta?.source ?? "—"}</div>
+                                    <div>Signal: {actor.classification_signal ?? "—"}</div>
+                                </div>
+                                <div className="mt-2">
+                                    <ProseBlock>{actor.behavior_summary}</ProseBlock>
+                                </div>
+                                {(actor.time_context || actor.price_context) && (
+                                    <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">
+                                        {actor.time_context ?? "—"} {actor.price_context ? `| ${actor.price_context}` : ""}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div>
+                <div className="font-semibold">Summary</div>
+                <ProseBlock>{card.summary}</ProseBlock>
+            </div>
+        </>
+    );
+}
+
+function renderVolumeProfile(card?: VolumeProfileCard | null) {
+    if (!card) return <ProseBlock>No Volume Profile card returned yet.</ProseBlock>;
+
+    if (card.available === false) {
+        return (
+            <>
+                <Pill>unavailable</Pill>
+                <ProseBlock>{card.summary || "Volume Profile data was not available for this snapshot."}</ProseBlock>
+                <div><span className="font-semibold">Validation read:</span> {card.validation_read ?? "unavailable"}
+                </div>
+                <div><span className="font-semibold">Confidence:</span> {card.confidence ?? "unknown"}</div>
+            </>
+        );
+    }
+
+    return (
+        <>
+            <Pill>{card.available === true ? "available" : "availability unknown"}</Pill>
+            <ProseBlock>{card.summary}</ProseBlock>
+            <div>
+                <div className="font-semibold">Key profile references</div>
+                <ListBlock items={card.key_profile_references}/>
+            </div>
+            <div><span className="font-semibold">Validation read:</span> {card.validation_read ?? "—"}</div>
+            <div><span className="font-semibold">Confidence:</span> {card.confidence ?? "—"}</div>
+        </>
+    );
+}
+
+function RuleGroup({title, rules}: { title: string; rules?: RuleCard[] | null }) {
+    return (
+        <div>
+            <div className="mb-2 font-semibold">{title}</div>
+            {!rules || rules.length === 0 ? (
+                <div className="text-gray-500 dark:text-gray-400">No rules returned.</div>
+            ) : (
+                <div className="space-y-2">
+                    {rules.map((rule, index) => (
+                        <div key={`${rule.price_zone}-${index}`}
+                             className="rounded-lg border border-gray-200 p-2 dark:border-gray-800">
+                            <div className="mb-1 flex flex-wrap gap-2">
+                                <Pill>{rule.price_zone ?? "price: —"}</Pill>
+                                <Pill>{rule.importance ?? "importance: —"}</Pill>
+                            </div>
+                            <div><span className="font-semibold">Condition:</span> {rule.condition ?? "—"}</div>
+                            <div><span className="font-semibold">Interpretation:</span> {rule.interpretation ?? "—"}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function renderConfirmationInvalidation(card?: ConfirmationInvalidationCard | null) {
+    if (!card) return <ProseBlock>No Confirmation / Invalidation returned yet.</ProseBlock>;
+
+    return (
+        <>
+            <RuleGroup title="Confirmation rules" rules={card.confirmation_rules}/>
+            <RuleGroup title="Invalidation rules" rules={card.invalidation_rules}/>
+            <div>
+                <div className="font-semibold">Summary</div>
+                <ProseBlock>{card.summary}</ProseBlock>
+            </div>
+        </>
+    );
+}
+
+function renderDataQuality(card?: DataQualityCard | null) {
+    if (!card) return <ProseBlock>No Data Quality returned yet.</ProseBlock>;
+
+    return (
+        <>
+            <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                <div>AOI retained positions: {boolText(card.aoi_retained_position_state_available)}</div>
+                <div>Watch Mode equivalent: {boolText(card.watch_mode_equivalent_state_available)}</div>
+                <div>Volume Profile: {boolText(card.volume_profile_available)}</div>
+                <div>Oracle / Mark: {boolText(card.oracle_mark_available)}</div>
+                <div>Funding: {boolText(card.funding_available)}</div>
+                <div>Actor-side reliability: {card.dataset_actor_side_reliability ?? "—"}</div>
+            </div>
+            <div>
+                <div className="font-semibold">Warnings</div>
+                <ListBlock items={card.warnings}/>
+            </div>
+            <div>
+                <div className="font-semibold">Missing inputs</div>
+                <ListBlock items={card.missing_inputs}/>
+            </div>
+        </>
+    );
+}
+
+function LegacyFallbackCards({snapshot}: { snapshot: MarketStateSnapshot | null }) {
+    const titles = [
+        "Dataset Read",
+        "Bottom Line",
+        "Wyckoff Structure",
+        "The Tape",
+        "Effort vs Result",
+        "Volume Profile Analysis",
+        "Actor Behavior",
+    ];
+
+    function getLegacySection(title: string): string {
+        if (!snapshot) return "Run an authenticated AI analysis to populate this section.";
+
+        const direct = snapshot.sections?.[title];
+        if (direct !== undefined && direct !== null && direct !== "") return stringifyContent(direct);
+
+        const snakeKey = title.toLowerCase().replaceAll(" ", "_");
+        const snake = snapshot.sections?.[snakeKey];
+        if (snake !== undefined && snake !== null && snake !== "") return stringifyContent(snake);
+
+        if (snapshot.analysis_json && typeof snapshot.analysis_json === "object") {
+            const analysis = snapshot.analysis_json as Record<string, unknown>;
+            const analysisSnake = analysis[snakeKey];
+            if (analysisSnake !== undefined && analysisSnake !== null && analysisSnake !== "") {
+                return stringifyContent(analysisSnake);
+            }
+        }
+
+        return "No content returned yet.";
+    }
+
+    return (
+        <>
+            {titles.map((title) => (
+                <AnalysisCard key={title} title={title}>
+                    <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6">
+                        {getLegacySection(title)}
+                    </pre>
+                </AnalysisCard>
+            ))}
+        </>
+    );
+}
+
+function AuthStatusBadge({authState}: { authState: AdminAuthState }) {
     if (authState === "checking") {
         return (
-            <div className="inline-flex items-center rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
-                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+            <div
+                className="inline-flex items-center rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin"/>
                 Checking admin session…
             </div>
         );
@@ -236,24 +892,26 @@ function AuthStatusBadge({
 
     if (authState === "authenticated") {
         return (
-            <div className="inline-flex items-center rounded-xl border border-green-300 bg-green-50 px-3 py-2 text-xs font-medium text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-100">
-                <ShieldCheck className="mr-2 h-3.5 w-3.5" />
+            <div
+                className="inline-flex items-center rounded-xl border border-green-300 bg-green-50 px-3 py-2 text-xs font-medium text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-100">
+                <ShieldCheck className="mr-2 h-3.5 w-3.5"/>
                 AI analysis available — admin session active
             </div>
         );
     }
 
     return (
-        <div className="inline-flex items-center rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
-            <ShieldX className="mr-2 h-3.5 w-3.5" />
+        <div
+            className="inline-flex items-center rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+            <ShieldX className="mr-2 h-3.5 w-3.5"/>
             AI analysis requires admin authentication
         </div>
     );
 }
 
 export default function MfAiWyckoffPage() {
-    const { setConfig } = useHeaderConfig();
-    const { ticker, period, hydrated } = useTickerPeriod();
+    const {setConfig} = useHeaderConfig();
+    const {ticker, period, hydrated} = useTickerPeriod();
 
     const [inputContextText, setInputContextText] = useState("");
     const [snapshot, setSnapshot] = useState<MarketStateSnapshot | null>(null);
@@ -262,7 +920,7 @@ export default function MfAiWyckoffPage() {
     const [authState, setAuthState] = useState<AdminAuthState>("checking");
 
     useEffect(() => {
-        setConfig({ showTicker: true, showPeriod: true });
+        setConfig({showTicker: true, showPeriod: true});
     }, [setConfig]);
 
     useEffect(() => {
@@ -275,13 +933,10 @@ export default function MfAiWyckoffPage() {
                 const response = await fetch(`${API_BASE}/api/mf-admin/auth/me/`, {
                     method: "GET",
                     credentials: "include",
-                    headers: {
-                        Accept: "application/json",
-                    },
+                    headers: {Accept: "application/json"},
                 });
 
-                const text = await response.text();
-                const payload = text ? (JSON.parse(text) as AdminMeResponse) : null;
+                const payload = await parseApiPayload(response) as AdminMeResponse | null;
 
                 if (cancelled) return;
 
@@ -292,9 +947,7 @@ export default function MfAiWyckoffPage() {
 
                 setAuthState("unauthenticated");
             } catch {
-                if (!cancelled) {
-                    setAuthState("error");
-                }
+                if (!cancelled) setAuthState("error");
             }
         }
 
@@ -305,10 +958,13 @@ export default function MfAiWyckoffPage() {
         };
     }, []);
 
-    const warnings = useMemo(
-        () => normalizeWarnings(snapshot?.warnings),
-        [snapshot?.warnings]
-    );
+    const canonicalCards = useMemo(() => getCanonicalCards(snapshot), [snapshot]);
+
+    const warnings = useMemo(() => {
+        const snapshotWarnings = normalizeWarnings(snapshot?.warnings);
+        const dataQualityWarnings = canonicalCards?.data_quality?.warnings ?? [];
+        return [...snapshotWarnings, ...dataQualityWarnings];
+    }, [snapshot?.warnings, canonicalCards?.data_quality?.warnings]);
 
     const canRunOpenAiAnalysis = hydrated && authState === "authenticated" && !loading;
 
@@ -347,46 +1003,36 @@ export default function MfAiWyckoffPage() {
                 }
             );
 
-            const text = await response.text();
-            const payload = text ? JSON.parse(text) : null;
+            const payload = await parseApiPayload(response);
 
             if (!response.ok) {
-                const message =
-                    response.status === 403
-                        ? "OpenAI analysis requires authenticated admin access."
-                        : payload?.error ||
-                        payload?.detail ||
-                        payload?.message ||
-                        `Snapshot request failed with HTTP ${response.status}`;
-
-                throw new Error(message);
+                throw new Error(getErrorMessage(payload, response.status));
             }
 
-            setSnapshot(unwrapSnapshot(payload));
+            setSnapshot(unwrapSnapshot(payload as SnapshotApiResponse));
         } catch (err) {
-            setError(
-                err instanceof Error
-                    ? err.message
-                    : "Snapshot request failed."
-            );
+            setError(err instanceof Error ? err.message : "Snapshot request failed.");
         } finally {
             setLoading(false);
         }
     }
 
     return (
-        <main className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-2 py-4 text-text dark:text-text-inverted sm:px-4 lg:px-6">
-            <section className="rounded-2xl border border-gray-300 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+        <main
+            className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-2 py-4 text-text dark:text-text-inverted sm:px-4 lg:px-6">
+            <section
+                className="rounded-2xl border border-gray-300 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                         <h1 className="text-xl font-semibold sm:text-2xl">
                             MF_AI Wyckoff Market-State Snapshot
                         </h1>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                            Request one authenticated backend-generated market-state snapshot and render the returned analysis.
+                            Request one authenticated backend-generated market-state snapshot and render the returned
+                            analysis.
                         </p>
                         <div className="mt-3">
-                            <AuthStatusBadge authState={authState} />
+                            <AuthStatusBadge authState={authState}/>
                         </div>
                     </div>
 
@@ -398,7 +1044,7 @@ export default function MfAiWyckoffPage() {
                     >
                         {loading ? (
                             <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
                                 Analyzing...
                             </>
                         ) : (
@@ -408,16 +1054,15 @@ export default function MfAiWyckoffPage() {
                 </div>
 
                 {authState !== "authenticated" && authState !== "checking" && (
-                    <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+                    <div
+                        className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
                         Sign in through the MF admin flow before requesting real OpenAI analysis.
                     </div>
                 )}
 
                 <div className="mt-4">
-                    <label
-                        htmlFor="mf-ai-context"
-                        className="mb-2 block text-sm font-medium text-gray-800 dark:text-gray-100"
-                    >
+                    <label htmlFor="mf-ai-context"
+                           className="mb-2 block text-sm font-medium text-gray-800 dark:text-gray-100">
                         Optional User Context
                     </label>
                     <textarea
@@ -431,7 +1076,8 @@ export default function MfAiWyckoffPage() {
                 </div>
 
                 {error && (
-                    <div className="mt-4 rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-100">
+                    <div
+                        className="mt-4 rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-100">
                         {error}
                     </div>
                 )}
@@ -443,52 +1089,30 @@ export default function MfAiWyckoffPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <MetadataItem label="Ticker" value={snapshot?.ticker ?? ticker ?? "—"} />
-                        <MetadataItem
-                            label="Requested Period"
-                            value={snapshot?.requested_period ?? period ?? "—"}
-                        />
-                        <MetadataItem
-                            label="Baseline Period"
-                            value={snapshot?.baseline_period ?? "—"}
-                        />
-                        <MetadataItem label="Snapshot ID" value={snapshot?.id ?? "—"} />
-                        <MetadataItem
-                            label="Range Start UTC"
-                            value={formatUtcMs(snapshot?.range_start_ms)}
-                        />
-                        <MetadataItem
-                            label="Range End UTC"
-                            value={formatUtcMs(snapshot?.range_end_ms)}
-                        />
-                        <MetadataItem
-                            label="Generated UTC"
-                            value={formatUtcMs(snapshot?.generated_ts_ms)}
-                        />
-                        <MetadataItem label="Status" value={getSnapshotStatus(snapshot)} />
-                        <MetadataItem
-                            label="Inference Provider"
-                            value={snapshot?.inference_provider ?? "—"}
-                        />
-                        <MetadataItem label="Model" value={snapshot?.model_name ?? "—"} />
-                        <MetadataItem
-                            label="Schema Version"
-                            value={snapshot?.schema_version ?? "—"}
-                        />
+                        <MetadataItem label="Ticker" value={snapshot?.ticker ?? ticker ?? "—"}/>
+                        <MetadataItem label="Requested Period" value={snapshot?.requested_period ?? period ?? "—"}/>
+                        <MetadataItem label="Baseline Period" value={snapshot?.baseline_period ?? "—"}/>
+                        <MetadataItem label="Snapshot ID" value={snapshot?.id ?? "—"}/>
+                        <MetadataItem label="Range Start UTC" value={formatUtcMs(snapshot?.range_start_ms)}/>
+                        <MetadataItem label="Range End UTC" value={formatUtcMs(snapshot?.range_end_ms)}/>
+                        <MetadataItem label="Generated UTC" value={formatUtcMs(snapshot?.generated_ts_ms)}/>
+                        <MetadataItem label="Analysis Status" value={getAnalysisStatus(snapshot)}/>
+                        <MetadataItem label="Inference Provider" value={snapshot?.inference_provider ?? "—"}/>
+                        <MetadataItem label="Model" value={snapshot?.model_name ?? "—"}/>
+                        <MetadataItem label="Analysis Schema Version" value={getAnalysisSchemaVersion(snapshot)}/>
                     </div>
 
                     {warnings.length > 0 && (
-                        <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+                        <div
+                            className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
                             <div className="mb-2 flex items-center gap-2 font-semibold">
-                                <AlertTriangle className="h-4 w-4" />
+                                <AlertTriangle className="h-4 w-4"/>
                                 Warnings
                             </div>
                             <ul className="list-disc space-y-1 pl-5">
                                 {warnings.map((warning, index) => (
                                     <li key={`${warning}-${index}`}>
-                                        <pre className="whitespace-pre-wrap break-words font-sans">
-                                            {warning}
-                                        </pre>
+                                        <pre className="whitespace-pre-wrap break-words font-sans">{warning}</pre>
                                     </li>
                                 ))}
                             </ul>
@@ -498,36 +1122,30 @@ export default function MfAiWyckoffPage() {
             </Card>
 
             <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                {SECTION_TITLES.map((title) => (
-                    <AnalysisCard
-                        key={title}
-                        title={title}
-                        content={getSectionContent(snapshot, title)}
-                    />
-                ))}
+                {canonicalCards ? (
+                    <>
+                        <AnalysisCard
+                            title="Dataset Read">{renderDatasetRead(canonicalCards.dataset_read)}</AnalysisCard>
+                        <AnalysisCard title="Bottom Line">{renderBottomLine(canonicalCards.bottom_line)}</AnalysisCard>
+                        <AnalysisCard
+                            title="Wyckoff Structure">{renderWyckoffStructure(canonicalCards.wyckoff_structure)}</AnalysisCard>
+                        <AnalysisCard title="Key Levels">{renderKeyLevels(canonicalCards.key_levels)}</AnalysisCard>
+                        <AnalysisCard title="Tape Read">{renderTapeRead(canonicalCards.tape_read)}</AnalysisCard>
+                        <AnalysisCard
+                            title="Effort vs Result">{renderEffortVsResult(canonicalCards.effort_vs_result)}</AnalysisCard>
+                        <AnalysisCard
+                            title="Actor Behavior">{renderActorBehavior(canonicalCards.actor_behavior)}</AnalysisCard>
+                        <AnalysisCard
+                            title="Volume Profile">{renderVolumeProfile(canonicalCards.volume_profile)}</AnalysisCard>
+                        <AnalysisCard
+                            title="Confirmation / Invalidation">{renderConfirmationInvalidation(canonicalCards.confirmation_invalidation)}</AnalysisCard>
+                        <AnalysisCard
+                            title="Data Quality">{renderDataQuality(canonicalCards.data_quality)}</AnalysisCard>
+                    </>
+                ) : (
+                    <LegacyFallbackCards snapshot={snapshot}/>
+                )}
             </section>
-
-            <Card className="min-h-[32rem] shadow-sm">
-                <CardHeader>
-                    <CardTitle>Wyckoff Chart</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex min-h-[26rem] items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-center text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300">
-                        {snapshot?.wyckoff_chart ? (
-                            <pre className="max-h-[25rem] w-full overflow-auto whitespace-pre-wrap break-words text-left">
-                                {stringifyContent(snapshot.wyckoff_chart)}
-                            </pre>
-                        ) : (
-                            <div>
-                                <div className="font-medium">Wyckoff Chart Placeholder</div>
-                                <div className="mt-1">
-                                    Highcharts rendering will be added after the backend chart payload contract is validated.
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
         </main>
     );
 }
