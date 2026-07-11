@@ -38,6 +38,7 @@ type MarketStateSnapshot = {
     cards?: CanonicalCards | null;
     sections?: SnapshotSectionMap | null;
     wyckoff_chart?: unknown;
+    market_acceptance_profile?: MarketAcceptanceProfile | null;
     analysis_json?: unknown;
     input_summary_json?: unknown;
     warnings?: unknown;
@@ -226,9 +227,24 @@ type DataQualityCard = {
     volume_profile_available?: boolean | null;
     oracle_mark_available?: boolean | null;
     funding_available?: boolean | null;
-    dataset_actor_side_reliability?: string | null;
+    dataset_actor_side_reliability?: unknown;
     warnings?: string[] | null;
     missing_inputs?: string[] | null;
+};
+
+type MarketAcceptanceProfile = {
+    available?: boolean | null;
+    reference?: Record<string, unknown> | null;
+    profile?: {
+        metadata?: Record<string, unknown> | null;
+        rows?: unknown[] | null;
+        derived_levels?: Record<string, unknown> | null;
+        current_price_context?: Record<string, unknown> | null;
+        hvn_zones?: unknown[] | null;
+        lvn_zones?: unknown[] | null;
+        wyckoff_level_enrichment?: unknown;
+        warnings?: unknown[] | null;
+    } | null;
 };
 
 function unwrapSnapshot(payload: SnapshotApiResponse): MarketStateSnapshot {
@@ -347,6 +363,73 @@ function stringifyContent(value: unknown): string {
     }
 
     return JSON.stringify(value, null, 2);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function safeRenderScalar(value: unknown): string {
+    if (value === null || value === undefined || value === "") return "—";
+    if (typeof value === "string") return value;
+    if (typeof value === "number") return formatNumber(value);
+    if (typeof value === "boolean") return value ? "true" : "false";
+    return stringifyContent(value);
+}
+
+function firstPresent(...values: unknown[]): unknown {
+    return values.find((value) => value !== null && value !== undefined && value !== "");
+}
+
+function formatPriceZone(value: unknown): string {
+    if (value === null || value === undefined || value === "") return "—";
+
+    if (
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean"
+    ) {
+        return safeRenderScalar(value);
+    }
+
+    if (!isRecord(value)) return stringifyContent(value);
+
+    const low = firstPresent(
+        value.low,
+        value.lower,
+        value.price_low,
+        value.price_min,
+        value.start,
+        value.from
+    );
+
+    const high = firstPresent(
+        value.high,
+        value.upper,
+        value.price_high,
+        value.price_max,
+        value.end,
+        value.to
+    );
+
+    const price = firstPresent(value.price, value.level, value.zone, value.price_zone);
+
+    if (low !== undefined && high !== undefined) {
+        return `${safeRenderScalar(low)}–${safeRenderScalar(high)}`;
+    }
+
+    if (price !== undefined) return safeRenderScalar(price);
+
+    return stringifyContent(value);
+}
+
+function summarizeZones(value: unknown): string {
+    if (!Array.isArray(value) || value.length === 0) return "—";
+
+    const rendered = value.slice(0, 3).map(formatPriceZone);
+    const extra = value.length > 3 ? `, +${value.length - 3} more` : "";
+
+    return `${rendered.join(", ")}${extra}`;
 }
 
 function getCanonicalCards(snapshot: MarketStateSnapshot | null): CanonicalCards | null {
@@ -773,6 +856,97 @@ function renderVolumeProfile(card?: VolumeProfileCard | null) {
     );
 }
 
+function renderMarketAcceptanceProfile(map?: MarketAcceptanceProfile | null) {
+    if (!map || map.available === false) {
+        return (
+            <>
+                <Pill>unavailable</Pill>
+                <ProseBlock>
+                    Volume Profile / Market Acceptance Profile data was not available for this snapshot.
+                </ProseBlock>
+            </>
+        );
+    }
+
+    const reference = isRecord(map.reference) ? map.reference : {};
+    const profile = isRecord(map.profile) ? map.profile : {};
+    const metadata = isRecord(profile.metadata) ? profile.metadata : {};
+    const derivedLevels = isRecord(profile.derived_levels) ? profile.derived_levels : {};
+    const currentPriceContext = isRecord(profile.current_price_context)
+        ? profile.current_price_context
+        : {};
+
+    const rows = Array.isArray(profile.rows) ? profile.rows : [];
+    const hvnZones = Array.isArray(profile.hvn_zones) ? profile.hvn_zones : [];
+    const lvnZones = Array.isArray(profile.lvn_zones) ? profile.lvn_zones : [];
+
+    const poc = firstPresent(
+        derivedLevels.poc,
+        derivedLevels.poc_price,
+        derivedLevels.poc_zone,
+        derivedLevels.point_of_control,
+        metadata.poc
+    );
+
+    const vah = firstPresent(
+        derivedLevels.vah,
+        derivedLevels.value_area_high,
+        metadata.vah
+    );
+
+    const val = firstPresent(
+        derivedLevels.val,
+        derivedLevels.value_area_low,
+        metadata.val
+    );
+
+    const currentPrice = firstPresent(
+        currentPriceContext.current_price,
+        currentPriceContext.price,
+        currentPriceContext.last_price,
+        metadata.current_price
+    );
+
+    return (
+        <>
+            <div className="flex flex-wrap gap-2">
+                <Pill tone="positive">available</Pill>
+                <Pill>{`source: ${safeRenderScalar(reference.source ?? metadata.source)}`}</Pill>
+                <Pill>{`version: ${safeRenderScalar(reference.calculation_version ?? metadata.calculation_version)}`}</Pill>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                <div>Snapshot ID: {safeRenderScalar(reference.id)}</div>
+                <div>Profile period: {safeRenderScalar(reference.profile_period ?? metadata.profile_period)}</div>
+                <div>Profile period
+                    count: {safeRenderScalar(reference.profile_period_count ?? metadata.profile_period_count)}</div>
+                <div>Rows: {safeRenderScalar(reference.row_count ?? rows.length)}</div>
+                <div>Trade count: {safeRenderScalar(reference.trade_count ?? metadata.trade_count)}</div>
+                <div>Total volume: {safeRenderScalar(reference.total_volume ?? metadata.total_volume)}</div>
+                <div>Price step: {safeRenderScalar(metadata.price_step ?? derivedLevels.price_step)}</div>
+                <div>Current price: {safeRenderScalar(currentPrice)}</div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
+                <div><span className="font-semibold">POC:</span> {formatPriceZone(poc)}</div>
+                <div><span className="font-semibold">VAH:</span> {formatPriceZone(vah)}</div>
+                <div><span className="font-semibold">VAL:</span> {formatPriceZone(val)}</div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                <div>HVN candidates: {formatNumber(hvnZones.length)}</div>
+                <div>LVN candidates: {formatNumber(lvnZones.length)}</div>
+                <div className="sm:col-span-2">
+                    <span className="font-semibold">HVNs:</span> {summarizeZones(hvnZones)}
+                </div>
+                <div className="sm:col-span-2">
+                    <span className="font-semibold">LVNs:</span> {summarizeZones(lvnZones)}
+                </div>
+            </div>
+        </>
+    );
+}
+
 function RuleGroup({title, rules}: { title: string; rules?: RuleCard[] | null }) {
     return (
         <div>
@@ -1020,6 +1194,7 @@ export default function MfAiWyckoffPage() {
             }
 
             setSnapshot(unwrapSnapshot(payload as SnapshotApiResponse));
+            setInputContextText("");
         } catch (err) {
             setError(err instanceof Error ? err.message : "Snapshot request failed.");
         } finally {
@@ -1146,7 +1321,11 @@ export default function MfAiWyckoffPage() {
                         <AnalysisCard
                             title="Actor Behavior">{renderActorBehavior(canonicalCards.actor_behavior)}</AnalysisCard>
                         <AnalysisCard
-                            title="Volume Profile">{renderVolumeProfile(canonicalCards.volume_profile)}</AnalysisCard>
+                            title="Volume Profile / Market Acceptance Profile — Backend Data">
+                            {renderMarketAcceptanceProfile(snapshot?.market_acceptance_profile)}
+                        </AnalysisCard>
+                        <AnalysisCard
+                            title="Volume Profile — AI Interpretation">{renderVolumeProfile(canonicalCards.volume_profile)}</AnalysisCard>
                         <AnalysisCard
                             title="Confirmation / Invalidation">{renderConfirmationInvalidation(canonicalCards.confirmation_invalidation)}</AnalysisCard>
                         <AnalysisCard
