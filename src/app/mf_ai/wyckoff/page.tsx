@@ -203,7 +203,7 @@ type ActorBehaviorCard = {
 type VolumeProfileCard = {
     available?: boolean | null;
     summary?: string | null;
-    key_profile_references?: string[] | null;
+    key_profile_references?: unknown[] | null;
     validation_read?: string | null;
     confidence?: string | null;
 };
@@ -537,14 +537,16 @@ function ProseBlock({children}: { children: React.ReactNode }) {
     return <div className="whitespace-pre-wrap break-words">{children || "—"}</div>;
 }
 
-function ListBlock({items}: { items?: string[] | null }) {
-    if (!items || items.length === 0) return <div className="text-gray-500 dark:text-gray-400">—</div>;
+function ListBlock({items}: { items?: unknown[] | null }) {
+    if (!items || items.length === 0) {
+        return <div className="text-gray-500 dark:text-gray-400">—</div>;
+    }
 
     return (
         <ul className="list-disc space-y-1 pl-5">
             {items.map((item, index) => (
-                <li key={`${item}-${index}`} className="whitespace-pre-wrap break-words">
-                    {item}
+                <li key={`${stringifyContent(item)}-${index}`} className="whitespace-pre-wrap break-words">
+                    {stringifyContent(item)}
                 </li>
             ))}
         </ul>
