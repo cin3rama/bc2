@@ -432,6 +432,24 @@ function summarizeZones(value: unknown): string {
     return `${rendered.join(", ")}${extra}`;
 }
 
+function profileReferenceLabel(value: unknown): string {
+    if (typeof value !== "string" || !value.trim()) return "Profile Reference";
+
+    const normalized = value.trim().toLowerCase();
+
+    const labels: Record<string, string> = {
+        poc: "POC",
+        vah: "VAH",
+        val: "VAL",
+        hvn: "HVN",
+        lvn: "LVN",
+        nearest_node: "Nearest Node",
+        current_price: "Current Price",
+    };
+
+    return labels[normalized] ?? "Profile Reference";
+}
+
 function getCanonicalCards(snapshot: MarketStateSnapshot | null): CanonicalCards | null {
     if (!snapshot) return null;
 
@@ -550,6 +568,69 @@ function ListBlock({items}: { items?: unknown[] | null }) {
                 </li>
             ))}
         </ul>
+    );
+}
+
+function ProfileReferenceBlock({items}: { items?: unknown[] | null }) {
+    if (!items || items.length === 0) {
+        return <div className="text-gray-500 dark:text-gray-400">—</div>;
+    }
+
+    return (
+        <div className="space-y-2">
+            {items.map((item, index) => {
+                if (typeof item === "string") {
+                    return (
+                        <div key={`${item}-${index}`} className="whitespace-pre-wrap break-words">
+                            {item}
+                        </div>
+                    );
+                }
+
+                if (isRecord(item)) {
+                    const profileType = item.profile_type;
+                    const priceZone = item.price_zone;
+                    const commentary = item.commentary;
+
+                    if (
+                        profileType !== undefined ||
+                        priceZone !== undefined ||
+                        commentary !== undefined
+                    ) {
+                        return (
+                            <div
+                                key={`${safeRenderScalar(profileType)}-${safeRenderScalar(priceZone)}-${index}`}
+                                className="rounded-lg border border-gray-200 p-2 dark:border-gray-800"
+                            >
+                                <div className="mb-1 font-semibold">
+                                    {profileReferenceLabel(profileType)}{" "}
+                                    <span className="text-gray-500 dark:text-gray-400">—</span>{" "}
+                                    {safeRenderScalar(priceZone)}
+                                </div>
+                                <div className="whitespace-pre-wrap break-words text-gray-700 dark:text-gray-200">
+                                    {safeRenderScalar(commentary)}
+                                </div>
+                            </div>
+                        );
+                    }
+
+                    return (
+                        <pre
+                            key={`${stringifyContent(item)}-${index}`}
+                            className="whitespace-pre-wrap break-words rounded-lg border border-gray-200 p-2 font-sans text-xs dark:border-gray-800"
+                        >
+                            {stringifyContent(item)}
+                        </pre>
+                    );
+                }
+
+                return (
+                    <div key={`${stringifyContent(item)}-${index}`} className="whitespace-pre-wrap break-words">
+                        {stringifyContent(item)}
+                    </div>
+                );
+            })}
+        </div>
     );
 }
 
@@ -738,6 +819,72 @@ function renderEffortVsResult(card?: EffortVsResultCard | null) {
     );
 }
 
+function renderDominantActorMix(value: unknown) {
+    if (value === null || value === undefined || value === "") {
+        return <div className="text-gray-500 dark:text-gray-400">—</div>;
+    }
+
+    if (typeof value === "string") {
+        return <ProseBlock>{value}</ProseBlock>;
+    }
+
+    if (!isRecord(value)) {
+        return <ProseBlock>{stringifyContent(value)}</ProseBlock>;
+    }
+
+    const demandSide = Array.isArray(value.demand_side)
+        ? value.demand_side.map(safeRenderScalar).join(", ")
+        : safeRenderScalar(value.demand_side);
+
+    const supplySide = Array.isArray(value.supply_side)
+        ? value.supply_side.map(safeRenderScalar).join(", ")
+        : safeRenderScalar(value.supply_side);
+
+    const overallQuality = value.overall_quality;
+
+    const hasKnownShape =
+        value.demand_side !== undefined ||
+        value.supply_side !== undefined ||
+        value.overall_quality !== undefined;
+
+    if (!hasKnownShape) {
+        return <ProseBlock>{stringifyContent(value)}</ProseBlock>;
+    }
+
+    return (
+        <div className="space-y-2 rounded-lg border border-gray-200 p-2 dark:border-gray-800">
+            <div className="font-semibold">Dominant actor mix</div>
+
+            {value.demand_side !== undefined && (
+                <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        Demand side
+                    </div>
+                    <div className="whitespace-pre-wrap break-words">{demandSide}</div>
+                </div>
+            )}
+
+            {value.supply_side !== undefined && (
+                <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        Supply side
+                    </div>
+                    <div className="whitespace-pre-wrap break-words">{supplySide}</div>
+                </div>
+            )}
+
+            {overallQuality !== undefined && (
+                <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        Overall quality
+                    </div>
+                    <ProseBlock>{safeRenderScalar(overallQuality)}</ProseBlock>
+                </div>
+            )}
+        </div>
+    );
+}
+
 function renderActorBehavior(card?: ActorBehaviorCard | null) {
     if (!card) return <ProseBlock>No Actor Behavior returned yet.</ProseBlock>;
 
@@ -745,10 +892,7 @@ function renderActorBehavior(card?: ActorBehaviorCard | null) {
         <>
             <ProseBlock>{card.overview}</ProseBlock>
             <div>
-                <span className="font-semibold">Dominant actor mix:</span>{" "}
-                {typeof card.dominant_actor_mix === "string"
-                    ? card.dominant_actor_mix
-                    : stringifyContent(card.dominant_actor_mix)}
+                {renderDominantActorMix(card.dominant_actor_mix)}
             </div>
 
             <div>
@@ -850,7 +994,7 @@ function renderVolumeProfile(card?: VolumeProfileCard | null) {
             <ProseBlock>{card.summary}</ProseBlock>
             <div>
                 <div className="font-semibold">Key profile references</div>
-                <ListBlock items={card.key_profile_references}/>
+                <ProfileReferenceBlock items={card.key_profile_references}/>
             </div>
             <div><span className="font-semibold">Validation read:</span> {card.validation_read ?? "—"}</div>
             <div><span className="font-semibold">Confidence:</span> {card.confidence ?? "—"}</div>
@@ -906,7 +1050,12 @@ function renderMarketAcceptanceProfile(map?: MarketAcceptanceProfile | null) {
         currentPriceContext.current_price,
         currentPriceContext.price,
         currentPriceContext.last_price,
-        metadata.current_price
+        currentPriceContext.mark_price,
+        currentPriceContext.oracle_price,
+        derivedLevels.current_price,
+        derivedLevels.price,
+        metadata.current_price,
+        metadata.last_price
     );
 
     return (
