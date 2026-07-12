@@ -19,6 +19,13 @@ type PriceZone = {
 };
 
 type CandlePoint = [number, number, number, number, number];
+type VolumePoint = [number, number];
+
+type ParsedCandle = {
+    ohlc: CandlePoint;
+    volume: VolumePoint | null;
+    period?: string | null;
+};
 
 type ProfileRow = {
     priceLow: number;
@@ -52,11 +59,18 @@ type WyckoffZoneOverlay = {
     status: "confirmed" | "provisional" | "invalidated";
 };
 
-type CandleSourceName = "market_chart.requested" | "market_chart.baseline" | "trade_tape.buckets";
+type CandleSourceName =
+    | "market_chart.requested.1h"
+    | "market_chart.baseline.1h"
+    | "market_chart.requested"
+    | "market_chart.baseline"
+    | "trade_tape.buckets";
 
 type ChartData = {
     candles: CandlePoint[];
+    volume: VolumePoint[];
     candleSource: CandleSourceName;
+    candlePeriod: string;
     profileRows: ProfileRow[];
     levels: ProfileLevels;
     keyLevels: KeyLevelOverlay[];
@@ -212,7 +226,7 @@ function parsePriceZone(value: unknown): PriceZone | null {
     return null;
 }
 
-function parseMarketChartCandle(value: unknown): CandlePoint | null {
+function parseMarketChartCandle(value: unknown): ParsedCandle | null {
     if (!isRecord(value)) return null;
 
     const tsMs = toNumber(value.ts_ms);
@@ -220,6 +234,8 @@ function parseMarketChartCandle(value: unknown): CandlePoint | null {
     const high = toNumber(value.high);
     const low = toNumber(value.low);
     const close = toNumber(value.close);
+    const volume = toNumber(value.volume);
+    const period = typeof value.period === "string" ? value.period : null;
 
     if (
         tsMs === null ||
@@ -231,10 +247,14 @@ function parseMarketChartCandle(value: unknown): CandlePoint | null {
         return null;
     }
 
-    return [tsMs, open, high, low, close];
+    return {
+        ohlc: [tsMs, open, high, low, close],
+        volume: volume === null ? null : [tsMs, volume],
+        period,
+    };
 }
 
-function parseTradeTapeBucket(value: unknown): CandlePoint | null {
+function parseTradeTapeBucket(value: unknown): ParsedCandle | null {
     if (!isRecord(value)) return null;
 
     const bucketMs = toNumber(value.bucket_ms);
@@ -242,6 +262,7 @@ function parseTradeTapeBucket(value: unknown): CandlePoint | null {
     const high = toNumber(value.high);
     const low = toNumber(value.low);
     const close = toNumber(value.close);
+    const volume = toNumber(value.total_base_size);
 
     if (
         bucketMs === null ||
@@ -253,7 +274,11 @@ function parseTradeTapeBucket(value: unknown): CandlePoint | null {
         return null;
     }
 
-    return [bucketMs, open, high, low, close];
+    return {
+        ohlc: [bucketMs, open, high, low, close],
+        volume: volume === null ? null : [bucketMs, volume],
+        period: "trade_tape",
+    };
 }
 
 function parseProfileRow(value: unknown): ProfileRow | null {
@@ -297,9 +322,39 @@ function getCardsRecord(cards: unknown): Record<string, unknown> {
     return isRecord(cards) ? cards : {};
 }
 
+function normalizeParsedCandles(candles: ParsedCandle[]): {
+    candles: CandlePoint[];
+    volume: VolumePoint[];
+    period: string;
+} {
+    const sorted = candles
+        .slice()
+        .sort((a, b) => a.ohlc[0] - b.ohlc[0]);
+
+    const period = sorted.find((item) => item.period)?.period ?? "unknown";
+
+    return {
+        candles: sorted.map((item) => item.ohlc),
+        volume: sorted
+            .map((item) => item.volume)
+            .filter((item): item is VolumePoint => item !== null),
+        period,
+    };
+}
+
+function parseMarketChartArray(value: unknown): ParsedCandle[] {
+    if (!Array.isArray(value)) return [];
+
+    return value
+        .map(parseMarketChartCandle)
+        .filter((item): item is ParsedCandle => item !== null);
+}
+
 function parseCandleSource(snapshotRecord: Record<string, unknown>): {
     candles: CandlePoint[];
+    volume: VolumePoint[];
     source: CandleSourceName;
+    period: string;
 } {
     const marketChart = isRecord(snapshotRecord.market_chart)
         ? snapshotRecord.market_chart
@@ -308,30 +363,35 @@ function parseCandleSource(snapshotRecord: Record<string, unknown>): {
         ? marketChart.candles
         : {};
 
-    const requested = Array.isArray(marketChartCandles.requested)
-        ? marketChartCandles.requested
-            .map(parseMarketChartCandle)
-            .filter((item): item is CandlePoint => item !== null)
-            .sort((a, b) => a[0] - b[0])
-        : [];
+    const requestedAll = parseMarketChartArray(marketChartCandles.requested);
+    const baselineAll = parseMarketChartArray(marketChartCandles.baseline);
 
-    if (requested.length > 0) {
+    const requestedOneHour = requestedAll.filter((item) => item.period === "1h");
+    if (requestedOneHour.length > 0) {
         return {
-            candles: requested,
+            ...normalizeParsedCandles(requestedOneHour),
+            source: "market_chart.requested.1h",
+        };
+    }
+
+    const baselineOneHour = baselineAll.filter((item) => item.period === "1h");
+    if (baselineOneHour.length > 0) {
+        return {
+            ...normalizeParsedCandles(baselineOneHour),
+            source: "market_chart.baseline.1h",
+        };
+    }
+
+    if (requestedAll.length > 0) {
+        return {
+            ...normalizeParsedCandles(requestedAll),
             source: "market_chart.requested",
         };
     }
 
-    const baseline = Array.isArray(marketChartCandles.baseline)
-        ? marketChartCandles.baseline
-            .map(parseMarketChartCandle)
-            .filter((item): item is CandlePoint => item !== null)
-            .sort((a, b) => a[0] - b[0])
-        : [];
-
-    if (baseline.length > 0) {
+    if (baselineAll.length > 0) {
         return {
-            candles: baseline,
+            ...normalizeParsedCandles(baselineAll),
             source: "market_chart.baseline",
         };
     }
@@ -341,12 +401,12 @@ function parseCandleSource(snapshotRecord: Record<string, unknown>): {
         : {};
     const tradeTape = isRecord(inputSummary.trade_tape) ? inputSummary.trade_tape : {};
     const buckets = Array.isArray(tradeTape.buckets) ? tradeTape.buckets : [];
+    const fallback = buckets
+        .map(parseTradeTapeBucket)
+        .filter((item): item is ParsedCandle => item !== null);
 
     return {
-        candles: buckets
-            .map(parseTradeTapeBucket)
-            .filter((item): item is CandlePoint => item !== null)
-            .sort((a, b) => a[0] - b[0]),
+        ...normalizeParsedCandles(fallback),
         source: "trade_tape.buckets",
     };
 }
@@ -416,7 +476,7 @@ function collectWyckoffZones(cards: unknown): WyckoffZoneOverlay[] {
 
 function collectChartData(snapshot: unknown, cards: unknown): ChartData {
     const snapshotRecord = getSnapshotRecord(snapshot);
-    const {candles, source} = parseCandleSource(snapshotRecord);
+    const candleSource = parseCandleSource(snapshotRecord);
 
     const map = isRecord(snapshotRecord.market_acceptance_profile)
         ? snapshotRecord.market_acceptance_profile
@@ -475,10 +535,12 @@ function collectChartData(snapshot: unknown, cards: unknown): ChartData {
     const keyLevels = collectKeyLevels(cards);
     const wyckoffZones = collectWyckoffZones(cards);
 
-    if (candles.length === 0 || profileRows.length === 0) {
+    if (candleSource.candles.length === 0 || profileRows.length === 0) {
         return {
-            candles,
-            candleSource: source,
+            candles: candleSource.candles,
+            volume: candleSource.volume,
+            candleSource: candleSource.source,
+            candlePeriod: candleSource.period,
             profileRows,
             levels,
             keyLevels,
@@ -491,7 +553,7 @@ function collectChartData(snapshot: unknown, cards: unknown): ChartData {
 
     const priceValues: number[] = [];
 
-    candles.forEach((candle) => {
+    candleSource.candles.forEach((candle) => {
         priceValues.push(candle[2], candle[3]);
     });
 
@@ -509,8 +571,10 @@ function collectChartData(snapshot: unknown, cards: unknown): ChartData {
 
     if (priceValues.length === 0) {
         return {
-            candles,
-            candleSource: source,
+            candles: candleSource.candles,
+            volume: candleSource.volume,
+            candleSource: candleSource.source,
+            candlePeriod: candleSource.period,
             profileRows,
             levels,
             keyLevels,
@@ -533,8 +597,10 @@ function collectChartData(snapshot: unknown, cards: unknown): ChartData {
     const padding = Math.max(rawRange * 0.02, profileStep || 0);
 
     return {
-        candles,
-        candleSource: source,
+        candles: candleSource.candles,
+        volume: candleSource.volume,
+        candleSource: candleSource.source,
+        candlePeriod: candleSource.period,
         profileRows,
         levels,
         keyLevels,
@@ -638,6 +704,7 @@ function MfAiWyckoffMapChart({
         border: isDark ? "#4b5563" : "#d1d5db",
         candleUp: "#16a34a",
         candleDown: "#dc2626",
+        volume: isDark ? "rgba(156, 163, 175, 0.28)" : "rgba(107, 114, 128, 0.24)",
         poc: "#facc15",
         vah: "#60a5fa",
         val: "#c084fc",
@@ -747,6 +814,16 @@ function MfAiWyckoffMapChart({
         return Math.max(...ranges);
     }, [chartData.profileRows]);
 
+    const maxVolume = useMemo(() => {
+        const values = chartData.volume
+            .map((item) => item[1])
+            .filter((value) => Number.isFinite(value) && value > 0);
+
+        if (values.length === 0) return 1;
+
+        return Math.max(...values) * 4;
+    }, [chartData.volume]);
+
     const candlesOptions = useMemo<Highcharts.Options>(() => ({
         chart: {
             backgroundColor: "transparent",
@@ -763,7 +840,7 @@ function MfAiWyckoffMapChart({
             enabled: false,
         },
         title: {
-            text: "Candles + Structure",
+            text: "1h Candles + Structure",
             align: "left",
             style: {
                 color: colors.chartText,
@@ -790,27 +867,37 @@ function MfAiWyckoffMapChart({
                 hour: "%H:%M",
             },
         },
-        yAxis: {
-            min: chartData.yMin,
-            max: chartData.yMax,
-            title: {
-                text: "Price",
-                style: {
-                    color: colors.chartText,
-                    fontWeight: "700",
+        yAxis: [
+            {
+                min: chartData.yMin,
+                max: chartData.yMax,
+                title: {
+                    text: "Price",
+                    style: {
+                        color: colors.chartText,
+                        fontWeight: "700",
+                    },
                 },
-            },
-            opposite: true,
-            gridLineColor: colors.grid,
-            labels: {
-                style: {
-                    color: colors.chartText,
-                    textOutline: "none",
+                opposite: true,
+                gridLineColor: colors.grid,
+                labels: {
+                    style: {
+                        color: colors.chartText,
+                        textOutline: "none",
+                    },
                 },
+                plotLines: levelPlotLines,
+                plotBands: candlePlotBands,
             },
-            plotLines: levelPlotLines,
-            plotBands: candlePlotBands,
-        },
+            {
+                min: 0,
+                max: maxVolume,
+                visible: false,
+                gridLineWidth: 0,
+                startOnTick: false,
+                endOnTick: false,
+            },
+        ],
         legend: {
             enabled: false,
             itemStyle: {
@@ -834,8 +921,27 @@ function MfAiWyckoffMapChart({
                 lineColor: colors.candleDown,
                 upLineColor: colors.candleUp,
             },
+            column: {
+                borderWidth: 0,
+                pointPadding: 0.1,
+                groupPadding: 0.05,
+            },
         },
         series: [
+            {
+                type: "column",
+                name: "Volume",
+                data: chartData.volume,
+                yAxis: 1,
+                color: colors.volume,
+                dataGrouping: {
+                    enabled: false,
+                },
+                tooltip: {
+                    valueDecimals: 4,
+                },
+                zIndex: 1,
+            } as Highcharts.SeriesColumnOptions,
             {
                 type: "candlestick",
                 name: "Price",
@@ -843,16 +949,19 @@ function MfAiWyckoffMapChart({
                 dataGrouping: {
                     enabled: false,
                 },
+                zIndex: 3,
             } as Highcharts.SeriesCandlestickOptions,
         ],
     }), [
         candlePlotBands,
         chartData.candles,
+        chartData.volume,
         chartData.yMax,
         chartData.yMin,
         colors,
         isDark,
         levelPlotLines,
+        maxVolume,
     ]);
 
     const profileOptions = useMemo<Highcharts.Options>(() => ({
@@ -877,7 +986,7 @@ function MfAiWyckoffMapChart({
         xAxis: {
             min: chartData.yMin,
             max: chartData.yMax,
-            reversed: true,
+            reversed: false,
             lineColor: colors.border,
             tickColor: colors.border,
             gridLineColor: colors.grid,
@@ -1027,10 +1136,11 @@ function MfAiWyckoffMapChart({
                 ) : (
                     <>
                         <div
-                            className="mb-3 grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300 sm:grid-cols-5">
+                            className="mb-3 grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300 sm:grid-cols-6">
                             <div>Candles: {formatNumber(chartData.candles.length, 0)}</div>
+                            <div>Period: {chartData.candlePeriod}</div>
                             <div>Source: {chartData.candleSource}</div>
-                            <div>Profile rows: {formatNumber(chartData.profileRows.length, 0)}</div>
+                            <div>Volume bars: {formatNumber(chartData.volume.length, 0)}</div>
                             <div>Visible low: {formatNumber(chartData.yMin)}</div>
                             <div>Visible high: {formatNumber(chartData.yMax)}</div>
                         </div>
@@ -1053,6 +1163,7 @@ function MfAiWyckoffMapChart({
                         </div>
 
                         <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300">
+                            <span>Chart candles default to 1h market-chart candles when available.</span>
                             <span>POC / VAH / VAL / current price are rendered only from backend-provided MAP levels.</span>
                             <span>Key and Wyckoff zones are rendered only from supplied AI/backend fields.</span>
                         </div>

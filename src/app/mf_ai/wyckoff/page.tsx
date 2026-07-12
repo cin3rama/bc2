@@ -1256,7 +1256,7 @@ export default function MfAiWyckoffPage() {
     const [authState, setAuthState] = useState<AdminAuthState>("checking");
 
     useEffect(() => {
-        setConfig({showTicker: true, showPeriod: true});
+        setConfig({showTicker: true, showPeriod: false});
     }, [setConfig]);
 
     useEffect(() => {
