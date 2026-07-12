@@ -12,6 +12,7 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/Card";
+import MfAiWyckoffMapChart from "./components/MfAiWyckoffMapChart";
 
 type AdminAuthState = "checking" | "authenticated" | "unauthenticated" | "error";
 
@@ -1456,6 +1457,8 @@ export default function MfAiWyckoffPage() {
                     )}
                 </CardContent>
             </Card>
+
+            <MfAiWyckoffMapChart snapshot={snapshot} cards={canonicalCards}/>
 
             <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {canonicalCards ? (
