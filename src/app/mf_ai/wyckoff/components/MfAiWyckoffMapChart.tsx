@@ -147,8 +147,29 @@ function isSelectedPeriod(value: unknown, selectedPeriod: MfAiLocalPeriod): bool
     return normalizePeriod(value) === selectedPeriod;
 }
 
-function periodLabel(value: string | null | undefined, fallback: MfAiLocalPeriod): string {
-    return value && value !== "unknown" ? value : fallback;
+function displayPeriod(value: string | null | undefined): string {
+    if (!value || value === "unknown") return "unknown";
+    if (value === "trade_tape") return "trade-tape buckets";
+    return value;
+}
+
+function candleChartTitle(chartData: ChartData): string {
+    if (chartData.candleSource === "trade_tape.buckets") {
+        return "Trade-Tape Buckets + Structure";
+    }
+
+    const label =
+        chartData.candlePeriod && chartData.candlePeriod !== "unknown"
+            ? chartData.candlePeriod
+            : chartData.selectedPeriod;
+
+    return `${label} Candles + Structure`;
+}
+
+function compactText(value: string, maxLength = 34): string {
+    const trimmed = value.trim();
+    if (trimmed.length <= maxLength) return trimmed;
+    return `${trimmed.slice(0, maxLength - 1)}…`;
 }
 
 function formatNumber(value: number | null | undefined, maxFractionDigits = 2): string {
@@ -548,26 +569,25 @@ function collectPeriodWarnings({
     const normalizedCandlePeriod = normalizePeriod(candlePeriod);
 
     if (responseRequestedPeriod && responseRequestedPeriod !== selectedPeriod) {
-        warnings.push(
-            `Response period mismatch: selected ${selectedPeriod} but snapshot requested_period returned ${responseRequestedPeriod}.`
-        );
-    }
-
-    if (marketChartRequestedPeriod && marketChartRequestedPeriod !== selectedPeriod) {
-        warnings.push(
-            `Market chart period mismatch: selected ${selectedPeriod} but market_chart.requested_period returned ${marketChartRequestedPeriod}.`
-        );
+        warnings.push(`Period mismatch: selected ${selectedPeriod} but backend returned ${responseRequestedPeriod}.`);
     }
 
     if (
-        candleSource !== "trade_tape.buckets" &&
+        marketChartRequestedPeriod &&
+        marketChartRequestedPeriod !== selectedPeriod &&
+        marketChartRequestedPeriod !== responseRequestedPeriod
+    ) {
+        warnings.push(`Market-chart mismatch: selected ${selectedPeriod} but chart context returned ${marketChartRequestedPeriod}.`);
+    }
+
+    if (candleSource === "trade_tape.buckets") {
+        warnings.push(`Using trade-tape bucket fallback; candles may not represent the selected ${selectedPeriod} period.`);
+    } else if (
         normalizedCandlePeriod &&
         normalizedCandlePeriod !== "unknown" &&
         normalizedCandlePeriod !== selectedPeriod
     ) {
-        warnings.push(
-            `Candle period mismatch: selected ${selectedPeriod} but rendered candles are ${normalizedCandlePeriod}.`
-        );
+        warnings.push(`Candle mismatch: selected ${selectedPeriod} but rendered candles are ${normalizedCandlePeriod}.`);
     }
 
     return Array.from(new Set(warnings));
@@ -862,10 +882,11 @@ function WyckoffChartPair({
 
         chartData.keyLevels.slice(0, 8).forEach((level, index) => {
             const grade = level.grade !== undefined ? ` g:${formatScalar(level.grade)}` : "";
+            const label = compactText(`K${index + 1}${grade} ${level.zone.label}`, 36);
 
             bands.push(makePricePlotBand(
                 level.zone,
-                `Key ${index + 1}${grade} — ${level.zone.label}`,
+                label,
                 colors.keyLevel,
                 colors.chartText,
                 2
@@ -882,7 +903,7 @@ function WyckoffChartPair({
 
             bands.push(makePricePlotBand(
                 item.zone,
-                `${item.label} — ${item.zone.label}`,
+                compactText(`${item.label} ${item.zone.label}`, 36),
                 color,
                 colors.chartText,
                 item.status === "confirmed" ? 3 : 2
@@ -933,7 +954,7 @@ function WyckoffChartPair({
             enabled: false,
         },
         title: {
-            text: `${periodLabel(chartData.candlePeriod, chartData.selectedPeriod)} Candles + Structure`,
+            text: candleChartTitle(chartData),
             align: "left",
             style: {
                 color: colors.chartText,
@@ -1047,10 +1068,7 @@ function WyckoffChartPair({
         ],
     }), [
         candlePlotBands,
-        chartData.candles,
-        chartData.volume,
-        chartData.yMax,
-        chartData.yMin,
+        chartData,
         chartHeight,
         colors,
         isDark,
@@ -1270,7 +1288,7 @@ function WyckoffChartStatus({chartData}: { chartData: ChartData }) {
         <div
             className="mb-3 grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300 sm:grid-cols-6">
             <div>Candles: {formatNumber(chartData.candles.length, 0)}</div>
-            <div>Period: {chartData.candlePeriod}</div>
+            <div>Rendered period: {displayPeriod(chartData.candlePeriod)}</div>
             <div>Source: {chartData.candleSource}</div>
             <div>Volume bars: {formatNumber(chartData.volume.length, 0)}</div>
             <div>Visible low: {formatNumber(chartData.yMin)}</div>
