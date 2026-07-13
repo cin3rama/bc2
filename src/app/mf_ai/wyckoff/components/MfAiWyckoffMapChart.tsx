@@ -80,6 +80,32 @@ type ChartData = {
     unavailableReason?: string;
 };
 
+type ChartVariant = "embedded" | "expanded";
+
+type ChartColors = {
+    text: string;
+    chartText: string;
+    mutedText: string;
+    grid: string;
+    border: string;
+    candleUp: string;
+    candleDown: string;
+    volume: string;
+    poc: string;
+    vah: string;
+    val: string;
+    current: string;
+    confirmed: string;
+    provisional: string;
+    invalidated: string;
+    keyLevel: string;
+    valueArea: string;
+    profile: string;
+    hvn: string;
+    lvn: string;
+    pocBar: string;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -685,40 +711,18 @@ function makePricePlotBand(
     };
 }
 
-function MfAiWyckoffMapChart({
-                                 snapshot,
-                                 cards,
-                             }: {
-    snapshot: unknown;
-    cards: unknown;
+function WyckoffChartPair({
+                              chartData,
+                              colors,
+                              isDark,
+                              variant,
+                          }: {
+    chartData: ChartData;
+    colors: ChartColors;
+    isDark: boolean;
+    variant: ChartVariant;
 }) {
-    const isDark = useDarkMode();
-
-    const chartData = useMemo(() => collectChartData(snapshot, cards), [snapshot, cards]);
-
-    const colors = useMemo(() => ({
-        text: isDark ? "#f9fafb" : "#111827",
-        chartText: isDark ? "#ffffff" : "#111827",
-        mutedText: isDark ? "#d1d5db" : "#4b5563",
-        grid: isDark ? "#374151" : "#e5e7eb",
-        border: isDark ? "#4b5563" : "#d1d5db",
-        candleUp: "#16a34a",
-        candleDown: "#dc2626",
-        volume: isDark ? "rgba(156, 163, 175, 0.28)" : "rgba(107, 114, 128, 0.24)",
-        poc: "#facc15",
-        vah: "#60a5fa",
-        val: "#c084fc",
-        current: "#fb7185",
-        confirmed: isDark ? "rgba(250, 204, 21, 0.18)" : "rgba(245, 158, 11, 0.18)",
-        provisional: isDark ? "rgba(96, 165, 250, 0.14)" : "rgba(37, 99, 235, 0.14)",
-        invalidated: isDark ? "rgba(156, 163, 175, 0.10)" : "rgba(107, 114, 128, 0.12)",
-        keyLevel: isDark ? "rgba(255, 255, 255, 0.10)" : "rgba(100, 116, 139, 0.16)",
-        valueArea: isDark ? "rgba(96, 165, 250, 0.36)" : "rgba(37, 99, 235, 0.28)",
-        profile: isDark ? "rgba(209, 213, 219, 0.42)" : "rgba(100, 116, 139, 0.45)",
-        hvn: isDark ? "rgba(34, 197, 94, 0.58)" : "rgba(22, 163, 74, 0.5)",
-        lvn: isDark ? "rgba(248, 113, 113, 0.52)" : "rgba(220, 38, 38, 0.42)",
-        pocBar: isDark ? "rgba(250, 204, 21, 0.90)" : "rgba(245, 158, 11, 0.82)",
-    }), [isDark]);
+    const chartHeight = variant === "expanded" ? 680 : 460;
 
     const levelPlotLines = useMemo<Highcharts.YAxisPlotLinesOptions[]>(() => {
         const lines: Highcharts.YAxisPlotLinesOptions[] = [];
@@ -827,7 +831,7 @@ function MfAiWyckoffMapChart({
     const candlesOptions = useMemo<Highcharts.Options>(() => ({
         chart: {
             backgroundColor: "transparent",
-            height: 460,
+            height: chartHeight,
             spacing: [8, 8, 8, 8],
         },
         rangeSelector: {
@@ -958,6 +962,7 @@ function MfAiWyckoffMapChart({
         chartData.volume,
         chartData.yMax,
         chartData.yMin,
+        chartHeight,
         colors,
         isDark,
         levelPlotLines,
@@ -967,7 +972,7 @@ function MfAiWyckoffMapChart({
     const profileOptions = useMemo<Highcharts.Options>(() => ({
         chart: {
             backgroundColor: "transparent",
-            height: 460,
+            height: chartHeight,
             inverted: true,
             spacing: [8, 8, 8, 8],
         },
@@ -1026,7 +1031,7 @@ function MfAiWyckoffMapChart({
         yAxis: {
             min: 0,
             max: 1,
-            reversed: false,
+            reversed: true,
             title: {
                 text: "Relative Volume",
                 style: {
@@ -1114,63 +1119,216 @@ function MfAiWyckoffMapChart({
         chartData.profileRows,
         chartData.yMax,
         chartData.yMin,
+        chartHeight,
         colors,
         isDark,
         levelPlotLines,
         profilePointRange,
     ]);
 
-    if (!snapshot) return null;
+    const gridClass =
+        variant === "expanded"
+            ? "grid grid-cols-1 gap-3 lg:grid-cols-10"
+            : "grid grid-cols-1 gap-3 lg:grid-cols-3";
+
+    const candleClass =
+        variant === "expanded"
+            ? "rounded-xl border border-gray-200 p-2 dark:border-gray-800 lg:col-span-7"
+            : "rounded-xl border border-gray-200 p-2 dark:border-gray-800 lg:col-span-2";
+
+    const profileClass =
+        variant === "expanded"
+            ? "rounded-xl border border-gray-200 p-2 dark:border-gray-800 lg:col-span-3"
+            : "rounded-xl border border-gray-200 p-2 dark:border-gray-800 lg:col-span-1";
 
     return (
-        <Card className="shadow-sm">
-            <CardHeader>
-                <CardTitle>Wyckoff Structure + Volume Profile / Market Acceptance Profile</CardTitle>
-            </CardHeader>
-            <CardContent>
-                {chartData.unavailableReason ? (
-                    <div
-                        className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
-                        {chartData.unavailableReason}
+        <div className={gridClass}>
+            <div className={candleClass}>
+                <HighchartsReact
+                    highcharts={Highcharts}
+                    constructorType="stockChart"
+                    options={candlesOptions}
+                />
+            </div>
+
+            <div className={profileClass}>
+                <HighchartsReact
+                    highcharts={Highcharts}
+                    options={profileOptions}
+                />
+            </div>
+        </div>
+    );
+}
+
+function WyckoffChartStatus({chartData}: { chartData: ChartData }) {
+    return (
+        <div
+            className="mb-3 grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300 sm:grid-cols-6">
+            <div>Candles: {formatNumber(chartData.candles.length, 0)}</div>
+            <div>Period: {chartData.candlePeriod}</div>
+            <div>Source: {chartData.candleSource}</div>
+            <div>Volume bars: {formatNumber(chartData.volume.length, 0)}</div>
+            <div>Visible low: {formatNumber(chartData.yMin)}</div>
+            <div>Visible high: {formatNumber(chartData.yMax)}</div>
+        </div>
+    );
+}
+
+function MfAiWyckoffMapChart({
+                                 snapshot,
+                                 cards,
+                             }: {
+    snapshot: unknown;
+    cards: unknown;
+}) {
+    const isDark = useDarkMode();
+    const [expanded, setExpanded] = useState(false);
+
+    const chartData = useMemo(() => collectChartData(snapshot, cards), [snapshot, cards]);
+
+    const colors = useMemo<ChartColors>(() => ({
+        text: isDark ? "#f9fafb" : "#111827",
+        chartText: isDark ? "#ffffff" : "#111827",
+        mutedText: isDark ? "#d1d5db" : "#4b5563",
+        grid: isDark ? "#374151" : "#e5e7eb",
+        border: isDark ? "#4b5563" : "#d1d5db",
+        candleUp: "#16a34a",
+        candleDown: "#dc2626",
+        volume: isDark ? "rgba(156, 163, 175, 0.28)" : "rgba(107, 114, 128, 0.24)",
+        poc: "#facc15",
+        vah: "#60a5fa",
+        val: "#c084fc",
+        current: "#fb7185",
+        confirmed: isDark ? "rgba(250, 204, 21, 0.18)" : "rgba(245, 158, 11, 0.18)",
+        provisional: isDark ? "rgba(96, 165, 250, 0.14)" : "rgba(37, 99, 235, 0.14)",
+        invalidated: isDark ? "rgba(156, 163, 175, 0.10)" : "rgba(107, 114, 128, 0.12)",
+        keyLevel: isDark ? "rgba(255, 255, 255, 0.10)" : "rgba(100, 116, 139, 0.16)",
+        valueArea: isDark ? "rgba(96, 165, 250, 0.36)" : "rgba(37, 99, 235, 0.28)",
+        profile: isDark ? "rgba(209, 213, 219, 0.42)" : "rgba(100, 116, 139, 0.45)",
+        hvn: isDark ? "rgba(34, 197, 94, 0.58)" : "rgba(22, 163, 74, 0.5)",
+        lvn: isDark ? "rgba(248, 113, 113, 0.52)" : "rgba(220, 38, 38, 0.42)",
+        pocBar: isDark ? "rgba(250, 204, 21, 0.90)" : "rgba(245, 158, 11, 0.82)",
+    }), [isDark]);
+
+    useEffect(() => {
+        if (!expanded) return;
+
+        function handleKeyDown(event: KeyboardEvent) {
+            if (event.key === "Escape") {
+                setExpanded(false);
+            }
+        }
+
+        document.addEventListener("keydown", handleKeyDown);
+        const previousBodyOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+
+        const timeout = window.setTimeout(() => {
+            Highcharts.charts.forEach((chart) => chart?.reflow());
+        }, 80);
+
+        return () => {
+            document.removeEventListener("keydown", handleKeyDown);
+            document.body.style.overflow = previousBodyOverflow;
+            window.clearTimeout(timeout);
+        };
+    }, [expanded]);
+
+    if (!snapshot) return null;
+
+    const canExpand = !chartData.unavailableReason;
+
+    return (
+        <>
+            <Card className="shadow-sm">
+                <CardHeader>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <CardTitle>Wyckoff Structure + Volume Profile / Market Acceptance Profile</CardTitle>
+                        <button
+                            type="button"
+                            onClick={() => setExpanded(true)}
+                            disabled={!canExpand}
+                            className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-900"
+                        >
+                            Expand Chart
+                        </button>
                     </div>
-                ) : (
-                    <>
+                </CardHeader>
+                <CardContent>
+                    {chartData.unavailableReason ? (
                         <div
-                            className="mb-3 grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300 sm:grid-cols-6">
-                            <div>Candles: {formatNumber(chartData.candles.length, 0)}</div>
-                            <div>Period: {chartData.candlePeriod}</div>
-                            <div>Source: {chartData.candleSource}</div>
-                            <div>Volume bars: {formatNumber(chartData.volume.length, 0)}</div>
-                            <div>Visible low: {formatNumber(chartData.yMin)}</div>
-                            <div>Visible high: {formatNumber(chartData.yMax)}</div>
+                            className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+                            {chartData.unavailableReason}
                         </div>
+                    ) : (
+                        <>
+                            <WyckoffChartStatus chartData={chartData}/>
 
-                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                            <div className="rounded-xl border border-gray-200 p-2 dark:border-gray-800 lg:col-span-2">
-                                <HighchartsReact
-                                    highcharts={Highcharts}
-                                    constructorType="stockChart"
-                                    options={candlesOptions}
-                                />
+                            <WyckoffChartPair
+                                chartData={chartData}
+                                colors={colors}
+                                isDark={isDark}
+                                variant="embedded"
+                            />
+
+                            <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                <span>Chart candles default to 1h market-chart candles when available.</span>
+                                <span>POC / VAH / VAL / current price are rendered only from backend-provided MAP levels.</span>
+                                <span>Key and Wyckoff zones are rendered only from supplied AI/backend fields.</span>
+                                <span>Profile bars extend toward the candle chart.</span>
+                            </div>
+                        </>
+                    )}
+                </CardContent>
+            </Card>
+
+            {expanded && canExpand && (
+                <div
+                    className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/75 p-2 sm:p-4"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Expanded Wyckoff chart"
+                    onClick={() => setExpanded(false)}
+                >
+                    <div
+                        className="flex max-h-[92vh] w-full max-w-[96vw] flex-col overflow-hidden rounded-2xl border border-gray-700 bg-white shadow-2xl dark:bg-gray-950"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div
+                            className="flex flex-col gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <div className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                                    Wyckoff Structure + Volume Profile / Market Acceptance Profile
+                                </div>
+                                <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                                    Expanded chart view uses the same snapshot data and shared price axis as the embedded chart.
+                                </div>
                             </div>
 
-                            <div className="rounded-xl border border-gray-200 p-2 dark:border-gray-800 lg:col-span-1">
-                                <HighchartsReact
-                                    highcharts={Highcharts}
-                                    options={profileOptions}
-                                />
-                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setExpanded(false)}
+                                className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+                            >
+                                Close
+                            </button>
                         </div>
 
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300">
-                            <span>Chart candles default to 1h market-chart candles when available.</span>
-                            <span>POC / VAH / VAL / current price are rendered only from backend-provided MAP levels.</span>
-                            <span>Key and Wyckoff zones are rendered only from supplied AI/backend fields.</span>
+                        <div className="overflow-y-auto p-3 sm:p-4">
+                            <WyckoffChartStatus chartData={chartData}/>
+
+                            <WyckoffChartPair
+                                chartData={chartData}
+                                colors={colors}
+                                isDark={isDark}
+                                variant="expanded"
+                            />
                         </div>
-                    </>
-                )}
-            </CardContent>
-        </Card>
+                    </div>
+                </div>
+            )}
+        </>
     );
 }
 
