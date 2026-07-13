@@ -16,6 +16,8 @@ import MfAiWyckoffMapChart from "./components/MfAiWyckoffMapChart";
 
 type AdminAuthState = "checking" | "authenticated" | "unauthenticated" | "error";
 
+type MfAiLocalPeriod = "1h" | "4h";
+
 type SnapshotSectionMap = Partial<Record<string, unknown>>;
 
 type MarketStateSnapshot = {
@@ -1247,13 +1249,14 @@ function AuthStatusBadge({authState}: { authState: AdminAuthState }) {
 
 export default function MfAiWyckoffPage() {
     const {setConfig} = useHeaderConfig();
-    const {ticker, period, hydrated} = useTickerPeriod();
+    const {ticker, hydrated} = useTickerPeriod();
 
     const [inputContextText, setInputContextText] = useState("");
     const [snapshot, setSnapshot] = useState<MarketStateSnapshot | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [authState, setAuthState] = useState<AdminAuthState>("checking");
+    const [mfAiPeriod, setMfAiPeriod] = useState<MfAiLocalPeriod>("1h");
 
     useEffect(() => {
         setConfig({showTicker: true, showPeriod: false});
@@ -1327,7 +1330,7 @@ export default function MfAiWyckoffPage() {
                     },
                     body: JSON.stringify({
                         ticker,
-                        requested_period: period,
+                        requested_period: mfAiPeriod,
                         input_context_text: inputContextText.trim(),
                         frontend_context: {
                             user_context_text: inputContextText.trim(),
@@ -1373,21 +1376,42 @@ export default function MfAiWyckoffPage() {
                         </div>
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={handleAnalyze}
-                        disabled={!canRunOpenAiAnalysis}
-                        className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-black transition hover:bg-primary-light disabled:cursor-not-allowed disabled:opacity-60 dark:bg-primary-dark dark:text-white dark:hover:bg-primary"
-                    >
-                        {loading ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
-                                Analyzing...
-                            </>
-                        ) : (
-                            `Analyze The Current State of the ${ticker || "Selected"} Market`
-                        )}
-                    </button>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <div className="flex flex-col gap-1">
+                            <label
+                                htmlFor="mf-ai-period"
+                                className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300"
+                            >
+                                MF_AI Period
+                            </label>
+                            <select
+                                id="mf-ai-period"
+                                value={mfAiPeriod}
+                                onChange={(event) => setMfAiPeriod(event.target.value as MfAiLocalPeriod)}
+                                disabled={loading}
+                                className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900 outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                            >
+                                <option value="1h">1 Hour</option>
+                                <option value="4h">4 Hours</option>
+                            </select>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={handleAnalyze}
+                            disabled={!canRunOpenAiAnalysis}
+                            className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-black transition hover:bg-primary-light disabled:cursor-not-allowed disabled:opacity-60 dark:bg-primary-dark dark:text-white dark:hover:bg-primary"
+                        >
+                            {loading ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
+                                    Analyzing...
+                                </>
+                            ) : (
+                                `Analyze The Current State of the ${ticker || "Selected"} Market`
+                            )}
+                        </button>
+                    </div>
                 </div>
 
                 {authState !== "authenticated" && authState !== "checking" && (
@@ -1427,7 +1451,8 @@ export default function MfAiWyckoffPage() {
                 <CardContent>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         <MetadataItem label="Ticker" value={snapshot?.ticker ?? ticker ?? "—"}/>
-                        <MetadataItem label="Requested Period" value={snapshot?.requested_period ?? period ?? "—"}/>
+                        <MetadataItem label="Selected MF_AI Period" value={mfAiPeriod}/>
+                        <MetadataItem label="Response Requested Period" value={snapshot?.requested_period ?? "—"}/>
                         <MetadataItem label="Baseline Period" value={snapshot?.baseline_period ?? "—"}/>
                         <MetadataItem label="Snapshot ID" value={snapshot?.id ?? "—"}/>
                         <MetadataItem label="Range Start UTC" value={formatUtcMs(snapshot?.range_start_ms)}/>
@@ -1458,7 +1483,11 @@ export default function MfAiWyckoffPage() {
                 </CardContent>
             </Card>
 
-            <MfAiWyckoffMapChart snapshot={snapshot} cards={canonicalCards}/>
+            <MfAiWyckoffMapChart
+                snapshot={snapshot}
+                cards={canonicalCards}
+                selectedPeriod={mfAiPeriod}
+            />
 
             <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {canonicalCards ? (

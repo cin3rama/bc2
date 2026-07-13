@@ -21,6 +21,8 @@ type PriceZone = {
 type CandlePoint = [number, number, number, number, number];
 type VolumePoint = [number, number];
 
+type MfAiLocalPeriod = "1h" | "4h";
+
 type ParsedCandle = {
     ohlc: CandlePoint;
     volume: VolumePoint | null;
@@ -62,6 +64,8 @@ type WyckoffZoneOverlay = {
 type CandleSourceName =
     | "market_chart.requested.1h"
     | "market_chart.baseline.1h"
+    | "market_chart.requested.4h"
+    | "market_chart.baseline.4h"
     | "market_chart.requested"
     | "market_chart.baseline"
     | "trade_tape.buckets";
@@ -71,6 +75,8 @@ type ChartData = {
     volume: VolumePoint[];
     candleSource: CandleSourceName;
     candlePeriod: string;
+    selectedPeriod: MfAiLocalPeriod;
+    periodWarnings: string[];
     profileRows: ProfileRow[];
     levels: ProfileLevels;
     keyLevels: KeyLevelOverlay[];
@@ -126,6 +132,23 @@ function toNumber(value: unknown): number | null {
 
 function firstPresent(...values: unknown[]): unknown {
     return values.find((value) => value !== null && value !== undefined && value !== "");
+}
+
+function normalizePeriod(value: unknown): string | null {
+    if (typeof value !== "string") return null;
+
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return null;
+
+    return normalized;
+}
+
+function isSelectedPeriod(value: unknown, selectedPeriod: MfAiLocalPeriod): boolean {
+    return normalizePeriod(value) === selectedPeriod;
+}
+
+function periodLabel(value: string | null | undefined, fallback: MfAiLocalPeriod): string {
+    return value && value !== "unknown" ? value : fallback;
 }
 
 function formatNumber(value: number | null | undefined, maxFractionDigits = 2): string {
@@ -376,7 +399,10 @@ function parseMarketChartArray(value: unknown): ParsedCandle[] {
         .filter((item): item is ParsedCandle => item !== null);
 }
 
-function parseCandleSource(snapshotRecord: Record<string, unknown>): {
+function parseCandleSource(
+    snapshotRecord: Record<string, unknown>,
+    selectedPeriod: MfAiLocalPeriod
+): {
     candles: CandlePoint[];
     volume: VolumePoint[];
     source: CandleSourceName;
@@ -392,19 +418,19 @@ function parseCandleSource(snapshotRecord: Record<string, unknown>): {
     const requestedAll = parseMarketChartArray(marketChartCandles.requested);
     const baselineAll = parseMarketChartArray(marketChartCandles.baseline);
 
-    const requestedOneHour = requestedAll.filter((item) => item.period === "1h");
-    if (requestedOneHour.length > 0) {
+    const requestedSelected = requestedAll.filter((item) => isSelectedPeriod(item.period, selectedPeriod));
+    if (requestedSelected.length > 0) {
         return {
-            ...normalizeParsedCandles(requestedOneHour),
-            source: "market_chart.requested.1h",
+            ...normalizeParsedCandles(requestedSelected),
+            source: `market_chart.requested.${selectedPeriod}` as CandleSourceName,
         };
     }
 
-    const baselineOneHour = baselineAll.filter((item) => item.period === "1h");
-    if (baselineOneHour.length > 0) {
+    const baselineSelected = baselineAll.filter((item) => isSelectedPeriod(item.period, selectedPeriod));
+    if (baselineSelected.length > 0) {
         return {
-            ...normalizeParsedCandles(baselineOneHour),
-            source: "market_chart.baseline.1h",
+            ...normalizeParsedCandles(baselineSelected),
+            source: `market_chart.baseline.${selectedPeriod}` as CandleSourceName,
         };
     }
 
@@ -500,9 +526,66 @@ function collectWyckoffZones(cards: unknown): WyckoffZoneOverlay[] {
     return zones;
 }
 
-function collectChartData(snapshot: unknown, cards: unknown): ChartData {
+function collectPeriodWarnings({
+                                   snapshotRecord,
+                                   candlePeriod,
+                                   candleSource,
+                                   selectedPeriod,
+                               }: {
+    snapshotRecord: Record<string, unknown>;
+    candlePeriod: string;
+    candleSource: CandleSourceName;
+    selectedPeriod: MfAiLocalPeriod;
+}): string[] {
+    const warnings: string[] = [];
+
+    const marketChart = isRecord(snapshotRecord.market_chart)
+        ? snapshotRecord.market_chart
+        : {};
+
+    const responseRequestedPeriod = normalizePeriod(snapshotRecord.requested_period);
+    const marketChartRequestedPeriod = normalizePeriod(marketChart.requested_period);
+    const normalizedCandlePeriod = normalizePeriod(candlePeriod);
+
+    if (responseRequestedPeriod && responseRequestedPeriod !== selectedPeriod) {
+        warnings.push(
+            `Response period mismatch: selected ${selectedPeriod} but snapshot requested_period returned ${responseRequestedPeriod}.`
+        );
+    }
+
+    if (marketChartRequestedPeriod && marketChartRequestedPeriod !== selectedPeriod) {
+        warnings.push(
+            `Market chart period mismatch: selected ${selectedPeriod} but market_chart.requested_period returned ${marketChartRequestedPeriod}.`
+        );
+    }
+
+    if (
+        candleSource !== "trade_tape.buckets" &&
+        normalizedCandlePeriod &&
+        normalizedCandlePeriod !== "unknown" &&
+        normalizedCandlePeriod !== selectedPeriod
+    ) {
+        warnings.push(
+            `Candle period mismatch: selected ${selectedPeriod} but rendered candles are ${normalizedCandlePeriod}.`
+        );
+    }
+
+    return Array.from(new Set(warnings));
+}
+
+function collectChartData(
+    snapshot: unknown,
+    cards: unknown,
+    selectedPeriod: MfAiLocalPeriod
+): ChartData {
     const snapshotRecord = getSnapshotRecord(snapshot);
-    const candleSource = parseCandleSource(snapshotRecord);
+    const candleSource = parseCandleSource(snapshotRecord, selectedPeriod);
+    const periodWarnings = collectPeriodWarnings({
+        snapshotRecord,
+        candlePeriod: candleSource.period,
+        candleSource: candleSource.source,
+        selectedPeriod,
+    });
 
     const map = isRecord(snapshotRecord.market_acceptance_profile)
         ? snapshotRecord.market_acceptance_profile
@@ -567,6 +650,8 @@ function collectChartData(snapshot: unknown, cards: unknown): ChartData {
             volume: candleSource.volume,
             candleSource: candleSource.source,
             candlePeriod: candleSource.period,
+            selectedPeriod,
+            periodWarnings,
             profileRows,
             levels,
             keyLevels,
@@ -601,6 +686,8 @@ function collectChartData(snapshot: unknown, cards: unknown): ChartData {
             volume: candleSource.volume,
             candleSource: candleSource.source,
             candlePeriod: candleSource.period,
+            selectedPeriod,
+            periodWarnings,
             profileRows,
             levels,
             keyLevels,
@@ -627,6 +714,8 @@ function collectChartData(snapshot: unknown, cards: unknown): ChartData {
         volume: candleSource.volume,
         candleSource: candleSource.source,
         candlePeriod: candleSource.period,
+        selectedPeriod,
+        periodWarnings,
         profileRows,
         levels,
         keyLevels,
@@ -844,7 +933,7 @@ function WyckoffChartPair({
             enabled: false,
         },
         title: {
-            text: "1h Candles + Structure",
+            text: `${periodLabel(chartData.candlePeriod, chartData.selectedPeriod)} Candles + Structure`,
             align: "left",
             style: {
                 color: colors.chartText,
@@ -1161,6 +1250,21 @@ function WyckoffChartPair({
     );
 }
 
+function WyckoffPeriodWarnings({warnings}: { warnings: string[] }) {
+    if (warnings.length === 0) return null;
+
+    return (
+        <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+            <div className="mb-1 font-semibold">Period context warning</div>
+            <ul className="list-disc space-y-1 pl-5">
+                {warnings.map((warning, index) => (
+                    <li key={`${warning}-${index}`}>{warning}</li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
 function WyckoffChartStatus({chartData}: { chartData: ChartData }) {
     return (
         <div
@@ -1178,14 +1282,19 @@ function WyckoffChartStatus({chartData}: { chartData: ChartData }) {
 function MfAiWyckoffMapChart({
                                  snapshot,
                                  cards,
+                                 selectedPeriod,
                              }: {
     snapshot: unknown;
     cards: unknown;
+    selectedPeriod: MfAiLocalPeriod;
 }) {
     const isDark = useDarkMode();
     const [expanded, setExpanded] = useState(false);
 
-    const chartData = useMemo(() => collectChartData(snapshot, cards), [snapshot, cards]);
+    const chartData = useMemo(
+        () => collectChartData(snapshot, cards, selectedPeriod),
+        [snapshot, cards, selectedPeriod]
+    );
 
     const colors = useMemo<ChartColors>(() => ({
         text: isDark ? "#f9fafb" : "#111827",
@@ -1263,6 +1372,7 @@ function MfAiWyckoffMapChart({
                         </div>
                     ) : (
                         <>
+                            <WyckoffPeriodWarnings warnings={chartData.periodWarnings}/>
                             <WyckoffChartStatus chartData={chartData}/>
 
                             <WyckoffChartPair
@@ -1273,7 +1383,7 @@ function MfAiWyckoffMapChart({
                             />
 
                             <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300">
-                                <span>Chart candles default to 1h market-chart candles when available.</span>
+                                <span>Chart candles follow the local MF_AI period selector when matching market-chart candles are available.</span>
                                 <span>POC / VAH / VAL / current price are rendered only from backend-provided MAP levels.</span>
                                 <span>Key and Wyckoff zones are rendered only from supplied AI/backend fields.</span>
                                 <span>Profile bars extend toward the candle chart.</span>
@@ -1316,6 +1426,7 @@ function MfAiWyckoffMapChart({
                         </div>
 
                         <div className="overflow-y-auto p-3 sm:p-4">
+                            <WyckoffPeriodWarnings warnings={chartData.periodWarnings}/>
                             <WyckoffChartStatus chartData={chartData}/>
 
                             <WyckoffChartPair
