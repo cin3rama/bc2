@@ -29,29 +29,6 @@ type MfAiLocalPeriod = "1h" | "4h";
 
 type SnapshotSectionMap = Partial<Record<string, unknown>>;
 
-type SnapshotNavigation = {
-    current_id?: number | string | null;
-    oldest_id?: number | string | null;
-    previous_id?: number | string | null;
-    next_id?: number | string | null;
-    latest_id?: number | string | null;
-    ticker?: string | null;
-    requested_period?: string | null;
-};
-
-type SnapshotNavigateDirection = "oldest" | "previous" | "next" | "latest" | "by_id";
-
-type SnapshotNavigateResponse = {
-    snapshot?: MarketStateSnapshot | null;
-    navigation?: SnapshotNavigation | null;
-    error?: {
-        code?: string;
-        message?: string;
-    } | null;
-    detail?: string;
-    message?: string;
-};
-
 type MarketStateSnapshot = {
     id?: number | string | null;
     ticker?: string | null;
@@ -101,6 +78,29 @@ type AdminMeResponse =
     authenticated?: false;
     detail?: string;
     error?: string;
+};
+
+type SnapshotNavigationDirection = "oldest" | "previous" | "next" | "latest" | "by_id";
+
+type SnapshotNavigation = {
+    current_id?: number | string | null;
+    oldest_id?: number | string | null;
+    previous_id?: number | string | null;
+    next_id?: number | string | null;
+    latest_id?: number | string | null;
+    ticker?: string | null;
+    requested_period?: string | null;
+};
+
+type SnapshotNavigateResponse = {
+    snapshot?: MarketStateSnapshot | null;
+    navigation?: SnapshotNavigation | null;
+    error?: {
+        code?: string | null;
+        message?: string | null;
+    } | string | null;
+    detail?: string | null;
+    message?: string | null;
 };
 
 type CanonicalCards = {
@@ -309,16 +309,91 @@ function getErrorMessage(payload: unknown, status: number): string {
         const typed = payload as Record<string, unknown>;
         const detail = typeof typed.detail === "string" ? typed.detail : null;
         const message = typeof typed.message === "string" ? typed.message : null;
+        const nestedError = isRecord(typed.error) ? typed.error : null;
+        const nestedMessage = typeof nestedError?.message === "string" ? nestedError.message : null;
         const error = typeof typed.error === "string" ? typed.error : null;
         const retryable =
             typeof typed.retryable === "boolean" ? ` Retryable: ${typed.retryable ? "yes" : "no"}.` : "";
 
-        return [detail, message, error ? `Error code: ${error}.` : null]
+        const rendered = [detail, message, nestedMessage, error ? `Error code: ${error}.` : null]
             .filter(Boolean)
-            .join(" ") + retryable;
+            .join(" ");
+
+        if (rendered) return rendered + retryable;
     }
 
     return `Snapshot request failed with HTTP ${status}`;
+}
+
+function getSnapshotId(snapshot: MarketStateSnapshot | null): number | string | null {
+    return snapshot?.id ?? null;
+}
+
+function getNavigationCurrentId(
+    navigation: SnapshotNavigation | null,
+    snapshot: MarketStateSnapshot | null
+): number | string | null {
+    return navigation?.current_id ?? getSnapshotId(snapshot);
+}
+
+function getNavigationErrorMessage(payload: unknown, ticker: string | null | undefined, period: MfAiLocalPeriod): string {
+    if (payload && typeof payload === "object") {
+        const typed = payload as SnapshotNavigateResponse;
+
+        if (typeof typed.error === "string" && typed.error.trim()) {
+            return typed.error;
+        }
+
+        if (typed.error && typeof typed.error === "object") {
+            if (typed.error.code === "snapshot_not_found") {
+                return `Snapshot not found for ${ticker || "selected ticker"} / ${period}.`;
+            }
+
+            if (typed.error.message) return typed.error.message;
+        }
+
+        if (typeof typed.detail === "string" && typed.detail.trim()) return typed.detail;
+        if (typeof typed.message === "string" && typed.message.trim()) return typed.message;
+    }
+
+    return "Could not load snapshot.";
+}
+
+function getNavigationFromPayload(payload: unknown): SnapshotNavigation | null {
+    if (!payload || typeof payload !== "object") return null;
+
+    const typed = payload as SnapshotNavigateResponse;
+    return typed.navigation ?? null;
+}
+
+function buildSnapshotNavigationUrl({
+                                        ticker,
+                                        period,
+                                        direction,
+                                        currentId,
+                                        snapshotId,
+                                    }: {
+    ticker: string;
+    period: MfAiLocalPeriod;
+    direction: SnapshotNavigationDirection;
+    currentId?: number | string | null;
+    snapshotId?: string | null;
+}): string {
+    const params = new URLSearchParams({
+        ticker,
+        requested_period: period,
+        direction,
+    });
+
+    if ((direction === "previous" || direction === "next") && currentId !== null && currentId !== undefined) {
+        params.set("current_id", String(currentId));
+    }
+
+    if (direction === "by_id" && snapshotId) {
+        params.set("snapshot_id", snapshotId);
+    }
+
+    return `${API_BASE}/api/mf-ai/wyckoff/market-state-snapshot/navigate/?${params.toString()}`;
 }
 
 function formatUtcMs(value: number | string | null | undefined): string {
@@ -415,58 +490,6 @@ function safeRenderScalar(value: unknown): string {
 
 function firstPresent(...values: unknown[]): unknown {
     return values.find((value) => value !== null && value !== undefined && value !== "");
-}
-
-function hasNavigationId(value: unknown): boolean {
-    return value !== null && value !== undefined && value !== "";
-}
-
-function navigationIdText(value: unknown): string {
-    if (!hasNavigationId(value)) return "—";
-    return String(value);
-}
-
-function sameNavigationId(a: unknown, b: unknown): boolean {
-    if (!hasNavigationId(a) || !hasNavigationId(b)) return false;
-    return String(a) === String(b);
-}
-
-function normalizeSnapshotNavigation(value: unknown): SnapshotNavigation | null {
-    if (!isRecord(value)) return null;
-
-    return {
-        current_id: value.current_id as SnapshotNavigation["current_id"],
-        oldest_id: value.oldest_id as SnapshotNavigation["oldest_id"],
-        previous_id: value.previous_id as SnapshotNavigation["previous_id"],
-        next_id: value.next_id as SnapshotNavigation["next_id"],
-        latest_id: value.latest_id as SnapshotNavigation["latest_id"],
-        ticker: typeof value.ticker === "string" ? value.ticker : null,
-        requested_period: typeof value.requested_period === "string" ? value.requested_period : null,
-    };
-}
-
-function getSnapshotNavigation(payload: unknown): SnapshotNavigation | null {
-    if (!isRecord(payload)) return null;
-    return normalizeSnapshotNavigation(payload.navigation);
-}
-
-function getSnapshotNavigatorErrorMessage(payload: unknown, ticker: string | null | undefined, period: MfAiLocalPeriod): string {
-    if (isRecord(payload)) {
-        const error = isRecord(payload.error) ? payload.error : null;
-        const errorMessage = typeof error?.message === "string" ? error.message : null;
-        const errorCode = typeof error?.code === "string" ? error.code : null;
-
-        if (errorCode === "snapshot_not_found") {
-            return `Snapshot not found for ${ticker || "selected ticker"} / ${period}.`;
-        }
-
-        if (errorMessage) return errorMessage;
-
-        if (typeof payload.detail === "string") return payload.detail;
-        if (typeof payload.message === "string") return payload.message;
-    }
-
-    return "Could not load snapshot.";
 }
 
 function formatPriceZone(value: unknown): string {
@@ -1302,6 +1325,145 @@ function LegacyFallbackCards({snapshot}: { snapshot: MarketStateSnapshot | null 
     );
 }
 
+function SnapshotNavigator({
+                               ticker,
+                               selectedPeriod,
+                               snapshot,
+                               navigation,
+                               loading,
+                               error,
+                               jumpSnapshotId,
+                               onJumpSnapshotIdChange,
+                               onNavigate,
+                           }: {
+    ticker: string | null | undefined;
+    selectedPeriod: MfAiLocalPeriod;
+    snapshot: MarketStateSnapshot | null;
+    navigation: SnapshotNavigation | null;
+    loading: boolean;
+    error: string | null;
+    jumpSnapshotId: string;
+    onJumpSnapshotIdChange: (value: string) => void;
+    onNavigate: (direction: SnapshotNavigationDirection, snapshotId?: string) => void;
+}) {
+    const currentId = getNavigationCurrentId(navigation, snapshot);
+    const oldestId = navigation?.oldest_id ?? null;
+    const previousId = navigation?.previous_id ?? null;
+    const nextId = navigation?.next_id ?? null;
+    const latestId = navigation?.latest_id ?? null;
+    const hasNavigation = navigation !== null;
+
+    const disableOldest = loading || !ticker || (hasNavigation && (!oldestId || currentId === oldestId));
+    const disablePrevious = loading || !ticker || !hasNavigation || !previousId;
+    const disableNext = loading || !ticker || !hasNavigation || !nextId;
+    const disableLatest = loading || !ticker || (hasNavigation && (!latestId || currentId === latestId));
+    const disableLoad = loading || !ticker || !jumpSnapshotId.trim();
+
+    const iconButtonClass =
+        "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-900";
+
+    function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        const trimmed = jumpSnapshotId.trim();
+        if (!trimmed) return;
+        onNavigate("by_id", trimmed);
+    }
+
+    return (
+        <div
+            className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-base shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">Snapshot Navigator</span>
+                    <span className="text-gray-500 dark:text-gray-400">{ticker ?? "—"} / {selectedPeriod}</span>
+                    <span className="text-gray-700 dark:text-gray-200">
+                        {currentId ? `Snapshot #${currentId}` : "No snapshot loaded"}
+                    </span>
+                    {!snapshot && (
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                            Click latest to view the newest saved snapshot.
+                        </span>
+                    )}
+                    {loading && (
+                        <span className="inline-flex items-center text-sm text-gray-500 dark:text-gray-400">
+                            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin"/>
+                            Loading snapshot...
+                        </span>
+                    )}
+                    {error && <span className="text-sm text-red-700 dark:text-red-300">{error}</span>}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1" aria-label="Snapshot paging controls">
+                        <button
+                            type="button"
+                            onClick={() => onNavigate("oldest")}
+                            disabled={disableOldest}
+                            className={iconButtonClass}
+                            title="Oldest saved snapshot"
+                            aria-label="Oldest saved snapshot"
+                        >
+                            <ChevronsLeft className="h-4 w-4"/>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onNavigate("previous")}
+                            disabled={disablePrevious}
+                            className={iconButtonClass}
+                            title="Previous saved snapshot"
+                            aria-label="Previous saved snapshot"
+                        >
+                            <ChevronLeft className="h-4 w-4"/>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onNavigate("next")}
+                            disabled={disableNext}
+                            className={iconButtonClass}
+                            title="Next saved snapshot"
+                            aria-label="Next saved snapshot"
+                        >
+                            <ChevronRight className="h-4 w-4"/>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onNavigate("latest")}
+                            disabled={disableLatest}
+                            className={iconButtonClass}
+                            title="Latest saved snapshot"
+                            aria-label="Latest saved snapshot"
+                        >
+                            <ChevronsRight className="h-4 w-4"/>
+                        </button>
+                    </div>
+
+                    <form onSubmit={handleSubmit} className="flex items-center gap-1">
+                        <label htmlFor="mf-ai-snapshot-jump" className="text-sm text-gray-600 dark:text-gray-300">
+                            Go to ID
+                        </label>
+                        <input
+                            id="mf-ai-snapshot-jump"
+                            value={jumpSnapshotId}
+                            onChange={(event) => onJumpSnapshotIdChange(event.target.value)}
+                            inputMode="numeric"
+                            placeholder="78"
+                            disabled={loading}
+                            className="h-8 w-20 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-900 outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                        />
+                        <button
+                            type="submit"
+                            disabled={disableLoad}
+                            className="inline-flex h-8 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-900"
+                        >
+                            Load
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function AuthStatusBadge({authState}: { authState: AdminAuthState }) {
     if (authState === "checking") {
         return (
@@ -1343,9 +1505,9 @@ export default function MfAiWyckoffPage() {
     const [authState, setAuthState] = useState<AdminAuthState>("checking");
     const [mfAiPeriod, setMfAiPeriod] = useState<MfAiLocalPeriod>("1h");
     const [snapshotNavigation, setSnapshotNavigation] = useState<SnapshotNavigation | null>(null);
-    const [snapshotIdInput, setSnapshotIdInput] = useState("");
-    const [navigatorLoading, setNavigatorLoading] = useState(false);
-    const [navigatorError, setNavigatorError] = useState<string | null>(null);
+    const [snapshotNavigationLoading, setSnapshotNavigationLoading] = useState(false);
+    const [snapshotNavigationError, setSnapshotNavigationError] = useState<string | null>(null);
+    const [snapshotJumpId, setSnapshotJumpId] = useState("");
 
     useEffect(() => {
         setConfig({showTicker: true, showPeriod: false});
@@ -1353,8 +1515,8 @@ export default function MfAiWyckoffPage() {
 
     useEffect(() => {
         setSnapshotNavigation(null);
-        setSnapshotIdInput("");
-        setNavigatorError(null);
+        setSnapshotNavigationError(null);
+        setSnapshotJumpId("");
     }, [ticker, mfAiPeriod]);
 
     useEffect(() => {
@@ -1401,53 +1563,36 @@ export default function MfAiWyckoffPage() {
     }, [snapshot?.warnings, canonicalCards?.data_quality?.warnings]);
 
     const canRunOpenAiAnalysis = hydrated && authState === "authenticated" && !loading;
-    const canUseSnapshotNavigator = hydrated && Boolean(ticker) && !navigatorLoading;
-    const navigatorCurrentId = firstPresent(snapshotNavigation?.current_id, snapshot?.id);
-    const isAtOldestSnapshot =
-        snapshotNavigation !== null &&
-        sameNavigationId(snapshotNavigation.current_id, snapshotNavigation.oldest_id);
-    const isAtLatestSnapshot =
-        snapshotNavigation !== null &&
-        sameNavigationId(snapshotNavigation.current_id, snapshotNavigation.latest_id);
-    const disableOldestSnapshot = !canUseSnapshotNavigator || isAtOldestSnapshot;
-    const disablePreviousSnapshot = !canUseSnapshotNavigator || !hasNavigationId(snapshotNavigation?.previous_id);
-    const disableNextSnapshot = !canUseSnapshotNavigator || !hasNavigationId(snapshotNavigation?.next_id);
-    const disableLatestSnapshot = !canUseSnapshotNavigator || isAtLatestSnapshot;
-    const disableSnapshotIdLoad = !canUseSnapshotNavigator || !snapshotIdInput.trim();
 
-    async function handleSnapshotNavigate(direction: SnapshotNavigateDirection, snapshotId?: string) {
-        if (!hydrated || !ticker || navigatorLoading) return;
+    async function handleSnapshotNavigate(direction: SnapshotNavigationDirection, requestedSnapshotId?: string) {
+        if (!ticker || snapshotNavigationLoading) return;
 
-        setNavigatorLoading(true);
-        setNavigatorError(null);
+        const currentId = getNavigationCurrentId(snapshotNavigation, snapshot);
+
+        if ((direction === "previous" || direction === "next") && !currentId) {
+            setSnapshotNavigationError("Load a snapshot before paging to previous or next.");
+            return;
+        }
+
+        const trimmedSnapshotId = requestedSnapshotId?.trim() ?? "";
+
+        if (direction === "by_id" && !trimmedSnapshotId) {
+            setSnapshotNavigationError("Enter a snapshot ID to load.");
+            return;
+        }
+
+        setSnapshotNavigationLoading(true);
+        setSnapshotNavigationError(null);
 
         try {
-            const params = new URLSearchParams({
-                ticker,
-                requested_period: mfAiPeriod,
-                direction,
-            });
-
-            if (direction === "previous" || direction === "next") {
-                if (!hasNavigationId(snapshotNavigation?.current_id)) {
-                    throw new Error("Load a snapshot before using previous or next navigation.");
-                }
-
-                params.set("current_id", String(snapshotNavigation?.current_id));
-            }
-
-            if (direction === "by_id") {
-                const normalizedSnapshotId = (snapshotId ?? snapshotIdInput).trim();
-
-                if (!normalizedSnapshotId) {
-                    throw new Error("Enter a snapshot ID to load.");
-                }
-
-                params.set("snapshot_id", normalizedSnapshotId);
-            }
-
             const response = await fetch(
-                `${API_BASE}/api/mf-ai/wyckoff/market-state-snapshot/navigate/?${params.toString()}`,
+                buildSnapshotNavigationUrl({
+                    ticker,
+                    period: mfAiPeriod,
+                    direction,
+                    currentId,
+                    snapshotId: trimmedSnapshotId,
+                }),
                 {
                     method: "GET",
                     credentials: "include",
@@ -1455,27 +1600,29 @@ export default function MfAiWyckoffPage() {
                 }
             );
 
-            const payload = await parseApiPayload(response) as SnapshotNavigateResponse | null;
+            const payload = await parseApiPayload(response);
 
             if (!response.ok) {
-                throw new Error(getSnapshotNavigatorErrorMessage(payload, ticker, mfAiPeriod));
+                throw new Error(getNavigationErrorMessage(payload, ticker, mfAiPeriod));
             }
 
-            if (!payload?.snapshot) {
+            const typed = payload as SnapshotNavigateResponse | null;
+            const nextSnapshot = typed?.snapshot ?? null;
+
+            if (!nextSnapshot) {
                 throw new Error("Could not load snapshot.");
             }
 
-            setSnapshot(payload.snapshot);
-            setSnapshotNavigation(normalizeSnapshotNavigation(payload.navigation));
-            setNavigatorError(null);
+            setSnapshot(nextSnapshot);
+            setSnapshotNavigation(typed?.navigation ?? null);
 
             if (direction === "by_id") {
-                setSnapshotIdInput("");
+                setSnapshotJumpId("");
             }
         } catch (err) {
-            setNavigatorError(err instanceof Error ? err.message : "Could not load snapshot.");
+            setSnapshotNavigationError(err instanceof Error ? err.message : "Could not load snapshot.");
         } finally {
-            setNavigatorLoading(false);
+            setSnapshotNavigationLoading(false);
         }
     }
 
@@ -1521,8 +1668,8 @@ export default function MfAiWyckoffPage() {
             }
 
             setSnapshot(unwrapSnapshot(payload as SnapshotApiResponse));
-            setSnapshotNavigation(getSnapshotNavigation(payload));
-            setNavigatorError(null);
+            setSnapshotNavigation(getNavigationFromPayload(payload));
+            setSnapshotNavigationError(null);
             setInputContextText("");
         } catch (err) {
             setError(err instanceof Error ? err.message : "Snapshot request failed.");
@@ -1620,124 +1767,6 @@ export default function MfAiWyckoffPage() {
 
             <Card className="shadow-sm">
                 <CardHeader>
-                    <CardTitle>Snapshot Navigator</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                        <div>
-                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                View saved snapshots for {ticker || "selected ticker"} / {mfAiPeriod}
-                            </div>
-                            <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                                Click latest to view the newest saved snapshot. Navigator is view-only; Analyze creates
-                                new snapshots.
-                            </div>
-                            {navigatorLoading && (
-                                <div className="mt-2 inline-flex items-center text-xs text-gray-600 dark:text-gray-300">
-                                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin"/>
-                                    Loading snapshot...
-                                </div>
-                            )}
-                            {navigatorError && (
-                                <div
-                                    className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
-                                    {navigatorError}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="flex flex-col gap-3">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => handleSnapshotNavigate("oldest")}
-                                    disabled={disableOldestSnapshot}
-                                    aria-label="Load oldest snapshot"
-                                    title="Oldest snapshot"
-                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-900"
-                                >
-                                    <ChevronsLeft className="h-4 w-4"/>
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => handleSnapshotNavigate("previous")}
-                                    disabled={disablePreviousSnapshot}
-                                    aria-label="Load previous snapshot"
-                                    title="Previous snapshot"
-                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-900"
-                                >
-                                    <ChevronLeft className="h-4 w-4"/>
-                                </button>
-
-                                <div
-                                    className="min-w-[8.5rem] rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-center text-sm font-semibold text-gray-900 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100">
-                                    Snapshot #{navigationIdText(navigatorCurrentId)}
-                                </div>
-
-                                <button
-                                    type="button"
-                                    onClick={() => handleSnapshotNavigate("next")}
-                                    disabled={disableNextSnapshot}
-                                    aria-label="Load next snapshot"
-                                    title="Next snapshot"
-                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-900"
-                                >
-                                    <ChevronRight className="h-4 w-4"/>
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => handleSnapshotNavigate("latest")}
-                                    disabled={disableLatestSnapshot}
-                                    aria-label="Load latest snapshot"
-                                    title="Latest snapshot"
-                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-900"
-                                >
-                                    <ChevronsRight className="h-4 w-4"/>
-                                </button>
-                            </div>
-
-                            <form
-                                className="flex flex-wrap items-end gap-2"
-                                onSubmit={(event) => {
-                                    event.preventDefault();
-                                    handleSnapshotNavigate("by_id", snapshotIdInput);
-                                }}
-                            >
-                                <div className="flex flex-col gap-1">
-                                    <label
-                                        htmlFor="mf-ai-snapshot-id"
-                                        className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300"
-                                    >
-                                        Go to Snapshot ID
-                                    </label>
-                                    <input
-                                        id="mf-ai-snapshot-id"
-                                        value={snapshotIdInput}
-                                        onChange={(event) => setSnapshotIdInput(event.target.value)}
-                                        inputMode="numeric"
-                                        placeholder="78"
-                                        disabled={navigatorLoading}
-                                        className="w-32 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                                    />
-                                </div>
-
-                                <button
-                                    type="submit"
-                                    disabled={disableSnapshotIdLoad}
-                                    className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-900"
-                                >
-                                    Load
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card className="shadow-sm">
-                <CardHeader>
                     <CardTitle>Snapshot Metadata</CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -1803,13 +1832,23 @@ export default function MfAiWyckoffPage() {
                             title="Volume Profile — AI Interpretation">{renderVolumeProfile(canonicalCards.volume_profile)}</AnalysisCard>
                         <AnalysisCard
                             title="Confirmation / Invalidation">{renderConfirmationInvalidation(canonicalCards.confirmation_invalidation)}</AnalysisCard>
-                        <AnalysisCard
-                            title="Data Quality">{renderDataQuality(canonicalCards.data_quality)}</AnalysisCard>
                     </>
                 ) : (
                     <LegacyFallbackCards snapshot={snapshot}/>
                 )}
             </section>
+
+            <SnapshotNavigator
+                ticker={ticker}
+                selectedPeriod={mfAiPeriod}
+                snapshot={snapshot}
+                navigation={snapshotNavigation}
+                loading={snapshotNavigationLoading}
+                error={snapshotNavigationError}
+                jumpSnapshotId={snapshotJumpId}
+                onJumpSnapshotIdChange={setSnapshotJumpId}
+                onNavigate={handleSnapshotNavigate}
+            />
         </main>
     );
 }
