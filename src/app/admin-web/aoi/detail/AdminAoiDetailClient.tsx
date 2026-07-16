@@ -1,14 +1,14 @@
 // /src/app/admin-web/aoi/detail/AdminAoiDetailClient.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, {useEffect, useMemo, useState} from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import {useSearchParams} from "next/navigation";
+import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/Card";
 import AdminSessionGate from "@/components/admin-web/AdminSessionGate";
-import { useAdminSession } from "@/components/admin-web/AdminSessionProvider";
-import { AOITypeDisplay } from "@/components/aoi/AOITypeSymbol";
-import { CANONICAL_AOI_TYPES, normalizeAoiType } from "@/lib/aoi-types";
+import {useAdminSession} from "@/components/admin-web/AdminSessionProvider";
+import {AOITypeDisplay} from "@/components/aoi/AOITypeSymbol";
+import {CANONICAL_AOI_TYPES, normalizeAoiType} from "@/lib/aoi-types";
 import {
     adminWebApi,
     AdminAoiLifecycleState,
@@ -104,9 +104,41 @@ function boolLabel(value: boolean): string {
     return value ? "Yes" : "No";
 }
 
+function actorFormsEqual(a: ActorFormState | null, b: ActorFormState | null): boolean {
+    if (!a || !b) return a === b;
+
+    return (
+        a.aoi_type === b.aoi_type &&
+        a.lifecycle_state === b.lifecycle_state &&
+        a.checkpoint_tier === b.checkpoint_tier &&
+        a.checkpoint_mode === b.checkpoint_mode &&
+        a.replay_enabled === b.replay_enabled &&
+        a.reconcile_enabled === b.reconcile_enabled &&
+        a.notes === b.notes
+    );
+}
+
+function marketFormsEqual(a: MarketFormState | null, b: MarketFormState | null): boolean {
+    if (!a || !b) return a === b;
+
+    return (
+        a.ticker === b.ticker &&
+        a.market_priority === b.market_priority &&
+        a.market_lifecycle_state === b.market_lifecycle_state &&
+        a.replay_enabled === b.replay_enabled &&
+        a.reconcile_enabled === b.reconcile_enabled
+    );
+}
+
+function saveErrorMessage(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    if (typeof error === "string" && error.trim()) return error;
+    return "unknown_error";
+}
+
 export default function AdminAoiDetailClient() {
     const sp = useSearchParams();
-    const { isAuthenticated, isReady } = useAdminSession();
+    const {isAuthenticated, isReady} = useAdminSession();
 
     const aoiIdRaw = sp.get("aoiId");
     const aoiId = aoiIdRaw ? Number(aoiIdRaw) : NaN;
@@ -118,14 +150,30 @@ export default function AdminAoiDetailClient() {
     const [marketForm, setMarketForm] = useState<MarketFormState | null>(null);
 
     const [loading, setLoading] = useState(false);
-    const [savingActor, setSavingActor] = useState(false);
-    const [savingMarket, setSavingMarket] = useState(false);
+    const [savingPolicy, setSavingPolicy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+
+    const selectedMarket = useMemo(() => {
+        if (!selectedTicker) return null;
+        return markets.find((market) => market.ticker === selectedTicker) ?? null;
+    }, [markets, selectedTicker]);
+
+    const actorDirty = useMemo(() => {
+        return Boolean(actor && actorForm && !actorFormsEqual(actorForm, actorToForm(actor)));
+    }, [actor, actorForm]);
+
+    const marketDirty = useMemo(() => {
+        return Boolean(selectedMarket && marketForm && !marketFormsEqual(marketForm, marketToForm(selectedMarket)));
+    }, [selectedMarket, marketForm]);
+
+    const hasUnsavedChanges = actorDirty || marketDirty;
 
     const actorPinnedInvalid = useMemo(() => {
         return actorForm?.checkpoint_mode === "pinned" && actorForm.checkpoint_tier !== 1;
     }, [actorForm]);
+
+    const canSavePolicyChanges = hasUnsavedChanges && !savingPolicy && !loading && !actorPinnedInvalid;
 
     useEffect(() => {
         if (!isReady || !isAuthenticated || !Number.isFinite(aoiId)) return;
@@ -180,30 +228,26 @@ export default function AdminAoiDetailClient() {
         setMarketForm(row ? marketToForm(row) : null);
     }, [selectedTicker, markets]);
 
-    async function reloadMarkets() {
-        const marketPayload = await adminWebApi.listAoiMarketPolicies(aoiId);
-        setMarkets(marketPayload.results);
-        if (selectedTicker) {
-            const selected = marketPayload.results.find((row) => row.ticker === selectedTicker);
-            setMarketForm(selected ? marketToForm(selected) : null);
-        }
-    }
-
-    async function saveActor() {
-        if (!actorForm || !Number.isFinite(aoiId)) return;
+    async function savePolicyChanges() {
+        if (!Number.isFinite(aoiId)) return;
 
         setError(null);
         setSuccess(null);
 
-        if (actorForm.checkpoint_mode === "pinned" && actorForm.checkpoint_tier !== 1) {
+        if (!hasUnsavedChanges) {
+            setSuccess("No unsaved changes.");
+            return;
+        }
+
+        if (actorForm?.checkpoint_mode === "pinned" && actorForm.checkpoint_tier !== 1) {
             setError("pinned_requires_checkpoint_tier_1");
             return;
         }
 
-        setSavingActor(true);
+        setSavingPolicy(true);
 
-        try {
-            const payload = await adminWebApi.patchAoiPolicy(aoiId, {
+        const actorSave = actorDirty && actorForm
+            ? adminWebApi.patchAoiPolicy(aoiId, {
                 aoi_type: actorForm.aoi_type,
                 lifecycle_state: actorForm.lifecycle_state,
                 checkpoint_tier: actorForm.checkpoint_tier,
@@ -211,43 +255,74 @@ export default function AdminAoiDetailClient() {
                 replay_enabled: actorForm.replay_enabled,
                 reconcile_enabled: actorForm.reconcile_enabled,
                 notes: actorForm.notes.length > 0 ? actorForm.notes : null,
-            });
+            })
+            : Promise.resolve(null);
 
-            setActor(payload.aoi);
-            setActorForm(actorToForm(payload.aoi));
-            setSuccess("Actor policy saved.");
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "failed_to_save_actor_policy");
-        } finally {
-            setSavingActor(false);
-        }
-    }
-
-    async function saveMarket() {
-        if (!marketForm || !Number.isFinite(aoiId)) return;
-
-        setError(null);
-        setSuccess(null);
-        setSavingMarket(true);
-
-        try {
-            const payload = await adminWebApi.patchAoiMarketPolicy(aoiId, marketForm.ticker, {
+        const marketSave = marketDirty && marketForm
+            ? adminWebApi.patchAoiMarketPolicy(aoiId, marketForm.ticker, {
                 market_priority: marketForm.market_priority,
                 market_lifecycle_state: marketForm.market_lifecycle_state,
                 replay_enabled: marketForm.replay_enabled,
                 reconcile_enabled: marketForm.reconcile_enabled,
-            });
+            })
+            : Promise.resolve(null);
 
-            setMarkets((current) =>
-                current.map((row) => (row.ticker === payload.market.ticker ? payload.market : row))
+        try {
+            const [actorResult, marketResult] = await Promise.allSettled([actorSave, marketSave]);
+
+            const actorWasRequired = actorDirty && actorForm !== null;
+            const marketWasRequired = marketDirty && marketForm !== null;
+
+            const actorSaved = !actorWasRequired || actorResult.status === "fulfilled";
+            const marketSaved = !marketWasRequired || marketResult.status === "fulfilled";
+
+            if (actorResult.status === "fulfilled" && actorResult.value) {
+                setActor(actorResult.value.aoi);
+                setActorForm(actorToForm(actorResult.value.aoi));
+            }
+
+            if (marketResult.status === "fulfilled" && marketResult.value) {
+                const savedMarket = marketResult.value.market;
+                setMarkets((current) =>
+                    current.map((row) =>
+                        row.ticker === savedMarket.ticker ? savedMarket : row
+                    )
+                );
+                setMarketForm(marketToForm(savedMarket));
+            }
+
+            if (actorSaved && marketSaved) {
+                const savedSections = [
+                    actorWasRequired ? "Actor Policy" : null,
+                    marketWasRequired ? `Actor-Market Policy${marketForm ? ` (${marketForm.ticker})` : ""}` : null,
+                ].filter(Boolean).join(" and ");
+
+                setSuccess(savedSections ? `${savedSections} saved.` : "No unsaved changes.");
+                return;
+            }
+
+            const actorError = actorResult.status === "rejected" ? saveErrorMessage(actorResult.reason) : null;
+            const marketError = marketResult.status === "rejected" ? saveErrorMessage(marketResult.reason) : null;
+
+            if (actorSaved && !marketSaved) {
+                setError(
+                    `Partial save failed. Actor Policy saved, but Actor-Market Policy did not save. ${marketError ?? "Please retry."}`
+                );
+                return;
+            }
+
+            if (!actorSaved && marketSaved) {
+                setError(
+                    `Partial save failed. Actor-Market Policy saved, but Actor Policy did not save. ${actorError ?? "Please retry."}`
+                );
+                return;
+            }
+
+            setError(
+                `Save failed. Actor Policy: ${actorError ?? "not saved"}. Actor-Market Policy: ${marketError ?? "not saved"}.`
             );
-            setMarketForm(marketToForm(payload.market));
-            setSuccess(`Market policy saved for ${payload.market.ticker}.`);
-            await reloadMarkets();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "failed_to_save_market_policy");
         } finally {
-            setSavingMarket(false);
+            setSavingPolicy(false);
         }
     }
 
@@ -286,22 +361,55 @@ export default function AdminAoiDetailClient() {
                 </div>
 
                 {loading ? (
-                    <div className="rounded border border-gray-200 dark:border-gray-800 p-3 text-sm text-gray-600 dark:text-gray-300">
+                    <div
+                        className="rounded border border-gray-200 dark:border-gray-800 p-3 text-sm text-gray-600 dark:text-gray-300">
                         Loading AOI policy…
                     </div>
                 ) : null}
 
                 {error ? (
-                    <div className="rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                    <div
+                        className="rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
                         {error}
                     </div>
                 ) : null}
 
                 {success ? (
-                    <div className="rounded border border-green-300 bg-green-50 px-3 py-2 text-xs text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
+                    <div
+                        className="rounded border border-green-300 bg-green-50 px-3 py-2 text-xs text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
                         {success}
                     </div>
                 ) : null}
+
+                <div
+                    className="flex flex-col gap-2 rounded border border-gray-200 bg-white px-3 py-3 dark:border-gray-800 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="font-semibold text-text dark:text-text-inverted">Policy Save</span>
+                        {hasUnsavedChanges ? (
+                            <span
+                                className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                                Unsaved changes
+                            </span>
+                        ) : (
+                            <span
+                                className="rounded-full border border-green-300 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
+                                Saved
+                            </span>
+                        )}
+                        <span className="text-xs text-gray-600 dark:text-gray-300">
+                            Saves Actor Policy plus the currently selected Actor-Market Policy.
+                        </span>
+                    </div>
+
+                    <button
+                        type="button"
+                        disabled={!canSavePolicyChanges}
+                        onClick={() => void savePolicyChanges()}
+                        className="inline-flex items-center rounded-full border border-gray-300 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:hover:bg-gray-800"
+                    >
+                        {savingPolicy ? "Saving policy changes…" : "Save Policy Changes"}
+                    </button>
+                </div>
 
                 <section className="grid gap-4 xl:grid-cols-2">
                     <Card>
@@ -336,7 +444,7 @@ export default function AdminAoiDetailClient() {
                                                 onChange={(event) =>
                                                     setActorForm((current) =>
                                                         current
-                                                            ? { ...current, aoi_type: event.target.value as AdminAoiType }
+                                                            ? {...current, aoi_type: event.target.value as AdminAoiType}
                                                             : current
                                                     )
                                                 }
@@ -429,7 +537,10 @@ export default function AdminAoiDetailClient() {
                                                 checked={actorForm.replay_enabled}
                                                 onChange={(event) =>
                                                     setActorForm((current) =>
-                                                        current ? { ...current, replay_enabled: event.target.checked } : current
+                                                        current ? {
+                                                            ...current,
+                                                            replay_enabled: event.target.checked
+                                                        } : current
                                                     )
                                                 }
                                                 className="h-4 w-4"
@@ -443,7 +554,10 @@ export default function AdminAoiDetailClient() {
                                                 checked={actorForm.reconcile_enabled}
                                                 onChange={(event) =>
                                                     setActorForm((current) =>
-                                                        current ? { ...current, reconcile_enabled: event.target.checked } : current
+                                                        current ? {
+                                                            ...current,
+                                                            reconcile_enabled: event.target.checked
+                                                        } : current
                                                     )
                                                 }
                                                 className="h-4 w-4"
@@ -459,7 +573,7 @@ export default function AdminAoiDetailClient() {
                                                 value={actorForm.notes}
                                                 onChange={(event) =>
                                                     setActorForm((current) =>
-                                                        current ? { ...current, notes: event.target.value } : current
+                                                        current ? {...current, notes: event.target.value} : current
                                                     )
                                                 }
                                             />
@@ -467,19 +581,13 @@ export default function AdminAoiDetailClient() {
                                     </div>
 
                                     {actorPinnedInvalid ? (
-                                        <div className="rounded border border-yellow-300 bg-yellow-50 px-3 py-2 text-xs text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950/40 dark:text-yellow-200">
+                                        <div
+                                            className="rounded border border-yellow-300 bg-yellow-50 px-3 py-2 text-xs text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950/40 dark:text-yellow-200">
                                             Pinned mode requires checkpoint tier 1.
                                         </div>
                                     ) : null}
 
-                                    <button
-                                        type="button"
-                                        disabled={savingActor || actorPinnedInvalid}
-                                        onClick={() => void saveActor()}
-                                        className="inline-flex items-center rounded-full border border-gray-300 dark:border-gray-700 px-3 py-1.5 text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                        {savingActor ? "Saving actor policy…" : "Save Actor Policy"}
-                                    </button>
+
                                 </div>
                             )}
                         </CardContent>
@@ -606,7 +714,7 @@ export default function AdminAoiDetailClient() {
                                                     onChange={(event) =>
                                                         setMarketForm((current) =>
                                                             current
-                                                                ? { ...current, replay_enabled: event.target.checked }
+                                                                ? {...current, replay_enabled: event.target.checked}
                                                                 : current
                                                         )
                                                     }
@@ -622,7 +730,7 @@ export default function AdminAoiDetailClient() {
                                                     onChange={(event) =>
                                                         setMarketForm((current) =>
                                                             current
-                                                                ? { ...current, reconcile_enabled: event.target.checked }
+                                                                ? {...current, reconcile_enabled: event.target.checked}
                                                                 : current
                                                         )
                                                     }
@@ -632,14 +740,7 @@ export default function AdminAoiDetailClient() {
                                             </label>
                                         </div>
 
-                                        <button
-                                            type="button"
-                                            disabled={savingMarket}
-                                            onClick={() => void saveMarket()}
-                                            className="mt-4 inline-flex items-center rounded-full border border-gray-300 dark:border-gray-700 px-3 py-1.5 text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            {savingMarket ? "Saving market policy…" : "Save Market Policy"}
-                                        </button>
+
                                     </div>
                                 ) : null}
                             </div>
