@@ -7,8 +7,8 @@ import {useRouter} from "next/navigation";
 import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/Card";
 import AdminSessionGate from "@/components/admin-web/AdminSessionGate";
 import {useAdminSession} from "@/components/admin-web/AdminSessionProvider";
-import { AOITypeDisplay } from "@/components/aoi/AOITypeSymbol";
-import { CANONICAL_AOI_TYPES } from "@/lib/aoi-types";
+import {AOITypeDisplay} from "@/components/aoi/AOITypeSymbol";
+import {CANONICAL_AOI_TYPES} from "@/lib/aoi-types";
 import {
     adminWebApi,
     AdminAoiBulkPatchPayload,
@@ -27,19 +27,11 @@ const CHECKPOINT_MODE_OPTIONS: AdminCheckpointMode[] = ["pinned", "rotating", "d
 const AOI_LIST_LIMIT = 5000;
 const BULK_NO_CHANGE = "__no_change__";
 
-type AdminAoiSortKey =
-    | "id"
-    | "aoi_type"
-    | "checkpoint_tier"
-    | "checkpoint_mode";
+type AdminAoiSortKey = "id" | "aoi_type";
 
 type SortDirection = "asc" | "desc";
 
 type BulkFieldValue = AdminAoiLifecycleState | AdminAoiType | AdminCheckpointMode | typeof BULK_NO_CHANGE;
-
-function boolLabel(value: boolean): string {
-    return value ? "Yes" : "No";
-}
 
 function accountShort(accountId: string): string {
     if (accountId.length <= 18) return accountId;
@@ -136,11 +128,6 @@ function lifecycleLabel(value: AdminAoiLifecycleState | string | null | undefine
     return value ?? "—";
 }
 
-function checkpointModeLabel(value: AdminCheckpointMode | string | null | undefined): string {
-    if (!value) return "—";
-    return value;
-}
-
 export default function AdminWebAoiListPage() {
     const router = useRouter();
     const {isAuthenticated, isReady} = useAdminSession();
@@ -159,10 +146,9 @@ export default function AdminWebAoiListPage() {
     const [accountIdInput, setAccountIdInput] = useState("");
     const [lifecycleStateInput, setLifecycleStateInput] =
         useState<AdminAoiLifecycleState>("active");
-    const [aoiTypeInput, setAoiTypeInput] = useState<AdminAoiType>("mm_bot");
+    const [aoiTypeInput, setAoiTypeInput] = useState<AdminAoiType>("position_trader");
 
-    const [aoiIdSearch, setAoiIdSearch] = useState("");
-    const [accountIdSearch, setAccountIdSearch] = useState("");
+    const [searchQuery, setSearchQuery] = useState("");
     const [sortKey, setSortKey] = useState<AdminAoiSortKey>("id");
     const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
@@ -177,7 +163,7 @@ export default function AdminWebAoiListPage() {
     const resetCreateForm = useCallback(() => {
         setAccountIdInput("");
         setLifecycleStateInput("active");
-        setAoiTypeInput("mm_bot");
+        setAoiTypeInput("position_trader");
         setCreateError(null);
         setDuplicateRecovery(null);
     }, []);
@@ -222,18 +208,15 @@ export default function AdminWebAoiListPage() {
     }, [rows]);
 
     const filteredSortedRows = useMemo(() => {
-        const aoiIdNeedle = aoiIdSearch.trim();
-        const accountIdNeedle = accountIdSearch.trim().toLowerCase();
+        const needle = searchQuery.trim().toLowerCase();
 
         const filtered = activeRows.filter((row) => {
-            const matchesAoiId =
-                aoiIdNeedle.length === 0 || String(row.id).includes(aoiIdNeedle);
+            if (needle.length === 0) return true;
 
-            const matchesAccountId =
-                accountIdNeedle.length === 0 ||
-                row.account_id.toLowerCase().includes(accountIdNeedle);
-
-            return matchesAoiId && matchesAccountId;
+            return (
+                String(row.id).includes(needle) ||
+                row.account_id.toLowerCase().includes(needle)
+            );
         });
 
         const sorted = [...filtered].sort((a, b) => {
@@ -245,12 +228,6 @@ export default function AdminWebAoiListPage() {
                     break;
                 case "aoi_type":
                     cmp = compareNullableString(a.aoi_type, b.aoi_type);
-                    break;
-                case "checkpoint_tier":
-                    cmp = compareNullableNumber(a.checkpoint_tier, b.checkpoint_tier);
-                    break;
-                case "checkpoint_mode":
-                    cmp = compareNullableString(a.checkpoint_mode, b.checkpoint_mode);
                     break;
                 default:
                     cmp = 0;
@@ -265,7 +242,7 @@ export default function AdminWebAoiListPage() {
         });
 
         return sorted;
-    }, [activeRows, aoiIdSearch, accountIdSearch, sortKey, sortDirection]);
+    }, [activeRows, searchQuery, sortKey, sortDirection]);
 
     const visibleRowIds = useMemo(() => filteredSortedRows.map((row) => row.id), [filteredSortedRows]);
 
@@ -578,7 +555,7 @@ export default function AdminWebAoiListPage() {
                                             href={`/admin-web/aoi/detail?aoiId=${encodeURIComponent(String(createSuccess.id))}`}
                                             className="inline-flex items-center rounded-full border border-green-400 dark:border-green-700 px-3 py-1 text-[11px] md:text-xs font-medium hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
                                         >
-                                            Open Detail
+                                            Edit Policy
                                         </Link>
                                     </div>
                                 </div>
@@ -700,24 +677,13 @@ export default function AdminWebAoiListPage() {
                             ) : null}
 
                             <div className="grid gap-3 md:grid-cols-4">
-                                <label className="text-sm">
-                                    <span className="mb-1 block font-medium">Search AOI ID</span>
+                                <label className="text-sm md:col-span-3">
+                                    <span className="mb-1 block font-medium">Search AOI ID or Account ID</span>
                                     <input
                                         type="text"
-                                        value={aoiIdSearch}
-                                        onChange={(e) => setAoiIdSearch(e.target.value)}
-                                        placeholder="e.g. 123"
-                                        className="w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
-                                    />
-                                </label>
-
-                                <label className="text-sm md:col-span-2">
-                                    <span className="mb-1 block font-medium">Search Account ID</span>
-                                    <input
-                                        type="text"
-                                        value={accountIdSearch}
-                                        onChange={(e) => setAccountIdSearch(e.target.value)}
-                                        placeholder="0x..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        placeholder="Type an AOI ID or any contiguous account_id substring..."
                                         className="w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
                                     />
                                 </label>
@@ -726,8 +692,7 @@ export default function AdminWebAoiListPage() {
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            setAoiIdSearch("");
-                                            setAccountIdSearch("");
+                                            setSearchQuery("");
                                             setSortKey("id");
                                             setSortDirection("asc");
                                             setSelectedAoiIds([]);
@@ -781,29 +746,8 @@ export default function AdminWebAoiListPage() {
                                             </button>
                                         </th>
                                         <th className="py-2 px-2 text-left font-semibold">Lifecycle</th>
-                                        <th className="py-2 px-2 text-left font-semibold">
-                                            <button
-                                                type="button"
-                                                onClick={() => handleSortClick("checkpoint_tier")}
-                                                className="inline-flex items-center gap-1 hover:underline"
-                                            >
-                                                <span>Tier</span>
-                                                <span>{sortIndicator(sortKey, "checkpoint_tier", sortDirection)}</span>
-                                            </button>
-                                        </th>
-                                        <th className="py-2 px-2 text-left font-semibold">
-                                            <button
-                                                type="button"
-                                                onClick={() => handleSortClick("checkpoint_mode")}
-                                                className="inline-flex items-center gap-1 hover:underline"
-                                            >
-                                                <span>Mode</span>
-                                                <span>{sortIndicator(sortKey, "checkpoint_mode", sortDirection)}</span>
-                                            </button>
-                                        </th>
-                                        <th className="py-2 px-2 text-left font-semibold">Replay</th>
-                                        <th className="py-2 px-2 text-left font-semibold">Reconcile</th>
-                                        <th className="py-2 pl-2 text-right font-semibold">Detail</th>
+                                        <th className="py-2 px-2 text-left font-semibold">Tier</th>
+                                        <th className="py-2 pl-2 text-right font-semibold">Actions</th>
                                     </tr>
                                     </thead>
                                     <tbody>
@@ -836,16 +780,23 @@ export default function AdminWebAoiListPage() {
                                                 </td>
                                                 <td className="py-2 px-2 align-top">{lifecycleLabel(row.lifecycle_state)}</td>
                                                 <td className="py-2 px-2 align-top">{row.checkpoint_tier ?? "—"}</td>
-                                                <td className="py-2 px-2 align-top">{checkpointModeLabel(row.checkpoint_mode)}</td>
-                                                <td className="py-2 px-2 align-top">{boolLabel(row.replay_enabled)}</td>
-                                                <td className="py-2 px-2 align-top">{boolLabel(row.reconcile_enabled)}</td>
                                                 <td className="py-2 pl-2 pr-0 align-top text-right">
-                                                    <Link
-                                                        href={`/admin-web/aoi/detail?aoiId=${encodeURIComponent(String(row.id))}`}
-                                                        className="inline-flex items-center rounded-full border border-gray-300 dark:border-gray-700 px-3 py-1 text-[11px] md:text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                                                    >
-                                                        Open Detail
-                                                    </Link>
+                                                    <div className="flex flex-wrap justify-end gap-2">
+                                                        <Link
+                                                            href={`/admin-web/aoi/detail?aoiId=${encodeURIComponent(String(row.id))}`}
+                                                            className="inline-flex items-center rounded-full border border-gray-300 dark:border-gray-700 px-3 py-1 text-[11px] md:text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                                        >
+                                                            Edit Policy
+                                                        </Link>
+                                                        <a
+                                                            href={`/mfb-p/lens/?aoiId=${encodeURIComponent(String(row.id))}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center rounded-full border border-gray-300 dark:border-gray-700 px-3 py-1 text-[11px] md:text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                                        >
+                                                            View Lens
+                                                        </a>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -854,7 +805,7 @@ export default function AdminWebAoiListPage() {
                                     {!loading && filteredSortedRows.length === 0 ? (
                                         <tr>
                                             <td
-                                                colSpan={10}
+                                                colSpan={7}
                                                 className="py-4 text-center text-sm text-gray-600 dark:text-gray-300"
                                             >
                                                 No active AOI actor policies matched the current filters.
