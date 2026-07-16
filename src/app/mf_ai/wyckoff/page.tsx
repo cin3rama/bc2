@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import {useHeaderConfig} from "@/contexts/HeaderConfigContext";
 import {useTickerPeriod} from "@/contexts/TickerPeriodContext";
-import {API_BASE} from "@/lib/env";
 import {
     Card,
     CardContent,
@@ -283,6 +282,10 @@ type MarketAcceptanceProfile = {
     } | null;
 };
 
+const MF_ADMIN_ME_URL = "/api/mf-admin/auth/me/";
+const MF_AI_SNAPSHOT_URL = "/api/mf-ai/wyckoff/market-state-snapshot/";
+const MF_AI_NAVIGATE_URL = "/api/mf-ai/wyckoff/market-state-snapshot/navigate/";
+
 function unwrapSnapshot(payload: SnapshotApiResponse): MarketStateSnapshot {
     if ("snapshot" in payload && payload.snapshot) return payload.snapshot;
     if ("data" in payload && payload.data) return payload.data;
@@ -393,7 +396,7 @@ function buildSnapshotNavigationUrl({
         params.set("snapshot_id", snapshotId);
     }
 
-    return `${API_BASE}/api/mf-ai/wyckoff/market-state-snapshot/navigate/?${params.toString()}`;
+    return `${MF_AI_NAVIGATE_URL}?${params.toString()}`;
 }
 
 function formatUtcMs(value: number | string | null | undefined): string {
@@ -1526,7 +1529,7 @@ export default function MfAiWyckoffPage() {
             setAuthState("checking");
 
             try {
-                const response = await fetch(`${API_BASE}/api/mf-admin/auth/me/`, {
+                const response = await fetch(MF_ADMIN_ME_URL, {
                     method: "GET",
                     credentials: "include",
                     headers: {Accept: "application/json"},
@@ -1639,7 +1642,7 @@ export default function MfAiWyckoffPage() {
 
         try {
             const response = await fetch(
-                `${API_BASE}/api/mf-ai/wyckoff/market-state-snapshot/`,
+                MF_AI_SNAPSHOT_URL,
                 {
                     method: "POST",
                     credentials: "include",
