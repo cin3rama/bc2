@@ -136,6 +136,18 @@ function saveErrorMessage(error: unknown): string {
     return "unknown_error";
 }
 
+function saveButtonLabel({
+                             savingPolicy,
+                             hasUnsavedChanges,
+                         }: {
+    savingPolicy: boolean;
+    hasUnsavedChanges: boolean;
+}): string {
+    if (savingPolicy) return "Saving...";
+    if (hasUnsavedChanges) return "Save Policy Changes";
+    return "Saved";
+}
+
 export default function AdminAoiDetailClient() {
     const sp = useSearchParams();
     const {isAuthenticated, isReady} = useAdminSession();
@@ -380,36 +392,6 @@ export default function AdminAoiDetailClient() {
                         {success}
                     </div>
                 ) : null}
-
-                <div
-                    className="flex flex-col gap-2 rounded border border-gray-200 bg-white px-3 py-3 dark:border-gray-800 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex flex-wrap items-center gap-2 text-sm">
-                        <span className="font-semibold text-text dark:text-text-inverted">Policy Save</span>
-                        {hasUnsavedChanges ? (
-                            <span
-                                className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-                                Unsaved changes
-                            </span>
-                        ) : (
-                            <span
-                                className="rounded-full border border-green-300 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
-                                Saved
-                            </span>
-                        )}
-                        <span className="text-xs text-gray-600 dark:text-gray-300">
-                            Saves Actor Policy plus the currently selected Actor-Market Policy.
-                        </span>
-                    </div>
-
-                    <button
-                        type="button"
-                        disabled={!canSavePolicyChanges}
-                        onClick={() => void savePolicyChanges()}
-                        className="inline-flex items-center rounded-full border border-gray-300 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:hover:bg-gray-800"
-                    >
-                        {savingPolicy ? "Saving policy changes…" : "Save Policy Changes"}
-                    </button>
-                </div>
 
                 <section className="grid gap-4 xl:grid-cols-2">
                     <Card>
@@ -747,6 +729,25 @@ export default function AdminAoiDetailClient() {
                         </CardContent>
                     </Card>
                 </section>
+
+                <div className="flex flex-col gap-2 rounded border border-gray-200 bg-white px-3 py-3 dark:border-gray-800 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-end">
+                    <div className="text-xs text-gray-600 dark:text-gray-300 sm:mr-auto">
+                        Saves Actor Policy plus the currently selected Actor-Market Policy.
+                    </div>
+
+                    <button
+                        type="button"
+                        disabled={!canSavePolicyChanges}
+                        onClick={() => void savePolicyChanges()}
+                        className={`inline-flex items-center justify-center rounded-full border px-4 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
+                            hasUnsavedChanges
+                                ? "border-gray-300 bg-white text-gray-900 hover:bg-gray-100 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+                                : "border-green-300 bg-green-50 text-green-800 disabled:opacity-80 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
+                        }`}
+                    >
+                        {saveButtonLabel({savingPolicy, hasUnsavedChanges})}
+                    </button>
+                </div>
             </AdminSessionGate>
         </main>
     );
