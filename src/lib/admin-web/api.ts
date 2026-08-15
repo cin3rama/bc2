@@ -1,6 +1,6 @@
 // /src/lib/admin-web/api.ts
 import {ADMIN_WEB_API_ROOT} from "@/lib/admin-web/env";
-import type { CanonicalAoiType } from "@/lib/aoi-types";
+import type {CanonicalAoiType} from "@/lib/aoi-types";
 
 const trimTrailingSlash = (value: string): string => value.replace(/\/+$/, "");
 const API_ROOT = trimTrailingSlash(ADMIN_WEB_API_ROOT);
@@ -41,6 +41,71 @@ export type AdminAuthMeResponse =
 export type AdminAuthLogoutResponse = {
     ok: true;
     authenticated: false;
+};
+
+// /src/lib/admin-web/api.ts
+
+export type AdminAv2WorkerStatus = {
+    worker_id: string;
+    status: string;
+    last_seen_ts_ms: number | null;
+    detail: string | null;
+};
+
+export type AdminAv2AgentStatus = {
+    agent_id: string;
+    agent_name: string | null;
+    ticker: string;
+    market_ticker: string | null;
+    strategy_family: string;
+    strategy_version: string | null;
+    enabled: boolean;
+    account_type: string;
+    account_reference: string | null;
+    latest_evaluation_ts_ms: number | null;
+    latest_signal_status: string | null;
+};
+
+export type AdminAv2ActiveTrade = {
+    trade_id: string;
+    agent_id: string;
+    ticker: string;
+    market_ticker: string | null;
+    strategy_family?: string | null;
+    exchange: string;
+    account_type: string;
+    account_reference: string | null;
+    lifecycle_state: string;
+    entry_state: string | null;
+    protection_state: string | null;
+    exit_state: string | null;
+    outcome_status: string | null;
+    failure_or_suppression_reason: string | null;
+    opened_ts_ms: number | null;
+    max_hold_deadline_ts_ms: number | null;
+    latest_lifecycle_event_ts_ms: number | null;
+};
+
+export type AdminAv2OperationalEvent = {
+    event_ts_ms: number;
+    severity: string;
+    event_type: string;
+    agent_id: string | null;
+    trade_id: string | null;
+    ticker: string | null;
+    market_ticker: string | null;
+    status: string | null;
+    reason: string | null;
+    message: string | null;
+};
+
+export type AdminAv2StatusResponse = {
+    ok: true;
+    observed_ts_ms: number;
+    workers: AdminAv2WorkerStatus[];
+    agents: AdminAv2AgentStatus[];
+    active_trades: AdminAv2ActiveTrade[];
+    recent_events: AdminAv2OperationalEvent[];
 };
 
 export type AdminAoiType = CanonicalAoiType;
@@ -193,6 +258,7 @@ export const MF_ADMIN_PATHS = {
     authVerify: `${API_ROOT}/auth/verify/`,
     authMe: `${API_ROOT}/auth/me/`,
     authLogout: `${API_ROOT}/auth/logout/`,
+    av2Status: `${API_ROOT}/av2/status/`,
     aoiList: `${API_ROOT}/aoi/`,
     aoiBulk: `${API_ROOT}/aoi/bulk/`,
     aoiDetail: (aoiId: number | string) => `${API_ROOT}/aoi/${encodeURIComponent(String(aoiId))}/`,
@@ -292,6 +358,11 @@ export const adminWebApi = {
         requestJson<AdminAuthLogoutResponse>(MF_ADMIN_PATHS.authLogout, {
             method: "POST",
             body: JSON.stringify({}),
+        }),
+
+    av2Status: async () =>
+        requestJson<AdminAv2StatusResponse>(MF_ADMIN_PATHS.av2Status, {
+            method: "GET",
         }),
 
     listAoiPolicies: async (limit = 100) =>
