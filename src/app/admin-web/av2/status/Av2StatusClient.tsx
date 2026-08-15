@@ -23,9 +23,16 @@ function displayValue(value: string | null | undefined): string {
 function displayTs(value: number | null | undefined): string {
     if (value == null) return "—";
 
-    return new Date(value).toLocaleString(undefined, {
-        timeZone: "UTC",
-    });
+    const date = new Date(value);
+
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    const hour = String(date.getUTCHours()).padStart(2, "0");
+    const minute = String(date.getUTCMinutes()).padStart(2, "0");
+    const second = String(date.getUTCSeconds()).padStart(2, "0");
+
+    return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
 }
 
 function statusClass(status: string): string {
