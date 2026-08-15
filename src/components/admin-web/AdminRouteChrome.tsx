@@ -26,6 +26,7 @@ export default function AdminRouteChrome({ children }: { children: React.ReactNo
 
     const isHome = pathname === "/admin-web";
     const isAoi = pathname?.startsWith("/admin-web/aoi");
+    const isAv2 = pathname?.startsWith("/admin-web/av2");
 
     return (
         <div className="space-y-4">
@@ -61,11 +62,19 @@ export default function AdminRouteChrome({ children }: { children: React.ReactNo
                     >
                         Admin Home
                     </Link>
+
                     <Link
                         href="/admin-web/aoi"
                         className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] md:text-xs font-medium transition-colors ${navClass(Boolean(isAoi))}`}
                     >
                         AOI Policy
+                    </Link>
+
+                    <Link
+                        href="/admin-web/av2"
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] md:text-xs font-medium transition-colors ${navClass(Boolean(isAv2))}`}
+                    >
+                        AV2
                     </Link>
                 </div>
             </section>
