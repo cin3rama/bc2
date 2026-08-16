@@ -43,71 +43,6 @@ export type AdminAuthLogoutResponse = {
     authenticated: false;
 };
 
-// /src/lib/admin-web/api.ts
-
-export type AdminAv2WorkerStatus = {
-    worker_id: string;
-    status: string;
-    last_seen_ts_ms: number | null;
-    detail: string | null;
-};
-
-export type AdminAv2AgentStatus = {
-    agent_id: string;
-    agent_name: string | null;
-    ticker: string;
-    market_ticker: string | null;
-    strategy_family: string;
-    strategy_version: string | null;
-    enabled: boolean;
-    account_type: string;
-    account_reference: string | null;
-    latest_evaluation_ts_ms: number | null;
-    latest_signal_status: string | null;
-};
-
-export type AdminAv2ActiveTrade = {
-    trade_id: string;
-    agent_id: string;
-    ticker: string;
-    market_ticker: string | null;
-    strategy_family?: string | null;
-    exchange: string;
-    account_type: string;
-    account_reference: string | null;
-    lifecycle_state: string;
-    entry_state: string | null;
-    protection_state: string | null;
-    exit_state: string | null;
-    outcome_status: string | null;
-    failure_or_suppression_reason: string | null;
-    opened_ts_ms: number | null;
-    max_hold_deadline_ts_ms: number | null;
-    latest_lifecycle_event_ts_ms: number | null;
-};
-
-export type AdminAv2OperationalEvent = {
-    event_ts_ms: number;
-    severity: string;
-    event_type: string;
-    agent_id: string | null;
-    trade_id: string | null;
-    ticker: string | null;
-    market_ticker: string | null;
-    status: string | null;
-    reason: string | null;
-    message: string | null;
-};
-
-export type AdminAv2StatusResponse = {
-    ok: true;
-    observed_ts_ms: number;
-    workers: AdminAv2WorkerStatus[];
-    agents: AdminAv2AgentStatus[];
-    active_trades: AdminAv2ActiveTrade[];
-    recent_events: AdminAv2OperationalEvent[];
-};
-
 export type AdminAoiType = CanonicalAoiType;
 export type AdminAoiLifecycleState = "active" | "archived";
 export type AdminCheckpointTier = 1 | 2 | 3;
@@ -183,7 +118,12 @@ export type AdminAoiDetailResponse = {
     aoi: AdminAoiPolicy;
 };
 
-export type AdminMarketLifecycleState = "active" | "dormant" | "inactive" | "unknown";
+export type AdminMarketLifecycleState =
+    | "active"
+    | "dormant"
+    | "inactive"
+    | "unknown";
+
 export type AdminMarketPriority = 1 | 2 | 3;
 
 export type AdminAoiMarketPolicy = {
@@ -222,8 +162,209 @@ export type AdminAoiMarketDetailResponse = {
     market: AdminAoiMarketPolicy;
 };
 
+/* ============================================================
+ * AV2 STATUS / MONITORING
+ * ============================================================ */
+
+export type AdminAv2WorkerStatus = {
+    worker_id: string;
+    status: string;
+    last_seen_ts_ms: number | null;
+    detail: string | null;
+};
+
+export type AdminAv2AgentStatus = {
+    agent_id: string;
+    agent_name: string | null;
+    ticker: string;
+    market_ticker: string | null;
+    strategy_family: string;
+    strategy_version: string | null;
+    enabled: boolean;
+    account_type: string;
+    account_reference: string | null;
+    latest_evaluation_ts_ms: number | null;
+    latest_signal_status: string | null;
+};
+
+export type AdminAv2ActiveTrade = {
+    trade_id: string;
+    agent_id: string;
+    ticker: string;
+    market_ticker: string | null;
+    strategy_family?: string | null;
+    exchange: string;
+    account_type: string;
+    account_reference: string | null;
+    lifecycle_state: string;
+    entry_state: string | null;
+    protection_state: string | null;
+    exit_state: string | null;
+    outcome_status: string | null;
+    failure_or_suppression_reason: string | null;
+    opened_ts_ms: number | null;
+    max_hold_deadline_ts_ms: number | null;
+    latest_lifecycle_event_ts_ms: number | null;
+};
+
+export type AdminAv2OperationalEvent = {
+    event_ts_ms: number;
+    severity: string;
+    event_type: string;
+    agent_id: string | null;
+    trade_id: string | null;
+    ticker: string | null;
+    market_ticker: string | null;
+    status: string | null;
+    reason: string | null;
+    message: string | null;
+};
+
+export type AdminAv2StatusResponse = {
+    ok: true;
+    observed_ts_ms: number;
+    workers: AdminAv2WorkerStatus[];
+    agents: AdminAv2AgentStatus[];
+    active_trades: AdminAv2ActiveTrade[];
+    recent_events: AdminAv2OperationalEvent[];
+};
+
+/* ============================================================
+ * AV2 PERFORMANCE REPORTING
+ * ============================================================ */
+
+export type AdminAv2PerformanceSummary = {
+    gross_pnl: string;
+    net_pnl: string;
+    fees: string;
+    trade_count: number;
+    wins: number;
+    losses: number;
+    win_rate: string;
+    avg_net_pnl_per_trade: string;
+    drawdown: string | null;
+    expectancy: string | null;
+    average_win: string | null;
+    average_loss: string | null;
+    payoff_ratio: string | null;
+};
+
+export type AdminAv2PerformanceComparison = {
+    start_ts_ms: number;
+    end_ts_ms: number;
+    net_pnl: string;
+    trade_count: number;
+    win_rate: string;
+    avg_net_pnl_per_trade: string;
+    fees: string;
+    drawdown: string | null;
+};
+
+export type AdminAv2PerformanceOpportunity = {
+    qualified_signals: number;
+    executed_trades: number;
+    suppressed: number;
+    failed: number;
+};
+
+export type AdminAv2PerformanceSeriesPoint = {
+    ts_ms: number;
+    net_pnl: string;
+};
+
+export type AdminAv2PerformanceRow = {
+    agent_id: string;
+    ticker: string;
+    market_ticker: string;
+    strategy_family: string;
+    enabled: boolean;
+    account_type: string;
+    account_reference: string | null;
+    gross_pnl: string;
+    net_pnl: string;
+    fees: string;
+    trade_count: number;
+    wins: number;
+    losses: number;
+    win_rate: string;
+    avg_net_pnl_per_trade: string;
+    recent_period_pnl: string;
+    prior_period_pnl: string;
+    change_vs_prior_period: string;
+    latest_trade_ts_ms: number | null;
+    qualified_signals: number;
+    executed_trades: number;
+    suppression_count: number;
+    failure_count: number;
+};
+
+export type AdminAv2PerformanceResponse = {
+    ok: true;
+    start_ts_ms: number;
+    end_ts_ms: number;
+    summary: AdminAv2PerformanceSummary;
+    comparison: AdminAv2PerformanceComparison;
+    opportunity: AdminAv2PerformanceOpportunity;
+    cumulative_pnl_series: AdminAv2PerformanceSeriesPoint[];
+    pnl_series: AdminAv2PerformanceSeriesPoint[];
+    rows: AdminAv2PerformanceRow[];
+};
+
+export type AdminAv2PerformanceParams = {
+    start_ts_ms?: number;
+    end_ts_ms?: number;
+    agent_id?: string;
+    ticker?: string;
+    strategy_family?: string;
+    account_reference?: string;
+};
+
+/* ============================================================
+ * AV2 CONTROLS / ADMINISTRATION
+ * ============================================================ */
+
+export type AdminAv2GlobalEntryGateState = "enabled" | "paused";
+
+export type AdminAv2ControlAgent = {
+    agent_id: string;
+    agent_name: string | null;
+    ticker: string;
+    market_ticker: string;
+    strategy_family: string;
+    enabled: boolean;
+    account_type: string;
+    account_reference: string | null;
+    strategy_config: Record<string, unknown>;
+    risk_config: Record<string, unknown>;
+};
+
+export type AdminAv2ControlsResponse = {
+    ok: true;
+    global_entry_gate: {
+        state: AdminAv2GlobalEntryGateState;
+    };
+    agents: AdminAv2ControlAgent[];
+};
+
+export type AdminAv2GlobalEntryGateResponse = {
+    ok: true;
+    global_entry_gate: {
+        state: AdminAv2GlobalEntryGateState;
+    };
+};
+
+export type AdminAv2AgentControlResponse = {
+    ok: true;
+    agent: AdminAv2ControlAgent;
+};
+
+type NormalizedErrorDetail = {
+    code?: string;
+    message?: string;
+};
+
 type ErrorPayload = {
-    error?: string;
+    error?: string | NormalizedErrorDetail;
     detail?: string;
 };
 
@@ -258,17 +399,28 @@ export const MF_ADMIN_PATHS = {
     authVerify: `${API_ROOT}/auth/verify/`,
     authMe: `${API_ROOT}/auth/me/`,
     authLogout: `${API_ROOT}/auth/logout/`,
-    av2Status: `${API_ROOT}/av2/status/`,
+
     aoiList: `${API_ROOT}/aoi/`,
     aoiBulk: `${API_ROOT}/aoi/bulk/`,
-    aoiDetail: (aoiId: number | string) => `${API_ROOT}/aoi/${encodeURIComponent(String(aoiId))}/`,
+    aoiDetail: (aoiId: number | string) =>
+        `${API_ROOT}/aoi/${encodeURIComponent(String(aoiId))}/`,
     aoiMarketList: (aoiId: number | string) =>
         `${API_ROOT}/aoi/${encodeURIComponent(String(aoiId))}/markets/`,
     aoiMarketDetail: (aoiId: number | string, ticker: string) =>
         `${API_ROOT}/aoi/${encodeURIComponent(String(aoiId))}/markets/${encodeURIComponent(ticker)}/`,
+
+    av2Status: `${API_ROOT}/av2/status/`,
+    av2Performance: `${API_ROOT}/av2/performance/`,
+    av2Controls: `${API_ROOT}/av2/controls/`,
+    av2GlobalEntryGate: `${API_ROOT}/av2/controls/global-entry-gate/`,
+    av2AgentControl: (agentId: string) =>
+        `${API_ROOT}/av2/controls/agents/${encodeURIComponent(agentId)}/`,
 };
 
-function buildUrlWithParams(url: string, params?: Record<string, string | number | undefined>): string {
+function buildUrlWithParams(
+    url: string,
+    params?: Record<string, string | number | undefined>
+): string {
     if (!params) return url;
 
     const sp = new URLSearchParams();
@@ -297,20 +449,42 @@ async function parseResponsePayload(res: Response): Promise<unknown> {
     }
 }
 
-function errorMessageFromPayload(payload: unknown, fallback: string): string {
+function errorMessageFromPayload(
+    payload: unknown,
+    fallback: string
+): string {
     if (typeof payload === "string" && payload.trim().length > 0) {
         return payload;
     }
 
     if (payload && typeof payload === "object") {
         const typed = payload as ErrorPayload;
-        return typed.error || typed.detail || fallback;
+
+        if (typeof typed.error === "string" && typed.error.trim().length > 0) {
+            return typed.error;
+        }
+
+        if (
+            typed.error &&
+            typeof typed.error === "object" &&
+            typeof typed.error.message === "string" &&
+            typed.error.message.trim().length > 0
+        ) {
+            return typed.error.message;
+        }
+
+        if (typeof typed.detail === "string" && typed.detail.trim().length > 0) {
+            return typed.detail;
+        }
     }
 
     return fallback;
 }
 
-async function requestJson<T = unknown>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+async function requestJson<T = unknown>(
+    input: RequestInfo | URL,
+    init?: RequestInit
+): Promise<T> {
     const hasBody = init?.body !== undefined && init.body !== null;
 
     const res = await fetch(input, {
@@ -343,7 +517,11 @@ export const adminWebApi = {
             body: JSON.stringify(payload),
         }),
 
-    authVerify: async (payload: { wallet_address: string; nonce: string; signature: string }) =>
+    authVerify: async (payload: {
+        wallet_address: string;
+        nonce: string;
+        signature: string;
+    }) =>
         requestJson<AdminAuthVerifyResponse>(MF_ADMIN_PATHS.authVerify, {
             method: "POST",
             body: JSON.stringify(payload),
@@ -358,11 +536,6 @@ export const adminWebApi = {
         requestJson<AdminAuthLogoutResponse>(MF_ADMIN_PATHS.authLogout, {
             method: "POST",
             body: JSON.stringify({}),
-        }),
-
-    av2Status: async () =>
-        requestJson<AdminAv2StatusResponse>(MF_ADMIN_PATHS.av2Status, {
-            method: "GET",
         }),
 
     listAoiPolicies: async (limit = 100) =>
@@ -386,33 +559,102 @@ export const adminWebApi = {
         }),
 
     readAoiPolicy: async (aoiId: number | string) =>
-        requestJson<AdminAoiDetailResponse>(MF_ADMIN_PATHS.aoiDetail(aoiId), {
-            method: "GET",
-        }),
+        requestJson<AdminAoiDetailResponse>(
+            MF_ADMIN_PATHS.aoiDetail(aoiId),
+            {
+                method: "GET",
+            }
+        ),
 
-    patchAoiPolicy: async (aoiId: number | string, payload: AdminAoiPolicyPatchPayload) =>
-        requestJson<AdminAoiDetailResponse>(MF_ADMIN_PATHS.aoiDetail(aoiId), {
-            method: "PATCH",
-            body: JSON.stringify(payload),
-        }),
+    patchAoiPolicy: async (
+        aoiId: number | string,
+        payload: AdminAoiPolicyPatchPayload
+    ) =>
+        requestJson<AdminAoiDetailResponse>(
+            MF_ADMIN_PATHS.aoiDetail(aoiId),
+            {
+                method: "PATCH",
+                body: JSON.stringify(payload),
+            }
+        ),
 
     listAoiMarketPolicies: async (aoiId: number | string) =>
-        requestJson<AdminAoiMarketListResponse>(MF_ADMIN_PATHS.aoiMarketList(aoiId), {
-            method: "GET",
-        }),
+        requestJson<AdminAoiMarketListResponse>(
+            MF_ADMIN_PATHS.aoiMarketList(aoiId),
+            {
+                method: "GET",
+            }
+        ),
 
-    readAoiMarketPolicy: async (aoiId: number | string, ticker: string) =>
-        requestJson<AdminAoiMarketDetailResponse>(MF_ADMIN_PATHS.aoiMarketDetail(aoiId, ticker), {
-            method: "GET",
-        }),
+    readAoiMarketPolicy: async (
+        aoiId: number | string,
+        ticker: string
+    ) =>
+        requestJson<AdminAoiMarketDetailResponse>(
+            MF_ADMIN_PATHS.aoiMarketDetail(aoiId, ticker),
+            {
+                method: "GET",
+            }
+        ),
 
     patchAoiMarketPolicy: async (
         aoiId: number | string,
         ticker: string,
         payload: AdminAoiMarketPolicyPatchPayload
     ) =>
-        requestJson<AdminAoiMarketDetailResponse>(MF_ADMIN_PATHS.aoiMarketDetail(aoiId, ticker), {
-            method: "PATCH",
-            body: JSON.stringify(payload),
+        requestJson<AdminAoiMarketDetailResponse>(
+            MF_ADMIN_PATHS.aoiMarketDetail(aoiId, ticker),
+            {
+                method: "PATCH",
+                body: JSON.stringify(payload),
+            }
+        ),
+
+    av2Status: async () =>
+        requestJson<AdminAv2StatusResponse>(MF_ADMIN_PATHS.av2Status, {
+            method: "GET",
         }),
+
+    av2Performance: async (params?: AdminAv2PerformanceParams) =>
+        requestJson<AdminAv2PerformanceResponse>(
+            buildUrlWithParams(MF_ADMIN_PATHS.av2Performance, {
+                start_ts_ms: params?.start_ts_ms,
+                end_ts_ms: params?.end_ts_ms,
+                agent_id: params?.agent_id,
+                ticker: params?.ticker,
+                strategy_family: params?.strategy_family,
+                account_reference: params?.account_reference,
+            }),
+            {
+                method: "GET",
+            }
+        ),
+
+    av2Controls: async () =>
+        requestJson<AdminAv2ControlsResponse>(MF_ADMIN_PATHS.av2Controls, {
+            method: "GET",
+        }),
+
+    patchAv2GlobalEntryGate: async (
+        state: AdminAv2GlobalEntryGateState
+    ) =>
+        requestJson<AdminAv2GlobalEntryGateResponse>(
+            MF_ADMIN_PATHS.av2GlobalEntryGate,
+            {
+                method: "PATCH",
+                body: JSON.stringify({state}),
+            }
+        ),
+
+    patchAv2AgentEnabled: async (
+        agentId: string,
+        enabled: boolean
+    ) =>
+        requestJson<AdminAv2AgentControlResponse>(
+            MF_ADMIN_PATHS.av2AgentControl(agentId),
+            {
+                method: "PATCH",
+                body: JSON.stringify({enabled}),
+            }
+        ),
 };
