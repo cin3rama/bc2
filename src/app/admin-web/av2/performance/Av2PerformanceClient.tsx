@@ -94,7 +94,16 @@ function utcDayStart(nowMs: number): number {
 
 function utcYearStart(nowMs: number): number {
     const d = new Date(nowMs);
-    return Date.UTC(d.getUTCFullYear(), 0, 1, 0, 0, 0, 0);
+
+    return Date.UTC(
+        d.getUTCFullYear(),
+        0,
+        1,
+        0,
+        0,
+        0,
+        0
+    );
 }
 
 function rangeParams(
@@ -146,6 +155,20 @@ function rangeParams(
         default:
             return {};
     }
+}
+
+function formatDecimal(
+    value: string | number | null | undefined
+): string {
+    if (value == null) return "—";
+
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return String(value);
+    }
+
+    return parsed.toFixed(2);
 }
 
 function decimalAsChartNumber(value: string): number {
@@ -438,10 +461,15 @@ export default function Av2PerformanceClient() {
                     title: {
                         text: "Net PnL",
                     },
+                    labels: {
+                        formatter: function () {
+                            return Number(this.value).toFixed(2);
+                        },
+                    },
                 },
                 tooltip: {
                     xDateFormat: "%Y-%m-%d %H:%M:%S",
-                    valueDecimals: 4,
+                    valueDecimals: 2,
                 },
                 series: [
                     {
@@ -484,10 +512,15 @@ export default function Av2PerformanceClient() {
                     title: {
                         text: "Net PnL",
                     },
+                    labels: {
+                        formatter: function () {
+                            return Number(this.value).toFixed(2);
+                        },
+                    },
                 },
                 tooltip: {
                     xDateFormat: "%Y-%m-%d %H:%M:%S",
-                    valueDecimals: 4,
+                    valueDecimals: 2,
                 },
                 series: [
                     {
@@ -728,12 +761,8 @@ export default function Av2PerformanceClient() {
                                         {filterOptions.accounts.map(
                                             (account) => (
                                                 <option
-                                                    key={
-                                                        account.value
-                                                    }
-                                                    value={
-                                                        account.value
-                                                    }
+                                                    key={account.value}
+                                                    value={account.value}
                                                 >
                                                     {account.label}
                                                 </option>
@@ -772,13 +801,22 @@ export default function Av2PerformanceClient() {
                             {[
                                 [
                                     "Net PnL",
-                                    data.summary.net_pnl,
+                                    formatDecimal(
+                                        data.summary.net_pnl
+                                    ),
                                 ],
                                 [
                                     "Gross PnL",
-                                    data.summary.gross_pnl,
+                                    formatDecimal(
+                                        data.summary.gross_pnl
+                                    ),
                                 ],
-                                ["Fees", data.summary.fees],
+                                [
+                                    "Fees",
+                                    formatDecimal(
+                                        data.summary.fees
+                                    ),
+                                ],
                                 [
                                     "Trades",
                                     String(
@@ -787,12 +825,16 @@ export default function Av2PerformanceClient() {
                                 ],
                                 [
                                     "Win Rate",
-                                    `${data.summary.win_rate}%`,
+                                    `${formatDecimal(
+                                        data.summary.win_rate
+                                    )}%`,
                                 ],
                                 [
                                     "Avg Net / Trade",
-                                    data.summary
-                                        .avg_net_pnl_per_trade,
+                                    formatDecimal(
+                                        data.summary
+                                            .avg_net_pnl_per_trade
+                                    ),
                                 ],
                             ].map(([label, value]) => (
                                 <Card key={label}>
@@ -870,6 +912,7 @@ export default function Av2PerformanceClient() {
                                         Current vs Prior Window
                                     </CardTitle>
                                 </CardHeader>
+
                                 <CardContent>
                                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                         <div>
@@ -877,10 +920,10 @@ export default function Av2PerformanceClient() {
                                                 Current Net PnL
                                             </div>
                                             <div className="font-semibold">
-                                                {
+                                                {formatDecimal(
                                                     data.summary
                                                         .net_pnl
-                                                }
+                                                )}
                                             </div>
                                         </div>
 
@@ -889,10 +932,10 @@ export default function Av2PerformanceClient() {
                                                 Prior Net PnL
                                             </div>
                                             <div className="font-semibold">
-                                                {
+                                                {formatDecimal(
                                                     data.comparison
                                                         .net_pnl
-                                                }
+                                                )}
                                             </div>
                                         </div>
 
@@ -913,10 +956,10 @@ export default function Av2PerformanceClient() {
                                                 Prior Win Rate
                                             </div>
                                             <div className="font-semibold">
-                                                {
+                                                {formatDecimal(
                                                     data.comparison
                                                         .win_rate
-                                                }
+                                                )}
                                                 %
                                             </div>
                                         </div>
@@ -926,10 +969,10 @@ export default function Av2PerformanceClient() {
                                                 Prior Avg Net / Trade
                                             </div>
                                             <div className="font-semibold">
-                                                {
+                                                {formatDecimal(
                                                     data.comparison
                                                         .avg_net_pnl_per_trade
-                                                }
+                                                )}
                                             </div>
                                         </div>
 
@@ -938,10 +981,10 @@ export default function Av2PerformanceClient() {
                                                 Prior Fees
                                             </div>
                                             <div className="font-semibold">
-                                                {
+                                                {formatDecimal(
                                                     data.comparison
                                                         .fees
-                                                }
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -954,6 +997,7 @@ export default function Av2PerformanceClient() {
                                         Additional Metrics
                                     </CardTitle>
                                 </CardHeader>
+
                                 <CardContent>
                                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                         <div>
@@ -961,8 +1005,10 @@ export default function Av2PerformanceClient() {
                                                 Drawdown
                                             </div>
                                             <div className="font-semibold">
-                                                {data.summary
-                                                    .drawdown ?? "—"}
+                                                {formatDecimal(
+                                                    data.summary
+                                                        .drawdown
+                                                )}
                                             </div>
                                         </div>
 
@@ -971,8 +1017,10 @@ export default function Av2PerformanceClient() {
                                                 Expectancy
                                             </div>
                                             <div className="font-semibold">
-                                                {data.summary
-                                                    .expectancy ?? "—"}
+                                                {formatDecimal(
+                                                    data.summary
+                                                        .expectancy
+                                                )}
                                             </div>
                                         </div>
 
@@ -981,8 +1029,10 @@ export default function Av2PerformanceClient() {
                                                 Average Win
                                             </div>
                                             <div className="font-semibold">
-                                                {data.summary
-                                                    .average_win ?? "—"}
+                                                {formatDecimal(
+                                                    data.summary
+                                                        .average_win
+                                                )}
                                             </div>
                                         </div>
 
@@ -991,8 +1041,10 @@ export default function Av2PerformanceClient() {
                                                 Average Loss
                                             </div>
                                             <div className="font-semibold">
-                                                {data.summary
-                                                    .average_loss ?? "—"}
+                                                {formatDecimal(
+                                                    data.summary
+                                                        .average_loss
+                                                )}
                                             </div>
                                         </div>
 
@@ -1001,8 +1053,10 @@ export default function Av2PerformanceClient() {
                                                 Payoff Ratio
                                             </div>
                                             <div className="font-semibold">
-                                                {data.summary
-                                                    .payoff_ratio ?? "—"}
+                                                {formatDecimal(
+                                                    data.summary
+                                                        .payoff_ratio
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -1016,6 +1070,7 @@ export default function Av2PerformanceClient() {
                                     Cumulative Net PnL
                                 </CardTitle>
                             </CardHeader>
+
                             <CardContent>
                                 <HighchartsReact
                                     highcharts={Highcharts}
@@ -1030,6 +1085,7 @@ export default function Av2PerformanceClient() {
                                     Realized Net PnL
                                 </CardTitle>
                             </CardHeader>
+
                             <CardContent>
                                 <HighchartsReact
                                     highcharts={Highcharts}
@@ -1152,61 +1208,73 @@ export default function Av2PerformanceClient() {
                                                             row.agent_id
                                                         }
                                                     </td>
+
                                                     <td className="px-2 py-2">
                                                         {row.market_ticker ||
                                                             row.ticker}
                                                     </td>
+
                                                     <td className="px-2 py-2">
                                                         {
                                                             row.strategy_family
                                                         }
                                                     </td>
+
                                                     <td className="px-2 py-2 text-right">
-                                                        {
+                                                        {formatDecimal(
                                                             row.net_pnl
-                                                        }
+                                                        )}
                                                     </td>
+
                                                     <td className="px-2 py-2 text-right">
-                                                        {
+                                                        {formatDecimal(
                                                             row.gross_pnl
-                                                        }
+                                                        )}
                                                     </td>
+
                                                     <td className="px-2 py-2 text-right">
-                                                        {
+                                                        {formatDecimal(
                                                             row.fees
-                                                        }
+                                                        )}
                                                     </td>
+
                                                     <td className="px-2 py-2 text-right">
                                                         {
                                                             row.trade_count
                                                         }
                                                     </td>
+
                                                     <td className="px-2 py-2 text-right">
-                                                        {
+                                                        {formatDecimal(
                                                             row.win_rate
-                                                        }
+                                                        )}
                                                         %
                                                     </td>
+
                                                     <td className="px-2 py-2 text-right">
-                                                        {
+                                                        {formatDecimal(
                                                             row.avg_net_pnl_per_trade
-                                                        }
+                                                        )}
                                                     </td>
+
                                                     <td className="px-2 py-2 text-right">
-                                                        {
+                                                        {formatDecimal(
                                                             row.change_vs_prior_period
-                                                        }
+                                                        )}
                                                     </td>
+
                                                     <td className="px-2 py-2 text-right">
                                                         {
                                                             row.suppression_count
                                                         }
                                                     </td>
+
                                                     <td className="px-2 py-2 text-right">
                                                         {
                                                             row.failure_count
                                                         }
                                                     </td>
+
                                                     <td className="px-2 py-2 whitespace-nowrap">
                                                         {displayUtcTs(
                                                             row.latest_trade_ts_ms
@@ -1219,9 +1287,7 @@ export default function Av2PerformanceClient() {
                                         {sortedRows.length === 0 ? (
                                             <tr>
                                                 <td
-                                                    colSpan={
-                                                        13
-                                                    }
+                                                    colSpan={13}
                                                     className="py-4 text-center text-gray-600 dark:text-gray-300"
                                                 >
                                                     No AV2 performance rows were returned for the selected filters.
