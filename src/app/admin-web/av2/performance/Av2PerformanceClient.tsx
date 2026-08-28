@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/Card";
 import AdminSessionGate from "@/components/admin-web/AdminSessionGate";
 import { useAdminSession } from "@/components/admin-web/AdminSessionProvider";
-import { useAv2PageActions } from "@/components/admin-web/av2/AV2PageActionsContext";
 import {
     adminWebApi,
     AdminAv2PerformanceParams,
@@ -381,10 +380,6 @@ export default function Av2PerformanceClient() {
         isReady,
     } = useAdminSession();
 
-    const {
-        setReloadAction,
-    } = useAv2PageActions();
-
     const [data, setData] =
         useState<AdminAv2PerformanceResponse | null>(
             null
@@ -715,22 +710,6 @@ export default function Av2PerformanceClient() {
     useEffect(() => {
         void loadPerformance();
     }, [loadPerformance]);
-
-    useEffect(() => {
-        setReloadAction({
-            onReload:
-            loadPerformance,
-            loading,
-        });
-
-        return () => {
-            setReloadAction(null);
-        };
-    }, [
-        loadPerformance,
-        loading,
-        setReloadAction,
-    ]);
 
     const sortedRows =
         useMemo(() => {
