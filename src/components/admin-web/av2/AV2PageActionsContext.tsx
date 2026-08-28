@@ -20,8 +20,19 @@ type Av2PageActionsContextValue = {
     >;
 };
 
+const NOOP_SET_RELOAD_ACTION: React.Dispatch<
+    React.SetStateAction<Av2ReloadAction>
+> = () => undefined;
+
+const DEFAULT_CONTEXT: Av2PageActionsContextValue = {
+    reloadAction: null,
+    setReloadAction: NOOP_SET_RELOAD_ACTION,
+};
+
 const Av2PageActionsContext =
-    createContext<Av2PageActionsContextValue | null>(null);
+    createContext<Av2PageActionsContextValue>(
+        DEFAULT_CONTEXT
+    );
 
 export function Av2PageActionsProvider({
                                            children,
@@ -46,14 +57,6 @@ export function Av2PageActionsProvider({
     );
 }
 
-export function useAv2PageActions() {
-    const context = useContext(Av2PageActionsContext);
-
-    if (!context) {
-        throw new Error(
-            "useAv2PageActions must be used within Av2PageActionsProvider"
-        );
-    }
-
-    return context;
+export function useAv2PageActions(): Av2PageActionsContextValue {
+    return useContext(Av2PageActionsContext);
 }
