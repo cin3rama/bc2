@@ -28,10 +28,10 @@ export default function Av2Layout({
     const pathname = usePathname();
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
             <nav
                 aria-label="AV2 navigation"
-                className="sticky top-0 z-40 rounded-2xl border border-gray-300 bg-white p-2 dark:border-gray-700 dark:bg-gray-900"
+                className="sticky top-0 z-40 rounded-2xl border border-gray-300 bg-white p-2 shadow-sm dark:border-gray-700 dark:bg-gray-900"
             >
                 <div className="flex flex-wrap gap-2">
                     {AV2_NAV_ITEMS.map((item) => {

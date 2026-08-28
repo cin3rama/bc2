@@ -13,8 +13,7 @@ import {
     CardTitle,
 } from "@/components/ui/Card";
 import AdminSessionGate from "@/components/admin-web/AdminSessionGate";
-import {useAdminSession} from "@/components/admin-web/AdminSessionProvider";
-import {useAv2PageActions} from "@/components/admin-web/av2/AV2PageActionsContext";
+import { useAdminSession } from "@/components/admin-web/AdminSessionProvider";
 import {
     adminWebApi,
     AdminAv2StatusResponse,
@@ -35,23 +34,11 @@ function displayTs(
     const date = new Date(value);
 
     const year = date.getUTCFullYear();
-    const month = String(
-        date.getUTCMonth() + 1
-    ).padStart(2, "0");
-    const day = String(date.getUTCDate()).padStart(
-        2,
-        "0"
-    );
-    const hour = String(date.getUTCHours()).padStart(
-        2,
-        "0"
-    );
-    const minute = String(
-        date.getUTCMinutes()
-    ).padStart(2, "0");
-    const second = String(
-        date.getUTCSeconds()
-    ).padStart(2, "0");
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    const hour = String(date.getUTCHours()).padStart(2, "0");
+    const minute = String(date.getUTCMinutes()).padStart(2, "0");
+    const second = String(date.getUTCSeconds()).padStart(2, "0");
 
     return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
 }
@@ -98,31 +85,30 @@ function CollapsibleHeader({
 }
 
 export default function Av2StatusClient() {
-    const {isAuthenticated, isReady} =
-        useAdminSession();
-
-    const {setReloadAction} =
-        useAv2PageActions();
+    const { isAuthenticated, isReady } = useAdminSession();
 
     const [status, setStatus] =
-        useState<AdminAv2StatusResponse | null>(
-            null
-        );
+        useState<AdminAv2StatusResponse | null>(null);
 
-    const [loading, setLoading] =
-        useState(false);
+    const [loading, setLoading] = useState(false);
 
     const [error, setError] =
         useState<string | null>(null);
 
-    const [activeTradesExpanded, setActiveTradesExpanded] =
-        useState(true);
+    const [
+        activeTradesExpanded,
+        setActiveTradesExpanded,
+    ] = useState(true);
 
-    const [agentsExpanded, setAgentsExpanded] =
-        useState(false);
+    const [
+        agentsExpanded,
+        setAgentsExpanded,
+    ] = useState(false);
 
-    const [eventsExpanded, setEventsExpanded] =
-        useState(false);
+    const [
+        eventsExpanded,
+        setEventsExpanded,
+    ] = useState(false);
 
     const loadStatus = useCallback(async () => {
         if (!isReady || !isAuthenticated) return;
@@ -149,21 +135,6 @@ export default function Av2StatusClient() {
         void loadStatus();
     }, [loadStatus]);
 
-    useEffect(() => {
-        setReloadAction({
-            onReload: loadStatus,
-            loading,
-        });
-
-        return () => {
-            setReloadAction(null);
-        };
-    }, [
-        loadStatus,
-        loading,
-        setReloadAction,
-    ]);
-
     return (
         <main className="flex flex-col gap-3">
             <AdminSessionGate>
@@ -187,8 +158,7 @@ export default function Av2StatusClient() {
 
                     <CardContent>
                         {error ? (
-                            <div
-                                className="mb-3 rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                            <div className="mb-3 rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
                                 {error}
                             </div>
                         ) : null}
@@ -204,11 +174,9 @@ export default function Av2StatusClient() {
                         {status ? (
                             <div
                                 className={`grid gap-2 ${
-                                    status.workers.length >=
-                                    4
+                                    status.workers.length >= 4
                                         ? "md:grid-cols-2 xl:grid-cols-4"
-                                        : status.workers
-                                            .length === 3
+                                        : status.workers.length === 3
                                             ? "md:grid-cols-3"
                                             : "md:grid-cols-2"
                                 }`}
@@ -216,16 +184,12 @@ export default function Av2StatusClient() {
                                 {status.workers.map(
                                     (worker) => (
                                         <div
-                                            key={
-                                                worker.worker_id
-                                            }
+                                            key={worker.worker_id}
                                             className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-950/40"
                                         >
                                             <div className="flex flex-wrap items-center justify-between gap-2">
                                                 <div className="font-mono text-[11px] font-semibold md:text-xs">
-                                                    {
-                                                        worker.worker_id
-                                                    }
+                                                    {worker.worker_id}
                                                 </div>
 
                                                 <span
@@ -239,8 +203,7 @@ export default function Av2StatusClient() {
                                                 </span>
                                             </div>
 
-                                            <div
-                                                className="mt-1 text-[10px] text-gray-600 dark:text-gray-300 md:text-[11px]">
+                                            <div className="mt-1 text-[10px] text-gray-600 dark:text-gray-300 md:text-[11px]">
                                                 Last Seen UTC:{" "}
                                                 {displayTs(
                                                     worker.last_seen_ts_ms
@@ -249,9 +212,7 @@ export default function Av2StatusClient() {
 
                                             {worker.detail ? (
                                                 <div className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
-                                                    {
-                                                        worker.detail
-                                                    }
+                                                    {worker.detail}
                                                 </div>
                                             ) : null}
                                         </div>
@@ -273,10 +234,7 @@ export default function Av2StatusClient() {
                                     }
                                     onToggle={() =>
                                         setActiveTradesExpanded(
-                                            (
-                                                current
-                                            ) =>
-                                                !current
+                                            (current) => !current
                                         )
                                     }
                                 />
@@ -317,25 +275,17 @@ export default function Av2StatusClient() {
 
                                             <tbody>
                                             {status.active_trades.map(
-                                                (
-                                                    trade
-                                                ) => (
+                                                (trade) => (
                                                     <tr
-                                                        key={
-                                                            trade.trade_id
-                                                        }
+                                                        key={trade.trade_id}
                                                         className="border-b border-gray-100 dark:border-gray-800"
                                                     >
                                                         <td className="max-w-[220px] truncate py-2 pr-4 font-mono text-[11px]">
-                                                            {
-                                                                trade.trade_id
-                                                            }
+                                                            {trade.trade_id}
                                                         </td>
 
                                                         <td className="px-2 py-2 font-mono">
-                                                            {
-                                                                trade.agent_id
-                                                            }
+                                                            {trade.agent_id}
                                                         </td>
 
                                                         <td className="px-2 py-2">
@@ -376,15 +326,10 @@ export default function Av2StatusClient() {
                                                 )
                                             )}
 
-                                            {status
-                                                .active_trades
-                                                .length ===
-                                            0 ? (
+                                            {status.active_trades.length === 0 ? (
                                                 <tr>
                                                     <td
-                                                        colSpan={
-                                                            8
-                                                        }
+                                                        colSpan={8}
                                                         className="py-3 text-center text-xs text-gray-600 dark:text-gray-300"
                                                     >
                                                         No active AV2 trades.
@@ -407,10 +352,7 @@ export default function Av2StatusClient() {
                                     }
                                     onToggle={() =>
                                         setAgentsExpanded(
-                                            (
-                                                current
-                                            ) =>
-                                                !current
+                                            (current) => !current
                                         )
                                     }
                                 />
@@ -438,31 +380,23 @@ export default function Av2StatusClient() {
                                                     Account
                                                 </th>
                                                 <th className="px-2 py-2 text-left">
-                                                    Latest
-                                                    Signal
+                                                    Latest Signal
                                                 </th>
                                                 <th className="py-2 pl-2 text-left">
-                                                    Evaluation
-                                                    UTC
+                                                    Evaluation UTC
                                                 </th>
                                             </tr>
                                             </thead>
 
                                             <tbody>
                                             {status.agents.map(
-                                                (
-                                                    agent
-                                                ) => (
+                                                (agent) => (
                                                     <tr
-                                                        key={
-                                                            agent.agent_id
-                                                        }
+                                                        key={agent.agent_id}
                                                         className="border-b border-gray-100 dark:border-gray-800"
                                                     >
                                                         <td className="py-2 pr-4 font-mono">
-                                                            {
-                                                                agent.agent_id
-                                                            }
+                                                            {agent.agent_id}
                                                         </td>
 
                                                         <td className="px-2 py-2">
@@ -494,7 +428,7 @@ export default function Av2StatusClient() {
                                                             )}
                                                         </td>
 
-                                                        <td className="py-2 pl-2 whitespace-nowrap">
+                                                        <td className="whitespace-nowrap py-2 pl-2">
                                                             {displayTs(
                                                                 agent.latest_evaluation_ts_ms
                                                             )}
@@ -518,10 +452,7 @@ export default function Av2StatusClient() {
                                     }
                                     onToggle={() =>
                                         setEventsExpanded(
-                                            (
-                                                current
-                                            ) =>
-                                                !current
+                                            (current) => !current
                                         )
                                     }
                                 />
@@ -552,23 +483,19 @@ export default function Av2StatusClient() {
                                                     Status
                                                 </th>
                                                 <th className="py-2 pl-2 text-left">
-                                                    Reason /
-                                                    Message
+                                                    Reason / Message
                                                 </th>
                                             </tr>
                                             </thead>
 
                                             <tbody>
                                             {status.recent_events.map(
-                                                (
-                                                    event,
-                                                    index
-                                                ) => (
+                                                (event, index) => (
                                                     <tr
                                                         key={`${event.event_ts_ms}-${event.event_type}-${index}`}
                                                         className="border-b border-gray-100 dark:border-gray-800"
                                                     >
-                                                        <td className="py-2 pr-4 whitespace-nowrap">
+                                                        <td className="whitespace-nowrap py-2 pr-4">
                                                             {displayTs(
                                                                 event.event_ts_ms
                                                             )}

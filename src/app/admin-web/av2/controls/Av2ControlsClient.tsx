@@ -195,15 +195,6 @@ export default function Av2ControlsClient() {
                                     agent configuration.
                                 </div>
                             </div>
-
-                            <button
-                                type="button"
-                                onClick={() => void loadControls()}
-                                disabled={loading}
-                                className="inline-flex items-center rounded-full border border-gray-300 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-gray-100 disabled:opacity-60 dark:border-gray-700 dark:hover:bg-gray-800"
-                            >
-                                {loading ? "Loading…" : "Reload"}
-                            </button>
                         </div>
                     </CardHeader>
 
