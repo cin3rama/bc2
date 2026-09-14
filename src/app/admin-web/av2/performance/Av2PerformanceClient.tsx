@@ -16,9 +16,10 @@ import {
     CardTitle,
 } from "@/components/ui/Card";
 import AdminSessionGate from "@/components/admin-web/AdminSessionGate";
-import { useAdminSession } from "@/components/admin-web/AdminSessionProvider";
+import {useAdminSession} from "@/components/admin-web/AdminSessionProvider";
 import {
     adminWebApi,
+    AdminAv2PerformanceAccountTotal,
     AdminAv2PerformanceParams,
     AdminAv2PerformanceResponse,
     AdminAv2PerformanceRow,
@@ -62,24 +63,14 @@ function displayUtcTs(
 ): string {
     if (value == null) return "—";
 
-    const d = new Date(value);
+    const date = new Date(value);
 
-    const year = d.getUTCFullYear();
-    const month = String(
-        d.getUTCMonth() + 1
-    ).padStart(2, "0");
-    const day = String(
-        d.getUTCDate()
-    ).padStart(2, "0");
-    const hour = String(
-        d.getUTCHours()
-    ).padStart(2, "0");
-    const minute = String(
-        d.getUTCMinutes()
-    ).padStart(2, "0");
-    const second = String(
-        d.getUTCSeconds()
-    ).padStart(2, "0");
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    const hour = String(date.getUTCHours()).padStart(2, "0");
+    const minute = String(date.getUTCMinutes()).padStart(2, "0");
+    const second = String(date.getUTCSeconds()).padStart(2, "0");
 
     return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
 }
@@ -105,14 +96,14 @@ function parseUtcInput(
 }
 
 function utcDayStart(
-    nowMs: number
+    nowTsMs: number
 ): number {
-    const d = new Date(nowMs);
+    const date = new Date(nowTsMs);
 
     return Date.UTC(
-        d.getUTCFullYear(),
-        d.getUTCMonth(),
-        d.getUTCDate(),
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
         0,
         0,
         0,
@@ -121,12 +112,12 @@ function utcDayStart(
 }
 
 function utcYearStart(
-    nowMs: number
+    nowTsMs: number
 ): number {
-    const d = new Date(nowMs);
+    const date = new Date(nowTsMs);
 
     return Date.UTC(
-        d.getUTCFullYear(),
+        date.getUTCFullYear(),
         0,
         1,
         0,
@@ -144,56 +135,44 @@ function rangeParams(
     AdminAv2PerformanceParams,
     "start_ts_ms" | "end_ts_ms"
 > {
-    const now = Date.now();
-    const dayMs =
-        24 * 60 * 60 * 1000;
+    const nowTsMs = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
 
     switch (range) {
         case "today":
             return {
-                start_ts_ms:
-                    utcDayStart(now),
-                end_ts_ms: now,
+                start_ts_ms: utcDayStart(nowTsMs),
+                end_ts_ms: nowTsMs,
             };
 
         case "7d":
             return {
-                start_ts_ms:
-                    now - 7 * dayMs,
-                end_ts_ms: now,
+                start_ts_ms: nowTsMs - 7 * dayMs,
+                end_ts_ms: nowTsMs,
             };
 
         case "30d":
             return {
-                start_ts_ms:
-                    now - 30 * dayMs,
-                end_ts_ms: now,
+                start_ts_ms: nowTsMs - 30 * dayMs,
+                end_ts_ms: nowTsMs,
             };
 
         case "90d":
             return {
-                start_ts_ms:
-                    now - 90 * dayMs,
-                end_ts_ms: now,
+                start_ts_ms: nowTsMs - 90 * dayMs,
+                end_ts_ms: nowTsMs,
             };
 
         case "ytd":
             return {
-                start_ts_ms:
-                    utcYearStart(now),
-                end_ts_ms: now,
+                start_ts_ms: utcYearStart(nowTsMs),
+                end_ts_ms: nowTsMs,
             };
 
         case "custom":
             return {
-                start_ts_ms:
-                    parseUtcInput(
-                        customStart
-                    ),
-                end_ts_ms:
-                    parseUtcInput(
-                        customEnd
-                    ),
+                start_ts_ms: parseUtcInput(customStart),
+                end_ts_ms: parseUtcInput(customEnd),
             };
 
         case "all":
@@ -209,7 +188,9 @@ function formatDecimal(
         | null
         | undefined
 ): string {
-    if (value == null) return "—";
+    if (value == null) {
+        return "—";
+    }
 
     const parsed = Number(value);
 
@@ -230,6 +211,57 @@ function decimalAsChartNumber(
         : 0;
 }
 
+function abbreviateAddress(
+    address: string | null | undefined
+): string {
+    if (!address) {
+        return "—";
+    }
+
+    if (address.length <= 18) {
+        return address;
+    }
+
+    return `${address.slice(0, 8)}…${address.slice(-4)}`;
+}
+
+function accountDisplay(
+    label: string | null | undefined,
+    address: string | null | undefined
+): React.ReactNode {
+    if (!address) {
+        return "—";
+    }
+
+    return (
+        <span
+            title={address}
+            className="whitespace-nowrap"
+        >
+            {label ? `${label} · ` : ""}
+            <span className="font-mono">
+                {abbreviateAddress(address)}
+            </span>
+        </span>
+    );
+}
+
+function accountText(
+    account: AdminAv2PerformanceAccountTotal
+): string {
+    if (account.account_label) {
+        return account.account_label;
+    }
+
+    if (account.account_address) {
+        return abbreviateAddress(
+            account.account_address
+        );
+    }
+
+    return "Account";
+}
+
 function compareRows(
     a: AdminAv2PerformanceRow,
     b: AdminAv2PerformanceRow,
@@ -243,69 +275,29 @@ function compareRows(
         case "avg_net_pnl_per_trade":
         case "change_vs_prior_period":
             return (
-                decimalAsChartNumber(
-                    a[key]
-                ) -
-                decimalAsChartNumber(
-                    b[key]
-                )
+                decimalAsChartNumber(a[key]) -
+                decimalAsChartNumber(b[key])
             );
 
         case "trade_count":
         case "suppression_count":
         case "failure_count":
-            return (
-                a[key] - b[key]
-            );
+            return a[key] - b[key];
 
         case "latest_trade_ts_ms":
             return (
-                (a.latest_trade_ts_ms ??
-                    -1) -
-                (b.latest_trade_ts_ms ??
-                    -1)
+                (a.latest_trade_ts_ms ?? -1) -
+                (b.latest_trade_ts_ms ?? -1)
             );
 
         case "agent_id":
         case "ticker":
         case "strategy_family":
         default:
-            return String(
-                a[key]
-            ).localeCompare(
+            return String(a[key]).localeCompare(
                 String(b[key])
             );
     }
-}
-
-function accountLabel(
-    accountType: string,
-    accountReference: string | null
-): string {
-    if (
-        accountType === "main"
-    ) {
-        return "Main";
-    }
-
-    if (!accountReference) {
-        return accountType.replaceAll(
-            "_",
-            " "
-        );
-    }
-
-    if (
-        accountReference.length <=
-        18
-    ) {
-        return accountReference;
-    }
-
-    return `${accountReference.slice(
-        0,
-        10
-    )}…${accountReference.slice(-6)}`;
 }
 
 function sortIndicator(
@@ -346,9 +338,7 @@ function CollapsibleHeader({
                 aria-hidden="true"
                 className="shrink-0 text-lg leading-none text-gray-500 dark:text-gray-400"
             >
-                {expanded
-                    ? "−"
-                    : "+"}
+                {expanded ? "−" : "+"}
             </span>
         </button>
     );
@@ -449,12 +439,8 @@ export default function Av2PerformanceClient() {
         accounts: [],
     });
 
-    const [
-        sortKey,
-        setSortKey,
-    ] = useState<SortKey>(
-        "net_pnl"
-    );
+    const [sortKey, setSortKey] =
+        useState<SortKey>("net_pnl");
 
     const [
         sortDirection,
@@ -463,17 +449,14 @@ export default function Av2PerformanceClient() {
         "desc"
     );
 
-    const [
-        loading,
-        setLoading,
-    ] = useState(false);
+    const [loading, setLoading] =
+        useState(false);
 
-    const [
-        error,
-        setError,
-    ] = useState<string | null>(
-        null
-    );
+    const [exporting, setExporting] =
+        useState(false);
+
+    const [error, setError] =
+        useState<string | null>(null);
 
     const [
         agentPerformanceExpanded,
@@ -495,15 +478,10 @@ export default function Av2PerformanceClient() {
         setRealizedExpanded,
     ] = useState(false);
 
-    const loadPerformance =
-        useCallback(async () => {
-            if (
-                !isReady ||
-                !isAuthenticated
-            ) {
-                return;
-            }
-
+    const buildCurrentParams =
+        useCallback(():
+            | AdminAv2PerformanceParams
+            | null => {
             const timeParams =
                 rangeParams(
                     range,
@@ -523,7 +501,7 @@ export default function Av2PerformanceClient() {
                 setError(
                     "Enter a valid custom UTC start and end time."
                 );
-                return;
+                return null;
             }
 
             if (
@@ -538,42 +516,63 @@ export default function Av2PerformanceClient() {
                 setError(
                     "Custom UTC start must be before custom UTC end."
                 );
+                return null;
+            }
+
+            return {
+                ...timeParams,
+
+                agent_id:
+                    agentFilter === ALL
+                        ? undefined
+                        : agentFilter,
+
+                ticker:
+                    tickerFilter === ALL
+                        ? undefined
+                        : tickerFilter,
+
+                strategy_family:
+                    familyFilter === ALL
+                        ? undefined
+                        : familyFilter,
+
+                account_reference:
+                    accountFilter === ALL
+                        ? undefined
+                        : accountFilter,
+            };
+        }, [
+            range,
+            customStart,
+            customEnd,
+            agentFilter,
+            tickerFilter,
+            familyFilter,
+            accountFilter,
+        ]);
+
+    const loadPerformance =
+        useCallback(async () => {
+            if (
+                !isReady ||
+                !isAuthenticated
+            ) {
+                return;
+            }
+
+            setError(null);
+
+            const params =
+                buildCurrentParams();
+
+            if (!params) {
                 return;
             }
 
             setLoading(true);
-            setError(null);
 
             try {
-                const params: AdminAv2PerformanceParams =
-                    {
-                        ...timeParams,
-
-                        agent_id:
-                            agentFilter ===
-                            ALL
-                                ? undefined
-                                : agentFilter,
-
-                        ticker:
-                            tickerFilter ===
-                            ALL
-                                ? undefined
-                                : tickerFilter,
-
-                        strategy_family:
-                            familyFilter ===
-                            ALL
-                                ? undefined
-                                : familyFilter,
-
-                        account_reference:
-                            accountFilter ===
-                            ALL
-                                ? undefined
-                                : accountFilter,
-                    };
-
                 const payload =
                     await adminWebApi.av2Performance(
                         params
@@ -588,9 +587,7 @@ export default function Av2PerformanceClient() {
                                 new Set([
                                     ...current.agents,
                                     ...payload.rows.map(
-                                        (
-                                            row
-                                        ) =>
+                                        (row) =>
                                             row.agent_id
                                     ),
                                 ])
@@ -602,9 +599,7 @@ export default function Av2PerformanceClient() {
                                     ...current.tickers,
                                     ...FUTURE_TICKER_OPTIONS,
                                     ...payload.rows.map(
-                                        (
-                                            row
-                                        ) =>
+                                        (row) =>
                                             row.market_ticker ||
                                             row.ticker
                                     ),
@@ -616,9 +611,7 @@ export default function Av2PerformanceClient() {
                                 new Set([
                                     ...current.families,
                                     ...payload.rows.map(
-                                        (
-                                            row
-                                        ) =>
+                                        (row) =>
                                             row.strategy_family
                                     ),
                                 ])
@@ -631,9 +624,7 @@ export default function Av2PerformanceClient() {
                             >();
 
                         current.accounts.forEach(
-                            (
-                                account
-                            ) => {
+                            (account) => {
                                 accountMap.set(
                                     account.value,
                                     account.label
@@ -648,8 +639,9 @@ export default function Av2PerformanceClient() {
                                 ) {
                                     accountMap.set(
                                         row.account_reference,
-                                        accountLabel(
-                                            row.account_type,
+                                        row.account_label ??
+                                        abbreviateAddress(
+                                            row.account_address ??
                                             row.account_reference
                                         )
                                     );
@@ -675,10 +667,7 @@ export default function Av2PerformanceClient() {
                                         })
                                     )
                                     .sort(
-                                        (
-                                            a,
-                                            b
-                                        ) =>
+                                        (a, b) =>
                                             a.label.localeCompare(
                                                 b.label
                                             )
@@ -698,13 +687,73 @@ export default function Av2PerformanceClient() {
         }, [
             isReady,
             isAuthenticated,
-            range,
-            customStart,
-            customEnd,
-            agentFilter,
-            tickerFilter,
-            familyFilter,
-            accountFilter,
+            buildCurrentParams,
+        ]);
+
+    const exportCsv =
+        useCallback(async () => {
+            if (
+                !isReady ||
+                !isAuthenticated
+            ) {
+                return;
+            }
+
+            setError(null);
+
+            const params =
+                buildCurrentParams();
+
+            if (!params) {
+                return;
+            }
+
+            setExporting(true);
+
+            try {
+                const download =
+                    await adminWebApi.av2PerformanceCsv(
+                        params
+                    );
+
+                const objectUrl =
+                    URL.createObjectURL(
+                        download.blob
+                    );
+
+                const anchor =
+                    document.createElement("a");
+
+                anchor.href = objectUrl;
+                anchor.download =
+                    download.filename ??
+                    "av2_performance.csv";
+
+                document.body.appendChild(
+                    anchor
+                );
+
+                anchor.click();
+                anchor.remove();
+
+                window.setTimeout(() => {
+                    URL.revokeObjectURL(
+                        objectUrl
+                    );
+                }, 0);
+            } catch (err) {
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : "failed_to_export_av2_performance"
+                );
+            } finally {
+                setExporting(false);
+            }
+        }, [
+            isReady,
+            isAuthenticated,
+            buildCurrentParams,
         ]);
 
     useEffect(() => {
@@ -720,17 +769,16 @@ export default function Av2PerformanceClient() {
             return [
                 ...data.rows,
             ].sort((a, b) => {
-                const cmp =
+                const comparison =
                     compareRows(
                         a,
                         b,
                         sortKey
                     );
 
-                return sortDirection ===
-                "asc"
-                    ? cmp
-                    : -cmp;
+                return sortDirection === "asc"
+                    ? comparison
+                    : -comparison;
             });
         }, [
             data,
@@ -741,6 +789,10 @@ export default function Av2PerformanceClient() {
     const cumulativeOptions =
         useMemo<Highcharts.Options>(
             () => ({
+                time: {
+                    timezone: "UTC",
+                },
+
                 chart: {
                     backgroundColor:
                         "transparent",
@@ -755,7 +807,7 @@ export default function Av2PerformanceClient() {
                 },
 
                 legend: {
-                    enabled: false,
+                    enabled: true,
                 },
 
                 xAxis: {
@@ -771,11 +823,8 @@ export default function Av2PerformanceClient() {
                         formatter:
                             function () {
                                 return Number(
-                                    this
-                                        .value
-                                ).toFixed(
-                                    2
-                                );
+                                    this.value
+                                ).toFixed(2);
                             },
                     },
                 },
@@ -786,24 +835,23 @@ export default function Av2PerformanceClient() {
                     valueDecimals: 2,
                 },
 
-                series: [
-                    {
-                        type: "line",
-                        name: "Cumulative Net PnL",
-
-                        data:
-                            data?.cumulative_pnl_series.map(
-                                (
-                                    point
-                                ) => [
-                                    point.ts_ms,
-                                    decimalAsChartNumber(
-                                        point.net_pnl
-                                    ),
-                                ]
-                            ) ?? [],
-                    },
-                ],
+                series:
+                    data?.chart_series.map(
+                        (series) => ({
+                            type: "line" as const,
+                            name:
+                            series.label,
+                            data:
+                                series.points.map(
+                                    (point) => [
+                                        point.ts_ms,
+                                        decimalAsChartNumber(
+                                            point.net_pnl
+                                        ),
+                                    ]
+                                ),
+                        })
+                    ) ?? [],
             }),
             [data]
         );
@@ -811,6 +859,10 @@ export default function Av2PerformanceClient() {
     const pnlOptions =
         useMemo<Highcharts.Options>(
             () => ({
+                time: {
+                    timezone: "UTC",
+                },
+
                 chart: {
                     backgroundColor:
                         "transparent",
@@ -825,7 +877,7 @@ export default function Av2PerformanceClient() {
                 },
 
                 legend: {
-                    enabled: false,
+                    enabled: true,
                 },
 
                 xAxis: {
@@ -841,11 +893,8 @@ export default function Av2PerformanceClient() {
                         formatter:
                             function () {
                                 return Number(
-                                    this
-                                        .value
-                                ).toFixed(
-                                    2
-                                );
+                                    this.value
+                                ).toFixed(2);
                             },
                     },
                 },
@@ -856,24 +905,23 @@ export default function Av2PerformanceClient() {
                     valueDecimals: 2,
                 },
 
-                series: [
-                    {
-                        type: "column",
-                        name: "Realized Net PnL",
-
-                        data:
-                            data?.pnl_series.map(
-                                (
-                                    point
-                                ) => [
-                                    point.ts_ms,
-                                    decimalAsChartNumber(
-                                        point.net_pnl
-                                    ),
-                                ]
-                            ) ?? [],
-                    },
-                ],
+                series:
+                    data?.chart_series.map(
+                        (series) => ({
+                            type: "column" as const,
+                            name:
+                            series.label,
+                            data:
+                                series.pnl_points.map(
+                                    (point) => [
+                                        point.ts_ms,
+                                        decimalAsChartNumber(
+                                            point.net_pnl
+                                        ),
+                                    ]
+                                ),
+                        })
+                    ) ?? [],
             }),
             [data]
         );
@@ -895,9 +943,7 @@ export default function Av2PerformanceClient() {
         }
 
         setSortKey(nextKey);
-        setSortDirection(
-            "desc"
-        );
+        setSortDirection("desc");
     }
 
     return (
@@ -906,47 +952,44 @@ export default function Av2PerformanceClient() {
                 <Card>
                     <CardHeader className="pb-2">
                         <div className="flex w-full flex-col gap-2">
-                            <div>
-                                <CardTitle>
-                                    AV2 Performance Reporting
-                                </CardTitle>
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                    <CardTitle>
+                                        AV2 Performance Reporting
+                                    </CardTitle>
 
-                                <div className="mt-0.5 text-[11px] text-gray-600 dark:text-gray-300">
-                                    Backend-authoritative realized AV2 trade performance.
+                                    <div className="mt-0.5 text-[11px] text-gray-600 dark:text-gray-300">
+                                        Backend-authoritative realized AV2 trade performance.
+                                    </div>
                                 </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        void exportCsv()
+                                    }
+                                    disabled={
+                                        exporting ||
+                                        loading
+                                    }
+                                    className="shrink-0 rounded-full border border-gray-300 bg-white px-3 py-1.5 text-[11px] font-medium text-gray-800 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                >
+                                    {exporting
+                                        ? "Exporting…"
+                                        : "Export CSV"}
+                                </button>
                             </div>
 
                             <div className="flex flex-wrap gap-1.5">
                                 {(
                                     [
-                                        [
-                                            "today",
-                                            "Today",
-                                        ],
-                                        [
-                                            "7d",
-                                            "7D",
-                                        ],
-                                        [
-                                            "30d",
-                                            "30D",
-                                        ],
-                                        [
-                                            "90d",
-                                            "90D",
-                                        ],
-                                        [
-                                            "ytd",
-                                            "YTD",
-                                        ],
-                                        [
-                                            "all",
-                                            "All Time",
-                                        ],
-                                        [
-                                            "custom",
-                                            "Custom",
-                                        ],
+                                        ["today", "Today"],
+                                        ["7d", "7D"],
+                                        ["30d", "30D"],
+                                        ["90d", "90D"],
+                                        ["ytd", "YTD"],
+                                        ["all", "All Time"],
+                                        ["custom", "Custom"],
                                     ] as Array<
                                         [
                                             RangeKey,
@@ -975,9 +1018,7 @@ export default function Av2PerformanceClient() {
                                                     : "border-gray-300 bg-white text-gray-800 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                                             }`}
                                         >
-                                            {
-                                                label
-                                            }
+                                            {label}
                                         </button>
                                     )
                                 )}
@@ -1068,9 +1109,7 @@ export default function Av2PerformanceClient() {
                                         </option>
 
                                         {filterOptions.agents.map(
-                                            (
-                                                value
-                                            ) => (
+                                            (value) => (
                                                 <option
                                                     key={
                                                         value
@@ -1079,9 +1118,7 @@ export default function Av2PerformanceClient() {
                                                         value
                                                     }
                                                 >
-                                                    {
-                                                        value
-                                                    }
+                                                    {value}
                                                 </option>
                                             )
                                         )}
@@ -1117,9 +1154,7 @@ export default function Av2PerformanceClient() {
                                         </option>
 
                                         {filterOptions.tickers.map(
-                                            (
-                                                value
-                                            ) => (
+                                            (value) => (
                                                 <option
                                                     key={
                                                         value
@@ -1128,9 +1163,7 @@ export default function Av2PerformanceClient() {
                                                         value
                                                     }
                                                 >
-                                                    {
-                                                        value
-                                                    }
+                                                    {value}
                                                 </option>
                                             )
                                         )}
@@ -1166,9 +1199,7 @@ export default function Av2PerformanceClient() {
                                         </option>
 
                                         {filterOptions.families.map(
-                                            (
-                                                value
-                                            ) => (
+                                            (value) => (
                                                 <option
                                                     key={
                                                         value
@@ -1177,9 +1208,7 @@ export default function Av2PerformanceClient() {
                                                         value
                                                     }
                                                 >
-                                                    {
-                                                        value
-                                                    }
+                                                    {value}
                                                 </option>
                                             )
                                         )}
@@ -1188,7 +1217,7 @@ export default function Av2PerformanceClient() {
 
                                 <label className="text-xs">
                                     <span className="mb-1 block font-medium">
-                                        Subaccount
+                                        Account
                                     </span>
 
                                     <select
@@ -1226,9 +1255,7 @@ export default function Av2PerformanceClient() {
                                                         account.value
                                                     }
                                                 >
-                                                    {
-                                                        account.label
-                                                    }
+                                                    {account.label}
                                                 </option>
                                             )
                                         )}
@@ -1238,9 +1265,7 @@ export default function Av2PerformanceClient() {
 
                             {error ? (
                                 <div className="rounded border border-red-300 bg-red-50 px-3 py-1.5 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-                                    {
-                                        error
-                                    }
+                                    {error}
                                 </div>
                             ) : null}
 
@@ -1271,9 +1296,7 @@ export default function Av2PerformanceClient() {
                                     }
                                     onToggle={() =>
                                         setAgentPerformanceExpanded(
-                                            (
-                                                current
-                                            ) =>
+                                            (current) =>
                                                 !current
                                         )
                                     }
@@ -1298,6 +1321,10 @@ export default function Av2PerformanceClient() {
                                                     [
                                                         "strategy_family",
                                                         "Family",
+                                                    ],
+                                                    [
+                                                        "account",
+                                                        "Account",
                                                     ],
                                                     [
                                                         "net_pnl",
@@ -1350,29 +1377,32 @@ export default function Av2PerformanceClient() {
                                                             }
                                                             className="px-2 py-2 text-left font-semibold"
                                                         >
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    handleSort(
-                                                                        key as SortKey
-                                                                    )
-                                                                }
-                                                                className="inline-flex items-center gap-1 hover:underline"
-                                                            >
+                                                            {key ===
+                                                            "account" ? (
+                                                                label
+                                                            ) : (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        handleSort(
+                                                                            key as SortKey
+                                                                        )
+                                                                    }
+                                                                    className="inline-flex items-center gap-1 hover:underline"
+                                                                >
                                                                     <span>
-                                                                        {
-                                                                            label
-                                                                        }
+                                                                        {label}
                                                                     </span>
 
-                                                                <span>
+                                                                    <span>
                                                                         {sortIndicator(
                                                                             sortKey,
                                                                             key as SortKey,
                                                                             sortDirection
                                                                         )}
                                                                     </span>
-                                                            </button>
+                                                                </button>
+                                                            )}
                                                         </th>
                                                     )
                                                 )}
@@ -1381,17 +1411,13 @@ export default function Av2PerformanceClient() {
 
                                             <tbody>
                                             {sortedRows.map(
-                                                (
-                                                    row
-                                                ) => (
+                                                (row) => (
                                                     <tr
-                                                        key={`${row.agent_id}-${row.account_reference ?? "main"}`}
+                                                        key={`${row.agent_id}-${row.strategy_family}-${row.market_ticker}-${row.account_address ?? row.account_reference ?? "main"}`}
                                                         className="border-b border-gray-100 dark:border-gray-800"
                                                     >
                                                         <td className="px-2 py-2 font-mono">
-                                                            {
-                                                                row.agent_id
-                                                            }
+                                                            {row.agent_id}
                                                         </td>
 
                                                         <td className="px-2 py-2">
@@ -1400,9 +1426,14 @@ export default function Av2PerformanceClient() {
                                                         </td>
 
                                                         <td className="px-2 py-2">
-                                                            {
-                                                                row.strategy_family
-                                                            }
+                                                            {row.strategy_family}
+                                                        </td>
+
+                                                        <td className="px-2 py-2">
+                                                            {accountDisplay(
+                                                                row.account_label,
+                                                                row.account_address
+                                                            )}
                                                         </td>
 
                                                         <td className="px-2 py-2 text-right">
@@ -1424,9 +1455,7 @@ export default function Av2PerformanceClient() {
                                                         </td>
 
                                                         <td className="px-2 py-2 text-right">
-                                                            {
-                                                                row.trade_count
-                                                            }
+                                                            {row.trade_count}
                                                         </td>
 
                                                         <td className="px-2 py-2 text-right">
@@ -1449,15 +1478,11 @@ export default function Av2PerformanceClient() {
                                                         </td>
 
                                                         <td className="px-2 py-2 text-right">
-                                                            {
-                                                                row.suppression_count
-                                                            }
+                                                            {row.suppression_count}
                                                         </td>
 
                                                         <td className="px-2 py-2 text-right">
-                                                            {
-                                                                row.failure_count
-                                                            }
+                                                            {row.failure_count}
                                                         </td>
 
                                                         <td className="whitespace-nowrap px-2 py-2">
@@ -1473,9 +1498,7 @@ export default function Av2PerformanceClient() {
                                             0 ? (
                                                 <tr>
                                                     <td
-                                                        colSpan={
-                                                            13
-                                                        }
+                                                        colSpan={14}
                                                         className="py-3 text-center text-xs text-gray-600 dark:text-gray-300"
                                                     >
                                                         No AV2 performance rows were returned for the selected filters.
@@ -1498,9 +1521,7 @@ export default function Av2PerformanceClient() {
                                     }
                                     onToggle={() =>
                                         setTotalsExpanded(
-                                            (
-                                                current
-                                            ) =>
+                                            (current) =>
                                                 !current
                                         )
                                     }
@@ -1508,58 +1529,219 @@ export default function Av2PerformanceClient() {
                             </CardHeader>
 
                             {totalsExpanded ? (
-                                <CardContent className="space-y-3 pt-0">
-                                    <div className="grid gap-x-4 gap-y-2 border-b border-gray-200 pb-3 sm:grid-cols-3 xl:grid-cols-6 dark:border-gray-800">
-                                        <CompactMetric
-                                            label="Net PnL"
-                                            value={formatDecimal(
-                                                data.summary
-                                                    .net_pnl
-                                            )}
-                                        />
+                                <CardContent className="space-y-4 pt-0">
+                                    <div>
+                                        <div className="mb-2 text-sm font-semibold">
+                                            Grand Total
+                                        </div>
 
-                                        <CompactMetric
-                                            label="Gross PnL"
-                                            value={formatDecimal(
-                                                data.summary
-                                                    .gross_pnl
-                                            )}
-                                        />
+                                        <div className="grid gap-x-4 gap-y-2 border-b border-gray-200 pb-3 sm:grid-cols-3 xl:grid-cols-6 dark:border-gray-800">
+                                            <CompactMetric
+                                                label="Net PnL"
+                                                value={formatDecimal(
+                                                    data.grand_total
+                                                        .net_pnl
+                                                )}
+                                            />
 
-                                        <CompactMetric
-                                            label="Fees"
-                                            value={formatDecimal(
-                                                data.summary
-                                                    .fees
-                                            )}
-                                        />
+                                            <CompactMetric
+                                                label="Gross PnL"
+                                                value={formatDecimal(
+                                                    data.grand_total
+                                                        .gross_pnl
+                                                )}
+                                            />
 
-                                        <CompactMetric
-                                            label="Trades"
-                                            value={
-                                                data.summary
-                                                    .trade_count
-                                            }
-                                        />
+                                            <CompactMetric
+                                                label="Fees"
+                                                value={formatDecimal(
+                                                    data.grand_total
+                                                        .fees
+                                                )}
+                                            />
 
-                                        <CompactMetric
-                                            label="Win Rate"
-                                            value={`${formatDecimal(
-                                                data.summary
-                                                    .win_rate
-                                            )}%`}
-                                        />
+                                            <CompactMetric
+                                                label="Trades"
+                                                value={
+                                                    data.grand_total
+                                                        .trade_count
+                                                }
+                                            />
 
-                                        <CompactMetric
-                                            label="Avg Net / Trade"
-                                            value={formatDecimal(
-                                                data.summary
-                                                    .avg_net_pnl_per_trade
-                                            )}
-                                        />
+                                            <CompactMetric
+                                                label="Win Rate"
+                                                value={`${formatDecimal(
+                                                    data.grand_total
+                                                        .win_rate
+                                                )}%`}
+                                            />
+
+                                            <CompactMetric
+                                                label="Avg Net / Trade"
+                                                value={formatDecimal(
+                                                    data.grand_total
+                                                        .avg_net_pnl_per_trade
+                                                )}
+                                            />
+                                        </div>
+
+                                        <div className="grid gap-x-4 gap-y-2 border-b border-gray-200 py-3 sm:grid-cols-2 lg:grid-cols-5 dark:border-gray-800">
+                                            <CompactMetric
+                                                label="Drawdown"
+                                                value={formatDecimal(
+                                                    data.grand_total
+                                                        .drawdown
+                                                )}
+                                            />
+
+                                            <CompactMetric
+                                                label="Expectancy"
+                                                value={formatDecimal(
+                                                    data.grand_total
+                                                        .expectancy
+                                                )}
+                                            />
+
+                                            <CompactMetric
+                                                label="Average Win"
+                                                value={formatDecimal(
+                                                    data.grand_total
+                                                        .average_win
+                                                )}
+                                            />
+
+                                            <CompactMetric
+                                                label="Average Loss"
+                                                value={formatDecimal(
+                                                    data.grand_total
+                                                        .average_loss
+                                                )}
+                                            />
+
+                                            <CompactMetric
+                                                label="Payoff Ratio"
+                                                value={formatDecimal(
+                                                    data.grand_total
+                                                        .payoff_ratio
+                                                )}
+                                            />
+                                        </div>
                                     </div>
 
-                                    <div className="grid gap-x-4 gap-y-2 border-b border-gray-200 pb-3 sm:grid-cols-2 lg:grid-cols-4 dark:border-gray-800">
+                                    <div>
+                                        <div className="mb-2 text-sm font-semibold">
+                                            By Account
+                                        </div>
+
+                                        <div className="grid gap-3 xl:grid-cols-2">
+                                            {data.totals_by_account.map(
+                                                (account) => (
+                                                    <div
+                                                        key={`${account.account_type}-${account.account_address ?? account.account_reference ?? "main"}`}
+                                                        className="rounded-xl border border-gray-200 p-3 dark:border-gray-800"
+                                                    >
+                                                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                                            <div className="text-xs font-semibold">
+                                                                {accountText(
+                                                                    account
+                                                                )}
+                                                            </div>
+
+                                                            <div className="text-[10px] text-gray-600 dark:text-gray-300">
+                                                                {accountDisplay(
+                                                                    account.account_label,
+                                                                    account.account_address
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
+                                                            <CompactMetric
+                                                                label="Net PnL"
+                                                                value={formatDecimal(
+                                                                    account.metrics
+                                                                        .net_pnl
+                                                                )}
+                                                            />
+
+                                                            <CompactMetric
+                                                                label="Gross PnL"
+                                                                value={formatDecimal(
+                                                                    account.metrics
+                                                                        .gross_pnl
+                                                                )}
+                                                            />
+
+                                                            <CompactMetric
+                                                                label="Fees"
+                                                                value={formatDecimal(
+                                                                    account.metrics
+                                                                        .fees
+                                                                )}
+                                                            />
+
+                                                            <CompactMetric
+                                                                label="Trades"
+                                                                value={
+                                                                    account.metrics
+                                                                        .trade_count
+                                                                }
+                                                            />
+
+                                                            <CompactMetric
+                                                                label="Win Rate"
+                                                                value={`${formatDecimal(
+                                                                    account.metrics
+                                                                        .win_rate
+                                                                )}%`}
+                                                            />
+
+                                                            <CompactMetric
+                                                                label="Avg Net / Trade"
+                                                                value={formatDecimal(
+                                                                    account.metrics
+                                                                        .avg_net_pnl_per_trade
+                                                                )}
+                                                            />
+
+                                                            <CompactMetric
+                                                                label="Drawdown"
+                                                                value={formatDecimal(
+                                                                    account.metrics
+                                                                        .drawdown
+                                                                )}
+                                                            />
+
+                                                            <CompactMetric
+                                                                label="Expectancy"
+                                                                value={formatDecimal(
+                                                                    account.metrics
+                                                                        .expectancy
+                                                                )}
+                                                            />
+
+                                                            <CompactMetric
+                                                                label="Payoff Ratio"
+                                                                value={formatDecimal(
+                                                                    account.metrics
+                                                                        .payoff_ratio
+                                                                )}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )
+                                            )}
+
+                                            {data.totals_by_account.length ===
+                                            0 ? (
+                                                <div className="text-xs text-gray-600 dark:text-gray-300">
+                                                    No account totals were returned for the selected filters.
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid gap-x-4 gap-y-2 border-t border-gray-200 pt-3 sm:grid-cols-2 lg:grid-cols-4 dark:border-gray-800">
                                         <CompactMetric
                                             label="Qualified Signals"
                                             value={
@@ -1593,109 +1775,59 @@ export default function Av2PerformanceClient() {
                                         />
                                     </div>
 
-                                    <div className="grid gap-3 xl:grid-cols-2">
-                                        <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-800">
-                                            <div className="mb-2 text-sm font-semibold">
-                                                Current vs Prior Window
-                                            </div>
-
-                                            <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-                                                <CompactMetric
-                                                    label="Current Net PnL"
-                                                    value={formatDecimal(
-                                                        data.summary
-                                                            .net_pnl
-                                                    )}
-                                                />
-
-                                                <CompactMetric
-                                                    label="Prior Net PnL"
-                                                    value={formatDecimal(
-                                                        data.comparison
-                                                            .net_pnl
-                                                    )}
-                                                />
-
-                                                <CompactMetric
-                                                    label="Prior Trades"
-                                                    value={
-                                                        data.comparison
-                                                            .trade_count
-                                                    }
-                                                />
-
-                                                <CompactMetric
-                                                    label="Prior Win Rate"
-                                                    value={`${formatDecimal(
-                                                        data.comparison
-                                                            .win_rate
-                                                    )}%`}
-                                                />
-
-                                                <CompactMetric
-                                                    label="Prior Avg Net / Trade"
-                                                    value={formatDecimal(
-                                                        data.comparison
-                                                            .avg_net_pnl_per_trade
-                                                    )}
-                                                />
-
-                                                <CompactMetric
-                                                    label="Prior Fees"
-                                                    value={formatDecimal(
-                                                        data.comparison
-                                                            .fees
-                                                    )}
-                                                />
-                                            </div>
+                                    <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-800">
+                                        <div className="mb-2 text-sm font-semibold">
+                                            Current vs Prior Window
                                         </div>
 
-                                        <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-800">
-                                            <div className="mb-2 text-sm font-semibold">
-                                                Additional Metrics
-                                            </div>
+                                        <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-6">
+                                            <CompactMetric
+                                                label="Current Net PnL"
+                                                value={formatDecimal(
+                                                    data.grand_total
+                                                        .net_pnl
+                                                )}
+                                            />
 
-                                            <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-                                                <CompactMetric
-                                                    label="Drawdown"
-                                                    value={formatDecimal(
-                                                        data.summary
-                                                            .drawdown
-                                                    )}
-                                                />
+                                            <CompactMetric
+                                                label="Prior Net PnL"
+                                                value={formatDecimal(
+                                                    data.comparison
+                                                        .net_pnl
+                                                )}
+                                            />
 
-                                                <CompactMetric
-                                                    label="Expectancy"
-                                                    value={formatDecimal(
-                                                        data.summary
-                                                            .expectancy
-                                                    )}
-                                                />
+                                            <CompactMetric
+                                                label="Prior Trades"
+                                                value={
+                                                    data.comparison
+                                                        .trade_count
+                                                }
+                                            />
 
-                                                <CompactMetric
-                                                    label="Average Win"
-                                                    value={formatDecimal(
-                                                        data.summary
-                                                            .average_win
-                                                    )}
-                                                />
+                                            <CompactMetric
+                                                label="Prior Win Rate"
+                                                value={`${formatDecimal(
+                                                    data.comparison
+                                                        .win_rate
+                                                )}%`}
+                                            />
 
-                                                <CompactMetric
-                                                    label="Average Loss"
-                                                    value={formatDecimal(
-                                                        data.summary
-                                                            .average_loss
-                                                    )}
-                                                />
+                                            <CompactMetric
+                                                label="Prior Avg Net / Trade"
+                                                value={formatDecimal(
+                                                    data.comparison
+                                                        .avg_net_pnl_per_trade
+                                                )}
+                                            />
 
-                                                <CompactMetric
-                                                    label="Payoff Ratio"
-                                                    value={formatDecimal(
-                                                        data.summary
-                                                            .payoff_ratio
-                                                    )}
-                                                />
-                                            </div>
+                                            <CompactMetric
+                                                label="Prior Fees"
+                                                value={formatDecimal(
+                                                    data.comparison
+                                                        .fees
+                                                )}
+                                            />
                                         </div>
                                     </div>
                                 </CardContent>
@@ -1711,9 +1843,7 @@ export default function Av2PerformanceClient() {
                                     }
                                     onToggle={() =>
                                         setCumulativeExpanded(
-                                            (
-                                                current
-                                            ) =>
+                                            (current) =>
                                                 !current
                                         )
                                     }
@@ -1743,9 +1873,7 @@ export default function Av2PerformanceClient() {
                                     }
                                     onToggle={() =>
                                         setRealizedExpanded(
-                                            (
-                                                current
-                                            ) =>
+                                            (current) =>
                                                 !current
                                         )
                                     }

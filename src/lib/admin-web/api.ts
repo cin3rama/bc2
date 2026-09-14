@@ -166,6 +166,12 @@ export type AdminAoiMarketDetailResponse = {
  * AV2 STATUS / MONITORING
  * ============================================================ */
 
+export type AdminAv2Direction =
+    | "long"
+    | "short"
+    | "both"
+    | null;
+
 export type AdminAv2WorkerStatus = {
     worker_id: string;
     status: string;
@@ -181,8 +187,11 @@ export type AdminAv2AgentStatus = {
     strategy_family: string;
     strategy_version: string | null;
     enabled: boolean;
+    direction: AdminAv2Direction;
     account_type: string;
     account_reference: string | null;
+    account_address: string | null;
+    account_label: string | null;
     latest_evaluation_ts_ms: number | null;
     latest_signal_status: string | null;
 };
@@ -194,8 +203,11 @@ export type AdminAv2ActiveTrade = {
     market_ticker: string | null;
     strategy_family?: string | null;
     exchange: string;
+    side: string | null;
     account_type: string;
     account_reference: string | null;
+    account_address: string | null;
+    account_label: string | null;
     lifecycle_state: string;
     entry_state: string | null;
     protection_state: string | null;
@@ -272,6 +284,25 @@ export type AdminAv2PerformanceSeriesPoint = {
     net_pnl: string;
 };
 
+export type AdminAv2PerformanceAccountTotal = {
+    account_type: string;
+    account_reference: string | null;
+    account_address: string | null;
+    account_label: string | null;
+    metrics: AdminAv2PerformanceSummary;
+};
+
+export type AdminAv2PerformanceChartSeries = {
+    series_id: string;
+    label: string;
+    account_type: string | null;
+    account_reference: string | null;
+    account_address: string | null;
+    account_label?: string | null;
+    points: AdminAv2PerformanceSeriesPoint[];
+    pnl_points: AdminAv2PerformanceSeriesPoint[];
+};
+
 export type AdminAv2PerformanceRow = {
     agent_id: string;
     ticker: string;
@@ -280,6 +311,8 @@ export type AdminAv2PerformanceRow = {
     enabled: boolean;
     account_type: string;
     account_reference: string | null;
+    account_address: string | null;
+    account_label: string | null;
     gross_pnl: string;
     net_pnl: string;
     fees: string;
@@ -303,10 +336,13 @@ export type AdminAv2PerformanceResponse = {
     start_ts_ms: number;
     end_ts_ms: number;
     summary: AdminAv2PerformanceSummary;
+    grand_total: AdminAv2PerformanceSummary;
+    totals_by_account: AdminAv2PerformanceAccountTotal[];
     comparison: AdminAv2PerformanceComparison;
     opportunity: AdminAv2PerformanceOpportunity;
     cumulative_pnl_series: AdminAv2PerformanceSeriesPoint[];
     pnl_series: AdminAv2PerformanceSeriesPoint[];
+    chart_series: AdminAv2PerformanceChartSeries[];
     rows: AdminAv2PerformanceRow[];
 };
 
@@ -317,6 +353,11 @@ export type AdminAv2PerformanceParams = {
     ticker?: string;
     strategy_family?: string;
     account_reference?: string;
+};
+
+export type AdminAv2CsvDownload = {
+    blob: Blob;
+    filename: string | null;
 };
 
 /* ============================================================
@@ -411,6 +452,7 @@ export const MF_ADMIN_PATHS = {
 
     av2Status: `${API_ROOT}/av2/status/`,
     av2Performance: `${API_ROOT}/av2/performance/`,
+    av2PerformanceExport: `${API_ROOT}/av2/performance/export.csv/`,
     av2Controls: `${API_ROOT}/av2/controls/`,
     av2GlobalEntryGate: `${API_ROOT}/av2/controls/global-entry-gate/`,
     av2AgentControl: (agentId: string) =>
@@ -433,6 +475,19 @@ function buildUrlWithParams(
 
     const query = sp.toString();
     return query ? `${url}?${query}` : url;
+}
+
+function performanceParamsToRecord(
+    params?: AdminAv2PerformanceParams
+): Record<string, string | number | undefined> {
+    return {
+        start_ts_ms: params?.start_ts_ms,
+        end_ts_ms: params?.end_ts_ms,
+        agent_id: params?.agent_id,
+        ticker: params?.ticker,
+        strategy_family: params?.strategy_family,
+        account_reference: params?.account_reference,
+    };
 }
 
 async function parseResponsePayload(res: Response): Promise<unknown> {
@@ -508,6 +563,61 @@ async function requestJson<T = unknown>(
     }
 
     return payload as T;
+}
+
+function filenameFromContentDisposition(
+    contentDisposition: string | null
+): string | null {
+    if (!contentDisposition) {
+        return null;
+    }
+
+    const utf8Match = contentDisposition.match(
+        /filename\*=UTF-8''([^;]+)/i
+    );
+
+    if (utf8Match?.[1]) {
+        try {
+            return decodeURIComponent(utf8Match[1].trim());
+        } catch {
+            return utf8Match[1].trim();
+        }
+    }
+
+    const filenameMatch = contentDisposition.match(
+        /filename="?([^";]+)"?/i
+    );
+
+    return filenameMatch?.[1]?.trim() ?? null;
+}
+
+async function requestCsv(
+    input: RequestInfo | URL
+): Promise<AdminAv2CsvDownload> {
+    const res = await fetch(input, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+            Accept: "text/csv",
+        },
+    });
+
+    if (!res.ok) {
+        const payload = await parseResponsePayload(res);
+
+        throw new AdminWebApiError(
+            errorMessageFromPayload(payload, `HTTP ${res.status}`),
+            res.status,
+            payload
+        );
+    }
+
+    return {
+        blob: await res.blob(),
+        filename: filenameFromContentDisposition(
+            res.headers.get("Content-Disposition")
+        ),
+    };
 }
 
 export const adminWebApi = {
@@ -617,17 +727,23 @@ export const adminWebApi = {
 
     av2Performance: async (params?: AdminAv2PerformanceParams) =>
         requestJson<AdminAv2PerformanceResponse>(
-            buildUrlWithParams(MF_ADMIN_PATHS.av2Performance, {
-                start_ts_ms: params?.start_ts_ms,
-                end_ts_ms: params?.end_ts_ms,
-                agent_id: params?.agent_id,
-                ticker: params?.ticker,
-                strategy_family: params?.strategy_family,
-                account_reference: params?.account_reference,
-            }),
+            buildUrlWithParams(
+                MF_ADMIN_PATHS.av2Performance,
+                performanceParamsToRecord(params)
+            ),
             {
                 method: "GET",
             }
+        ),
+
+    av2PerformanceCsv: async (
+        params?: AdminAv2PerformanceParams
+    ) =>
+        requestCsv(
+            buildUrlWithParams(
+                MF_ADMIN_PATHS.av2PerformanceExport,
+                performanceParamsToRecord(params)
+            )
         ),
 
     av2Controls: async () =>

@@ -13,9 +13,10 @@ import {
     CardTitle,
 } from "@/components/ui/Card";
 import AdminSessionGate from "@/components/admin-web/AdminSessionGate";
-import { useAdminSession } from "@/components/admin-web/AdminSessionProvider";
+import {useAdminSession} from "@/components/admin-web/AdminSessionProvider";
 import {
     adminWebApi,
+    AdminAv2Direction,
     AdminAv2StatusResponse,
 } from "@/lib/admin-web/api";
 
@@ -24,6 +25,21 @@ function displayValue(
 ): string {
     if (!value) return "—";
     return value.replaceAll("_", " ");
+}
+
+function displayDirection(
+    direction: AdminAv2Direction
+): string {
+    switch (direction) {
+        case "long":
+            return "Long";
+        case "short":
+            return "Short";
+        case "both":
+            return "Both";
+        default:
+            return "—";
+    }
 }
 
 function displayTs(
@@ -41,6 +57,75 @@ function displayTs(
     const second = String(date.getUTCSeconds()).padStart(2, "0");
 
     return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+}
+
+function abbreviateAddress(
+    address: string | null | undefined
+): string {
+    if (!address) return "—";
+
+    if (address.length <= 18) {
+        return address;
+    }
+
+    return `${address.slice(0, 8)}…${address.slice(-4)}`;
+}
+
+function accountDisplay(
+    label: string | null | undefined,
+    address: string | null | undefined
+): React.ReactNode {
+    if (!address) {
+        return "—";
+    }
+
+    return (
+        <span
+            title={address}
+            className="whitespace-nowrap"
+        >
+            {label ? `${label} · ` : ""}
+            <span className="font-mono">
+                {abbreviateAddress(address)}
+            </span>
+        </span>
+    );
+}
+
+function displayTimeRemaining(
+    deadlineTsMs: number | null | undefined,
+    nowTsMs: number
+): string {
+    if (deadlineTsMs == null) {
+        return "—";
+    }
+
+    const remainingMs = deadlineTsMs - nowTsMs;
+
+    if (remainingMs <= 0) {
+        return "Expired / Closing";
+    }
+
+    const totalSeconds = Math.floor(
+        remainingMs / 1000
+    );
+
+    const hours = Math.floor(
+        totalSeconds / 3600
+    );
+
+    const minutes = Math.floor(
+        (totalSeconds % 3600) / 60
+    );
+
+    const seconds =
+        totalSeconds % 60;
+
+    if (hours > 0) {
+        return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+    }
+
+    return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
 
 function statusClass(status: string): string {
@@ -85,15 +170,22 @@ function CollapsibleHeader({
 }
 
 export default function Av2StatusClient() {
-    const { isAuthenticated, isReady } = useAdminSession();
+    const {
+        isAuthenticated,
+        isReady,
+    } = useAdminSession();
 
     const [status, setStatus] =
         useState<AdminAv2StatusResponse | null>(null);
 
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] =
+        useState(false);
 
     const [error, setError] =
         useState<string | null>(null);
+
+    const [nowTsMs, setNowTsMs] =
+        useState(() => Date.now());
 
     const [
         activeTradesExpanded,
@@ -110,30 +202,62 @@ export default function Av2StatusClient() {
         setEventsExpanded,
     ] = useState(false);
 
-    const loadStatus = useCallback(async () => {
-        if (!isReady || !isAuthenticated) return;
+    const loadStatus =
+        useCallback(async () => {
+            if (
+                !isReady ||
+                !isAuthenticated
+            ) {
+                return;
+            }
 
-        setLoading(true);
-        setError(null);
+            setLoading(true);
+            setError(null);
 
-        try {
-            setStatus(
-                await adminWebApi.av2Status()
-            );
-        } catch (err) {
-            setError(
-                err instanceof Error
-                    ? err.message
-                    : "failed_to_load_av2_status"
-            );
-        } finally {
-            setLoading(false);
-        }
-    }, [isReady, isAuthenticated]);
+            try {
+                setStatus(
+                    await adminWebApi.av2Status()
+                );
+            } catch (err) {
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : "failed_to_load_av2_status"
+                );
+            } finally {
+                setLoading(false);
+            }
+        }, [
+            isReady,
+            isAuthenticated,
+        ]);
 
     useEffect(() => {
         void loadStatus();
     }, [loadStatus]);
+
+    useEffect(() => {
+        const hasDeadline =
+            status?.active_trades.some(
+                (trade) =>
+                    trade.max_hold_deadline_ts_ms != null
+            ) ?? false;
+
+        if (!hasDeadline) {
+            return;
+        }
+
+        setNowTsMs(Date.now());
+
+        const intervalId =
+            window.setInterval(() => {
+                setNowTsMs(Date.now());
+            }, 1000);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [status]);
 
     return (
         <main className="flex flex-col gap-3">
@@ -256,6 +380,9 @@ export default function Av2StatusClient() {
                                                     Ticker
                                                 </th>
                                                 <th className="px-2 py-2 text-left">
+                                                    Side
+                                                </th>
+                                                <th className="px-2 py-2 text-left">
                                                     Lifecycle
                                                 </th>
                                                 <th className="px-2 py-2 text-left">
@@ -266,6 +393,9 @@ export default function Av2StatusClient() {
                                                 </th>
                                                 <th className="px-2 py-2 text-left">
                                                     Exit
+                                                </th>
+                                                <th className="px-2 py-2 text-left">
+                                                    Time Remaining
                                                 </th>
                                                 <th className="py-2 pl-2 text-left">
                                                     Account
@@ -295,6 +425,12 @@ export default function Av2StatusClient() {
 
                                                         <td className="px-2 py-2">
                                                             {displayValue(
+                                                                trade.side
+                                                            )}
+                                                        </td>
+
+                                                        <td className="px-2 py-2">
+                                                            {displayValue(
                                                                 trade.lifecycle_state
                                                             )}
                                                         </td>
@@ -317,9 +453,26 @@ export default function Av2StatusClient() {
                                                             )}
                                                         </td>
 
+                                                        <td
+                                                            className="whitespace-nowrap px-2 py-2"
+                                                            title={
+                                                                trade.max_hold_deadline_ts_ms != null
+                                                                    ? `Deadline UTC: ${displayTs(
+                                                                        trade.max_hold_deadline_ts_ms
+                                                                    )}`
+                                                                    : undefined
+                                                            }
+                                                        >
+                                                            {displayTimeRemaining(
+                                                                trade.max_hold_deadline_ts_ms,
+                                                                nowTsMs
+                                                            )}
+                                                        </td>
+
                                                         <td className="py-2 pl-2">
-                                                            {displayValue(
-                                                                trade.account_type
+                                                            {accountDisplay(
+                                                                trade.account_label,
+                                                                trade.account_address
                                                             )}
                                                         </td>
                                                     </tr>
@@ -329,7 +482,7 @@ export default function Av2StatusClient() {
                                             {status.active_trades.length === 0 ? (
                                                 <tr>
                                                     <td
-                                                        colSpan={8}
+                                                        colSpan={10}
                                                         className="py-3 text-center text-xs text-gray-600 dark:text-gray-300"
                                                     >
                                                         No active AV2 trades.
@@ -374,6 +527,9 @@ export default function Av2StatusClient() {
                                                     Family
                                                 </th>
                                                 <th className="px-2 py-2 text-left">
+                                                    Direction
+                                                </th>
+                                                <th className="px-2 py-2 text-left">
                                                     Enabled
                                                 </th>
                                                 <th className="px-2 py-2 text-left">
@@ -411,14 +567,21 @@ export default function Av2StatusClient() {
                                                         </td>
 
                                                         <td className="px-2 py-2">
+                                                            {displayDirection(
+                                                                agent.direction
+                                                            )}
+                                                        </td>
+
+                                                        <td className="px-2 py-2">
                                                             {agent.enabled
                                                                 ? "Yes"
                                                                 : "No"}
                                                         </td>
 
                                                         <td className="px-2 py-2">
-                                                            {displayValue(
-                                                                agent.account_type
+                                                            {accountDisplay(
+                                                                agent.account_label,
+                                                                agent.account_address
                                                             )}
                                                         </td>
 
