@@ -54,8 +54,8 @@ type SortDirection = "asc" | "desc";
 const ALL = "__all__";
 
 const FUTURE_TICKER_OPTIONS = [
-    "HYPE-USD",
-    "SOL-USD",
+    "HYPE",
+    "SOL",
 ];
 
 function displayUtcTs(
@@ -600,7 +600,6 @@ export default function Av2PerformanceClient() {
                                     ...FUTURE_TICKER_OPTIONS,
                                     ...payload.rows.map(
                                         (row) =>
-                                            row.market_ticker ||
                                             row.ticker
                                     ),
                                 ])
@@ -1163,7 +1162,7 @@ export default function Av2PerformanceClient() {
                                                         value
                                                     }
                                                 >
-                                                    {value}
+                                                    {`${value}-USD`}
                                                 </option>
                                             )
                                         )}
