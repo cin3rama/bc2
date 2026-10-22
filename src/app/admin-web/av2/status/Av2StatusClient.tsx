@@ -42,6 +42,55 @@ function displayDirection(
     }
 }
 
+function displayFamily(
+    value: string | null | undefined
+): string {
+    if (!value) return "—";
+    return value.toUpperCase();
+}
+
+function liveNetPnlPresentation(
+    value: string | null | undefined
+): {
+    text: string;
+    className: string;
+} {
+    if (value == null) {
+        return {
+            text: "—",
+            className: "text-gray-700 dark:text-gray-300",
+        };
+    }
+
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return {
+            text: "—",
+            className: "text-gray-700 dark:text-gray-300",
+        };
+    }
+
+    if (parsed > 0) {
+        return {
+            text: `+$${parsed.toFixed(2)}`,
+            className: "font-semibold text-green-700 dark:text-green-300",
+        };
+    }
+
+    if (parsed < 0) {
+        return {
+            text: `-$${Math.abs(parsed).toFixed(2)}`,
+            className: "font-semibold text-red-700 dark:text-red-300",
+        };
+    }
+
+    return {
+        text: "$0.00",
+        className: "text-gray-700 dark:text-gray-300",
+    };
+}
+
 function displayTs(
     value: number | null | undefined
 ): string {
@@ -234,7 +283,19 @@ export default function Av2StatusClient() {
 
     useEffect(() => {
         void loadStatus();
-    }, [loadStatus]);
+
+        if (!isReady || !isAuthenticated) {
+            return;
+        }
+
+        const intervalId = window.setInterval(() => {
+            void loadStatus();
+        }, 30000);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [loadStatus, isReady, isAuthenticated]);
 
     useEffect(() => {
         const hasDeadline =
@@ -371,19 +432,19 @@ export default function Av2StatusClient() {
                                             <thead>
                                             <tr className="border-b border-gray-200 dark:border-gray-800">
                                                 <th className="py-2 pr-4 text-left">
-                                                    Trade
-                                                </th>
-                                                <th className="px-2 py-2 text-left">
                                                     Agent
                                                 </th>
                                                 <th className="px-2 py-2 text-left">
                                                     Ticker
                                                 </th>
                                                 <th className="px-2 py-2 text-left">
-                                                    Side
+                                                    Family
                                                 </th>
                                                 <th className="px-2 py-2 text-left">
-                                                    Lifecycle
+                                                    Direction
+                                                </th>
+                                                <th className="px-2 py-2 text-left">
+                                                    Status
                                                 </th>
                                                 <th className="px-2 py-2 text-left">
                                                     Entry
@@ -397,92 +458,117 @@ export default function Av2StatusClient() {
                                                 <th className="px-2 py-2 text-left">
                                                     Time Remaining
                                                 </th>
-                                                <th className="py-2 pl-2 text-left">
+                                                <th className="px-2 py-2 text-left">
                                                     Account
+                                                </th>
+                                                <th className="py-2 pl-2 text-right">
+                                                    net PnL
                                                 </th>
                                             </tr>
                                             </thead>
 
                                             <tbody>
                                             {status.active_trades.map(
-                                                (trade) => (
-                                                    <tr
-                                                        key={trade.trade_id}
-                                                        className="border-b border-gray-100 dark:border-gray-800"
-                                                    >
-                                                        <td className="max-w-[220px] truncate py-2 pr-4 font-mono text-[11px]">
-                                                            {trade.trade_id}
-                                                        </td>
+                                                (trade) => {
+                                                    const pnl =
+                                                        liveNetPnlPresentation(
+                                                            trade.net_pnl
+                                                        );
 
-                                                        <td className="px-2 py-2 font-mono">
-                                                            {trade.agent_id}
-                                                        </td>
-
-                                                        <td className="px-2 py-2">
-                                                            {trade.market_ticker ??
-                                                                trade.ticker}
-                                                        </td>
-
-                                                        <td className="px-2 py-2">
-                                                            {displayValue(
-                                                                trade.side
-                                                            )}
-                                                        </td>
-
-                                                        <td className="px-2 py-2">
-                                                            {displayValue(
-                                                                trade.lifecycle_state
-                                                            )}
-                                                        </td>
-
-                                                        <td className="px-2 py-2">
-                                                            {displayValue(
-                                                                trade.entry_state
-                                                            )}
-                                                        </td>
-
-                                                        <td className="px-2 py-2">
-                                                            {displayValue(
-                                                                trade.protection_state
-                                                            )}
-                                                        </td>
-
-                                                        <td className="px-2 py-2">
-                                                            {displayValue(
-                                                                trade.exit_state
-                                                            )}
-                                                        </td>
-
-                                                        <td
-                                                            className="whitespace-nowrap px-2 py-2"
-                                                            title={
-                                                                trade.max_hold_deadline_ts_ms != null
-                                                                    ? `Deadline UTC: ${displayTs(
-                                                                        trade.max_hold_deadline_ts_ms
-                                                                    )}`
-                                                                    : undefined
-                                                            }
+                                                    return (
+                                                        <tr
+                                                            key={trade.trade_id}
+                                                            className="border-b border-gray-100 dark:border-gray-800"
                                                         >
-                                                            {displayTimeRemaining(
-                                                                trade.max_hold_deadline_ts_ms,
-                                                                nowTsMs
-                                                            )}
-                                                        </td>
+                                                            <td className="py-2 pr-4 font-mono">
+                                                                {trade.agent_id}
+                                                            </td>
 
-                                                        <td className="py-2 pl-2">
-                                                            {accountDisplay(
-                                                                trade.account_label,
-                                                                trade.account_address
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                )
+                                                            <td className="px-2 py-2">
+                                                                {trade.market_ticker ??
+                                                                    trade.ticker}
+                                                            </td>
+
+                                                            <td className="px-2 py-2">
+                                                                {displayFamily(
+                                                                    trade.strategy_family
+                                                                )}
+                                                            </td>
+
+                                                            <td className="px-2 py-2">
+                                                                {displayValue(
+                                                                    trade.side
+                                                                )}
+                                                            </td>
+
+                                                            <td className="px-2 py-2">
+                                                                {displayValue(
+                                                                    trade.lifecycle_state
+                                                                )}
+                                                            </td>
+
+                                                            <td className="px-2 py-2">
+                                                                {displayValue(
+                                                                    trade.entry_state
+                                                                )}
+                                                            </td>
+
+                                                            <td className="px-2 py-2">
+                                                                {displayValue(
+                                                                    trade.protection_state
+                                                                )}
+                                                            </td>
+
+                                                            <td className="px-2 py-2">
+                                                                {displayValue(
+                                                                    trade.exit_state
+                                                                )}
+                                                            </td>
+
+                                                            <td
+                                                                className="whitespace-nowrap px-2 py-2"
+                                                                title={
+                                                                    trade.max_hold_deadline_ts_ms != null
+                                                                        ? `Deadline UTC: ${displayTs(
+                                                                            trade.max_hold_deadline_ts_ms
+                                                                        )}`
+                                                                        : undefined
+                                                                }
+                                                            >
+                                                                {displayTimeRemaining(
+                                                                    trade.max_hold_deadline_ts_ms,
+                                                                    nowTsMs
+                                                                )}
+                                                            </td>
+
+                                                            <td className="px-2 py-2">
+                                                                {accountDisplay(
+                                                                    trade.account_label,
+                                                                    trade.account_address
+                                                                )}
+                                                            </td>
+
+                                                            <td
+                                                                className={`whitespace-nowrap py-2 pl-2 text-right ${pnl.className}`}
+                                                                title={
+                                                                    trade.pnl_observed_ts_ms != null
+                                                                        ? `PnL observed UTC: ${displayTs(
+                                                                            trade.pnl_observed_ts_ms
+                                                                        )}`
+                                                                        : undefined
+                                                                }
+                                                            >
+                                                                {pnl.text}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                }
                                             )}
 
                                             {status.active_trades.length === 0 ? (
                                                 <tr>
                                                     <td
-                                                        colSpan={10}
+                                                        colSpan={11}
                                                         className="py-3 text-center text-xs text-gray-600 dark:text-gray-300"
                                                     >
                                                         No active AV2 trades.

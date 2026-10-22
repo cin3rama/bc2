@@ -216,6 +216,8 @@ export type AdminAv2ActiveTrade = {
     failure_or_suppression_reason: string | null;
     opened_ts_ms: number | null;
     max_hold_deadline_ts_ms: number | null;
+    net_pnl: string | null;
+    pnl_observed_ts_ms: number | null;
     latest_lifecycle_event_ts_ms: number | null;
 };
 
