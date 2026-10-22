@@ -461,12 +461,12 @@ export default function Av2PerformanceClient() {
     const [
         agentPerformanceExpanded,
         setAgentPerformanceExpanded,
-    ] = useState(true);
+    ] = useState(false);
 
     const [
         totalsExpanded,
         setTotalsExpanded,
-    ] = useState(true);
+    ] = useState(false);
 
     const [
         cumulativeExpanded,
