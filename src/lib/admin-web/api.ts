@@ -375,6 +375,7 @@ export type AdminAv2ControlAgent = {
     market_ticker: string;
     strategy_family: string;
     enabled: boolean;
+    order_size: string | null;
     account_type: string;
     account_reference: string | null;
     strategy_config: Record<string, unknown>;
@@ -773,6 +774,18 @@ export const adminWebApi = {
             {
                 method: "PATCH",
                 body: JSON.stringify({enabled}),
+            }
+        ),
+
+    patchAv2AgentOrderSize: async (
+        agentId: string,
+        orderSize: string
+    ) =>
+        requestJson<AdminAv2AgentControlResponse>(
+            MF_ADMIN_PATHS.av2AgentControl(agentId),
+            {
+                method: "PATCH",
+                body: JSON.stringify({order_size: orderSize}),
             }
         ),
 };

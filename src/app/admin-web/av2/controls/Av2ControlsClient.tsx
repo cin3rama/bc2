@@ -48,6 +48,68 @@ function jsonDisplay(value: Record<string, unknown>): string {
     return JSON.stringify(value, null, 2);
 }
 
+type SortKey =
+    | "agent_id"
+    | "agent_name"
+    | "ticker"
+    | "strategy_family"
+    | "account"
+    | "order_size";
+
+type SortDirection = "asc" | "desc";
+
+function sortIndicator(
+    activeKey: SortKey,
+    key: SortKey,
+    direction: SortDirection
+): string {
+    if (activeKey !== key) return "↕";
+    return direction === "asc" ? "↑" : "↓";
+}
+
+function compareNullableStrings(
+    a: string | null | undefined,
+    b: string | null | undefined,
+    direction: SortDirection
+): number {
+    const aMissing = !a;
+    const bMissing = !b;
+
+    if (aMissing && bMissing) return 0;
+    if (aMissing) return 1;
+    if (bMissing) return -1;
+
+    const comparison = a.localeCompare(b, undefined, {
+        numeric: true,
+        sensitivity: "base",
+    });
+
+    return direction === "asc" ? comparison : -comparison;
+}
+
+function compareOrderSize(
+    a: string | null,
+    b: string | null,
+    direction: SortDirection
+): number {
+    if (a == null && b == null) return 0;
+    if (a == null) return 1;
+    if (b == null) return -1;
+
+    const aNumber = Number(a);
+    const bNumber = Number(b);
+
+    const aValid = Number.isFinite(aNumber);
+    const bValid = Number.isFinite(bNumber);
+
+    if (!aValid && !bValid) return 0;
+    if (!aValid) return 1;
+    if (!bValid) return -1;
+
+    const comparison = aNumber - bNumber;
+    return direction === "asc" ? comparison : -comparison;
+}
+
 export default function Av2ControlsClient() {
     const {isAuthenticated, isReady} = useAdminSession();
 
@@ -58,8 +120,12 @@ export default function Av2ControlsClient() {
 
     const [gateSaving, setGateSaving] = useState(false);
     const [agentSaving, setAgentSaving] = useState<string | null>(null);
+    const [orderSizeSaving, setOrderSizeSaving] = useState<string | null>(null);
 
     const [expandedAgentId, setExpandedAgentId] = useState<string | null>(null);
+    const [orderSizeDrafts, setOrderSizeDrafts] = useState<Record<string, string>>({});
+    const [sortKey, setSortKey] = useState<SortKey>("agent_id");
+    const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
     const loadControls = useCallback(async () => {
         if (!isReady || !isAuthenticated) return;
@@ -70,6 +136,14 @@ export default function Av2ControlsClient() {
         try {
             const payload = await adminWebApi.av2Controls();
             setData(payload);
+            setOrderSizeDrafts(
+                Object.fromEntries(
+                    payload.agents.map((agent) => [
+                        agent.agent_id,
+                        agent.order_size ?? "",
+                    ])
+                )
+            );
         } catch (err) {
             setError(
                 err instanceof Error
@@ -88,10 +162,48 @@ export default function Av2ControlsClient() {
     const sortedAgents = useMemo(() => {
         if (!data) return [];
 
-        return [...data.agents].sort((a, b) =>
-            a.agent_id.localeCompare(b.agent_id)
-        );
-    }, [data]);
+        return [...data.agents].sort((a, b) => {
+            switch (sortKey) {
+                case "agent_name":
+                    return compareNullableStrings(a.agent_name, b.agent_name, sortDirection);
+                case "ticker":
+                    return compareNullableStrings(
+                        a.market_ticker || a.ticker,
+                        b.market_ticker || b.ticker,
+                        sortDirection
+                    );
+                case "strategy_family":
+                    return compareNullableStrings(
+                        formatLabel(a.strategy_family),
+                        formatLabel(b.strategy_family),
+                        sortDirection
+                    );
+                case "account":
+                    return compareNullableStrings(
+                        accountLabel(a.account_type, a.account_reference),
+                        accountLabel(b.account_type, b.account_reference),
+                        sortDirection
+                    );
+                case "order_size":
+                    return compareOrderSize(a.order_size, b.order_size, sortDirection);
+                case "agent_id":
+                default:
+                    return compareNullableStrings(a.agent_id, b.agent_id, sortDirection);
+            }
+        });
+    }, [data, sortKey, sortDirection]);
+
+    function handleSort(nextKey: SortKey) {
+        if (nextKey === sortKey) {
+            setSortDirection((current) =>
+                current === "asc" ? "desc" : "asc"
+            );
+            return;
+        }
+
+        setSortKey(nextKey);
+        setSortDirection("asc");
+    }
 
     async function updateGlobalEntryGate(
         nextState: AdminAv2GlobalEntryGateState
@@ -163,6 +275,11 @@ export default function Av2ControlsClient() {
                 };
             });
 
+            setOrderSizeDrafts((current) => ({
+                ...current,
+                [response.agent.agent_id]: response.agent.order_size ?? "",
+            }));
+
             setSuccess(
                 `${response.agent.agent_id} is now ${
                     response.agent.enabled ? "Enabled" : "Disabled"
@@ -176,6 +293,59 @@ export default function Av2ControlsClient() {
             );
         } finally {
             setAgentSaving(null);
+        }
+    }
+
+    async function updateAgentOrderSize(
+        agent: AdminAv2ControlAgent
+    ) {
+        if (orderSizeSaving) return;
+
+        const draft = orderSizeDrafts[agent.agent_id] ?? "";
+
+        if (draft === (agent.order_size ?? "")) return;
+
+        setOrderSizeSaving(agent.agent_id);
+        setError(null);
+        setSuccess(null);
+
+        try {
+            const response = await adminWebApi.patchAv2AgentOrderSize(
+                agent.agent_id,
+                draft
+            );
+
+            setData((current) => {
+                if (!current) return current;
+
+                return {
+                    ...current,
+                    agents: current.agents.map((row) =>
+                        row.agent_id === response.agent.agent_id
+                            ? response.agent
+                            : row
+                    ),
+                };
+            });
+
+            setOrderSizeDrafts((current) => ({
+                ...current,
+                [response.agent.agent_id]: response.agent.order_size ?? "",
+            }));
+
+            setSuccess(
+                `${response.agent.agent_id} order size updated to ${
+                    response.agent.order_size ?? "—"
+                }.`
+            );
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "failed_to_update_agent_order_size"
+            );
+        } finally {
+            setOrderSizeSaving(null);
         }
     }
 
@@ -304,7 +474,7 @@ export default function Av2ControlsClient() {
                                     </CardTitle>
 
                                     <div className="text-xs text-gray-600 dark:text-gray-300">
-                                        Only enabled state is mutable in Stage 1.
+                                        Enabled state and Order Size are mutable.
                                     </div>
                                 </div>
                             </CardHeader>
@@ -314,21 +484,36 @@ export default function Av2ControlsClient() {
                                     <table className="min-w-full text-xs md:text-sm">
                                         <thead>
                                         <tr className="border-b border-gray-200 dark:border-gray-800">
-                                            <th className="py-2 pr-4 text-left font-semibold">
-                                                Agent
-                                            </th>
-                                            <th className="px-2 py-2 text-left font-semibold">
-                                                Name
-                                            </th>
-                                            <th className="px-2 py-2 text-left font-semibold">
-                                                Ticker
-                                            </th>
-                                            <th className="px-2 py-2 text-left font-semibold">
-                                                Family
-                                            </th>
-                                            <th className="px-2 py-2 text-left font-semibold">
-                                                Account
-                                            </th>
+                                            {[
+                                                ["agent_id", "Agent"],
+                                                ["agent_name", "Name"],
+                                                ["ticker", "Ticker"],
+                                                ["strategy_family", "Family"],
+                                                ["account", "Account"],
+                                                ["order_size", "Order Size"],
+                                            ].map(([key, label]) => (
+                                                <th
+                                                    key={key}
+                                                    className="px-2 py-2 text-left font-semibold first:pl-0"
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleSort(key as SortKey)
+                                                        }
+                                                        className="inline-flex items-center gap-1 hover:underline"
+                                                    >
+                                                        <span>{label}</span>
+                                                        <span>
+                                                            {sortIndicator(
+                                                                sortKey,
+                                                                key as SortKey,
+                                                                sortDirection
+                                                            )}
+                                                        </span>
+                                                    </button>
+                                                </th>
+                                            ))}
                                             <th className="px-2 py-2 text-left font-semibold">
                                                 State
                                             </th>
@@ -350,6 +535,18 @@ export default function Av2ControlsClient() {
                                             const expanded =
                                                 expandedAgentId ===
                                                 agent.agent_id;
+
+                                            const savingOrderSize =
+                                                orderSizeSaving ===
+                                                agent.agent_id;
+
+                                            const draft =
+                                                orderSizeDrafts[agent.agent_id] ??
+                                                "";
+
+                                            const orderSizeChanged =
+                                                draft !==
+                                                (agent.order_size ?? "");
 
                                             return (
                                                 <React.Fragment
@@ -392,6 +589,47 @@ export default function Av2ControlsClient() {
                                                                     }
                                                                 </div>
                                                             ) : null}
+                                                        </td>
+
+                                                        <td className="px-2 py-2">
+                                                            <div className="flex min-w-[170px] items-center gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    inputMode="decimal"
+                                                                    value={draft}
+                                                                    onChange={(event) =>
+                                                                        setOrderSizeDrafts(
+                                                                            (current) => ({
+                                                                                ...current,
+                                                                                [agent.agent_id]:
+                                                                                    event.target.value,
+                                                                            })
+                                                                        )
+                                                                    }
+                                                                    disabled={savingOrderSize}
+                                                                    aria-label={`${agent.agent_id} order size`}
+                                                                    className="w-24 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                                                                    placeholder="—"
+                                                                />
+
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={
+                                                                        savingOrderSize ||
+                                                                        !orderSizeChanged
+                                                                    }
+                                                                    onClick={() =>
+                                                                        void updateAgentOrderSize(
+                                                                            agent
+                                                                        )
+                                                                    }
+                                                                    className="inline-flex items-center rounded-full border border-gray-300 px-2.5 py-1 text-[11px] font-medium transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                                                                >
+                                                                    {savingOrderSize
+                                                                        ? "Saving…"
+                                                                        : "Save"}
+                                                                </button>
+                                                            </div>
                                                         </td>
 
                                                         <td className="px-2 py-2">
@@ -458,7 +696,7 @@ export default function Av2ControlsClient() {
                                                     {expanded ? (
                                                         <tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950/40">
                                                             <td
-                                                                colSpan={8}
+                                                                colSpan={9}
                                                                 className="p-4"
                                                             >
                                                                 <div className="grid gap-4 xl:grid-cols-2">
@@ -507,7 +745,7 @@ export default function Av2ControlsClient() {
                                         {sortedAgents.length === 0 ? (
                                             <tr>
                                                 <td
-                                                    colSpan={8}
+                                                    colSpan={9}
                                                     className="py-4 text-center text-gray-600 dark:text-gray-300"
                                                 >
                                                     No AV2 agents returned.
