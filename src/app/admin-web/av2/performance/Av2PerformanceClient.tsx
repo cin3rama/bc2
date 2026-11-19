@@ -52,6 +52,8 @@ type SortKey =
 type SortDirection = "asc" | "desc";
 
 const ALL = "__all__";
+const HIDE_DISABLED_STRATEGIES_STORAGE_KEY =
+    "av2_hide_disabled_strategies";
 
 const FUTURE_TICKER_OPTIONS = [
     "HYPE",
@@ -420,6 +422,16 @@ export default function Av2PerformanceClient() {
     ] = useState(ALL);
 
     const [
+        hideDisabledStrategies,
+        setHideDisabledStrategies,
+    ] = useState(false);
+
+    const [
+        hideDisabledPreferenceReady,
+        setHideDisabledPreferenceReady,
+    ] = useState(false);
+
+    const [
         filterOptions,
         setFilterOptions,
     ] = useState<{
@@ -477,6 +489,20 @@ export default function Av2PerformanceClient() {
         realizedExpanded,
         setRealizedExpanded,
     ] = useState(false);
+
+    useEffect(() => {
+        try {
+            setHideDisabledStrategies(
+                window.localStorage.getItem(
+                    HIDE_DISABLED_STRATEGIES_STORAGE_KEY
+                ) === "true"
+            );
+        } catch {
+            // Keep the default when browser storage is unavailable.
+        } finally {
+            setHideDisabledPreferenceReady(true);
+        }
+    }, []);
 
     const buildCurrentParams =
         useCallback(():
@@ -541,6 +567,11 @@ export default function Av2PerformanceClient() {
                     accountFilter === ALL
                         ? undefined
                         : accountFilter,
+
+                enabled:
+                    hideDisabledStrategies
+                        ? true
+                        : undefined,
             };
         }, [
             range,
@@ -550,13 +581,15 @@ export default function Av2PerformanceClient() {
             tickerFilter,
             familyFilter,
             accountFilter,
+            hideDisabledStrategies,
         ]);
 
     const loadPerformance =
         useCallback(async () => {
             if (
                 !isReady ||
-                !isAuthenticated
+                !isAuthenticated ||
+                !hideDisabledPreferenceReady
             ) {
                 return;
             }
@@ -686,6 +719,7 @@ export default function Av2PerformanceClient() {
         }, [
             isReady,
             isAuthenticated,
+            hideDisabledPreferenceReady,
             buildCurrentParams,
         ]);
 
@@ -693,7 +727,8 @@ export default function Av2PerformanceClient() {
         useCallback(async () => {
             if (
                 !isReady ||
-                !isAuthenticated
+                !isAuthenticated ||
+                !hideDisabledPreferenceReady
             ) {
                 return;
             }
@@ -752,6 +787,7 @@ export default function Av2PerformanceClient() {
         }, [
             isReady,
             isAuthenticated,
+            hideDisabledPreferenceReady,
             buildCurrentParams,
         ]);
 
@@ -925,6 +961,21 @@ export default function Av2PerformanceClient() {
             [data]
         );
 
+    function toggleHideDisabledStrategies() {
+        const nextValue = !hideDisabledStrategies;
+
+        setHideDisabledStrategies(nextValue);
+
+        try {
+            window.localStorage.setItem(
+                HIDE_DISABLED_STRATEGIES_STORAGE_KEY,
+                String(nextValue)
+            );
+        } catch {
+            // The in-page preference still applies if storage is unavailable.
+        }
+    }
+
     function handleSort(
         nextKey: SortKey
     ) {
@@ -962,21 +1013,33 @@ export default function Av2PerformanceClient() {
                                     </div>
                                 </div>
 
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        void exportCsv()
-                                    }
-                                    disabled={
-                                        exporting ||
-                                        loading
-                                    }
-                                    className="shrink-0 rounded-full border border-gray-300 bg-white px-3 py-1.5 text-[11px] font-medium text-gray-800 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-                                >
-                                    {exporting
-                                        ? "Exporting…"
-                                        : "Export CSV"}
-                                </button>
+                                <div className="flex shrink-0 flex-col items-end gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            void exportCsv()
+                                        }
+                                        disabled={
+                                            exporting ||
+                                            loading
+                                        }
+                                        className="rounded-full border border-gray-300 bg-white px-3 py-1.5 text-[11px] font-medium text-gray-800 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    >
+                                        {exporting
+                                            ? "Exporting…"
+                                            : "Export CSV"}
+                                    </button>
+
+                                    <label className="flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300">
+                                        <input
+                                            type="checkbox"
+                                            checked={hideDisabledStrategies}
+                                            onChange={toggleHideDisabledStrategies}
+                                            className="h-4 w-4"
+                                        />
+                                        <span>Hide Disabled Strategies</span>
+                                    </label>
+                                </div>
                             </div>
 
                             <div className="flex flex-wrap gap-1.5">
