@@ -355,6 +355,7 @@ export type AdminAv2PerformanceParams = {
     ticker?: string;
     strategy_family?: string;
     account_reference?: string;
+    enabled?: boolean;
 };
 
 export type AdminAv2CsvDownload = {
@@ -464,7 +465,7 @@ export const MF_ADMIN_PATHS = {
 
 function buildUrlWithParams(
     url: string,
-    params?: Record<string, string | number | undefined>
+    params?: Record<string, string | number | boolean | undefined>
 ): string {
     if (!params) return url;
 
@@ -482,7 +483,7 @@ function buildUrlWithParams(
 
 function performanceParamsToRecord(
     params?: AdminAv2PerformanceParams
-): Record<string, string | number | undefined> {
+): Record<string, string | number | boolean | undefined> {
     return {
         start_ts_ms: params?.start_ts_ms,
         end_ts_ms: params?.end_ts_ms,
@@ -490,6 +491,7 @@ function performanceParamsToRecord(
         ticker: params?.ticker,
         strategy_family: params?.strategy_family,
         account_reference: params?.account_reference,
+        enabled: params?.enabled,
     };
 }
 

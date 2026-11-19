@@ -20,6 +20,9 @@ import {
     AdminAv2StatusResponse,
 } from "@/lib/admin-web/api";
 
+const HIDE_DISABLED_STRATEGIES_STORAGE_KEY =
+    "av2_hide_disabled_strategies";
+
 function displayValue(
     value: string | null | undefined
 ): string {
@@ -233,6 +236,11 @@ export default function Av2StatusClient() {
     const [error, setError] =
         useState<string | null>(null);
 
+    const [
+        hideDisabledStrategies,
+        setHideDisabledStrategies,
+    ] = useState(false);
+
     const [nowTsMs, setNowTsMs] =
         useState(() => Date.now());
 
@@ -282,6 +290,18 @@ export default function Av2StatusClient() {
         ]);
 
     useEffect(() => {
+        try {
+            setHideDisabledStrategies(
+                window.localStorage.getItem(
+                    HIDE_DISABLED_STRATEGIES_STORAGE_KEY
+                ) === "true"
+            );
+        } catch {
+            // Keep the default when browser storage is unavailable.
+        }
+    }, []);
+
+    useEffect(() => {
         void loadStatus();
 
         if (!isReady || !isAuthenticated) {
@@ -320,6 +340,25 @@ export default function Av2StatusClient() {
         };
     }, [status]);
 
+    function toggleHideDisabledStrategies() {
+        const nextValue = !hideDisabledStrategies;
+
+        setHideDisabledStrategies(nextValue);
+
+        try {
+            window.localStorage.setItem(
+                HIDE_DISABLED_STRATEGIES_STORAGE_KEY,
+                String(nextValue)
+            );
+        } catch {
+            // The in-page preference still applies if storage is unavailable.
+        }
+    }
+
+    const visibleAgents = hideDisabledStrategies
+        ? status?.agents.filter((agent) => agent.enabled) ?? []
+        : status?.agents ?? [];
+
     return (
         <main className="flex flex-col gap-3">
             <AdminSessionGate>
@@ -338,6 +377,16 @@ export default function Av2StatusClient() {
                                     )}
                                 </div>
                             </div>
+
+                            <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300">
+                                <input
+                                    type="checkbox"
+                                    checked={hideDisabledStrategies}
+                                    onChange={toggleHideDisabledStrategies}
+                                    className="h-4 w-4"
+                                />
+                                <span>Hide Disabled Strategies</span>
+                            </label>
                         </div>
                     </CardHeader>
 
@@ -585,7 +634,7 @@ export default function Av2StatusClient() {
                         <Card>
                             <CardHeader>
                                 <CollapsibleHeader
-                                    title={`Agents (${status.agents.length})`}
+                                    title={`Agents (${visibleAgents.length})`}
                                     expanded={
                                         agentsExpanded
                                     }
@@ -631,7 +680,7 @@ export default function Av2StatusClient() {
                                             </thead>
 
                                             <tbody>
-                                            {status.agents.map(
+                                            {visibleAgents.map(
                                                 (agent) => (
                                                     <tr
                                                         key={agent.agent_id}
